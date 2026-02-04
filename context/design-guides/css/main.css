@@ -1,0 +1,255 @@
+/* ========================================
+   OMNICORE Meter Suite - Responsive Styles
+   ======================================== */
+
+/* Base Configuration */
+html {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+body {
+    width: 100%;
+    height: 100%;
+    min-width: 1366px;
+    min-height: 768px;
+}
+
+/* Main and Nav height */
+main {
+    height: 100vh !important;
+}
+
+nav {
+    height: 100vh !important;
+}
+
+/* Below minimum size - enable scrollbars */
+@media (max-width: 1365px), (max-height: 767px) {
+    html {
+        overflow: auto;
+    }
+    body {
+        overflow: auto;
+    }
+}
+
+/* ========================================
+   BREAKPOINT 1: MINIMUM (1366×768 to 1919×1199)
+   - Hide sidebar, show hamburger menu
+   - Collapse communication log
+   - Full width content
+   ======================================== */
+@media (min-width: 1366px) and (max-width: 1919px) {
+    /* Hide sidebar navigation */
+    nav {
+        display: none !important;
+    }
+
+    /* Show hamburger menu */
+    .hamburger-menu-btn {
+        display: flex !important;
+    }
+
+    /* Make main full width (no sidebar) */
+    main {
+        width: 100% !important;
+    }
+
+    /* Collapse communication log by default */
+    .communication-log-section details {
+        open: false;
+    }
+
+    /* Ensure mobile menu overlay is ready */
+    #mobile-nav-overlay {
+        display: block !important;
+    }
+}
+
+/* ========================================
+   BREAKPOINT 2: OPTIMAL (1920×1200 to 2559×1599)
+   - Default design
+   - No changes needed
+   ======================================== */
+@media (min-width: 1920px) and (max-width: 2559px) {
+    /* This is the default design - no changes */
+    .hamburger-menu-btn {
+        display: none !important;
+    }
+}
+
+/* ========================================
+   BREAKPOINT 3: LARGE (2560px+)
+   - Scale up fonts and spacing
+   ======================================== */
+@media (min-width: 2560px) {
+    /* Increase base font size by 10% */
+    html {
+        font-size: 110%;
+    }
+
+    /* Scale up spacing */
+    body {
+        padding: 1.5rem;
+    }
+
+    /* Larger header */
+    header {
+        padding: 2rem 2.5rem !important;
+    }
+
+    /* More generous gaps */
+    .space-y-8 > * + * {
+        margin-top: 2.5rem !important;
+    }
+
+    .gap-6 {
+        gap: 2rem !important;
+    }
+
+    .gap-8 {
+        gap: 2.5rem !important;
+    }
+}
+
+/* ========================================
+   BREAKPOINT 4: EXTRA LARGE (3440px+)
+   - Scale up even more
+   ======================================== */
+@media (min-width: 3440px) {
+    /* Increase base font size by 25% */
+    html {
+        font-size: 125%;
+    }
+
+    /* Even more spacing */
+    body {
+        padding: 2rem;
+    }
+
+    header {
+        padding: 2.5rem 3rem !important;
+    }
+
+    .space-y-8 > * + * {
+        margin-top: 3rem !important;
+    }
+
+    .gap-6 {
+        gap: 2.5rem !important;
+    }
+
+    .gap-8 {
+        gap: 3rem !important;
+    }
+}
+
+/* ========================================
+   Mobile Navigation Overlay
+   ======================================== */
+#mobile-nav-overlay {
+    display: none;
+    position: fixed;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    background: rgba(0, 0, 0, 0.5);
+    z-index: 999;
+    opacity: 0;
+    transition: opacity 0.3s ease;
+    pointer-events: none;
+}
+
+#mobile-nav-overlay.active {
+    opacity: 1;
+    pointer-events: auto;
+}
+
+#mobile-nav-sidebar {
+    position: fixed;
+    top: 0;
+    left: -288px;
+    width: 288px;
+    height: 100%;
+    background: white;
+    z-index: 1000;
+    transition: left 0.3s ease;
+    overflow-y: auto;
+}
+
+.dark #mobile-nav-sidebar {
+    background: #111c26;
+}
+
+#mobile-nav-overlay.active #mobile-nav-sidebar {
+    left: 0;
+}
+
+/* Hamburger menu button styles */
+.hamburger-menu-btn {
+    display: none;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    border-radius: 0.5rem;
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    transition: background 0.2s ease;
+}
+
+.hamburger-menu-btn:hover {
+    background: rgba(0, 0, 0, 0.05);
+}
+
+.dark .hamburger-menu-btn:hover {
+    background: rgba(255, 255, 255, 0.05);
+}
+
+.hamburger-icon {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+
+.hamburger-icon span {
+    display: block;
+    width: 20px;
+    height: 2px;
+    background: currentColor;
+    border-radius: 2px;
+    transition: transform 0.3s ease;
+}
+
+/* ========================================
+   Scrollbar Styling
+   ======================================== */
+::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #94a3b8;
+    border-radius: 4px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+    background: #334a5e;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #64748b;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+    background: #455a6e;
+}

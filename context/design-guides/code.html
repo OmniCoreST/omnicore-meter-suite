@@ -1,0 +1,513 @@
+<html lang="en"><head>
+<meta charset="utf-8"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<link href="https://fonts.googleapis.com/css2?family=Spline+Sans:wght@300;400;500;600;700&amp;display=swap" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+<script id="tailwind-config">
+    tailwind.config = {
+        darkMode: "class",
+        theme: {
+            extend: {
+                colors: {
+                    "primary": "#279EA7", // Brand Primary
+                    "secondary": "#1F3244", // Brand Secondary
+                    "background-light": "#f6f8f7",
+                    "background-dark": "#0f1821", 
+                    "surface-dark": "#1F3244", // Brand Secondary
+                    "surface-light": "#ffffff",
+                },
+                fontFamily: {
+                    "display": ["Spline Sans", "sans-serif"]
+                },
+                borderRadius: { "DEFAULT": "1rem", "lg": "1.5rem", "xl": "2rem", "2xl": "3rem", "full": "9999px" },
+            },
+        },
+    }
+</script>
+<style>
+    ::-webkit-scrollbar {
+        width: 8px;
+        height: 8px;
+    }
+    ::-webkit-scrollbar-track {
+        background: transparent; 
+    }
+    ::-webkit-scrollbar-thumb {
+        background: #94a3b8;border-radius: 4px;
+    }
+    .dark ::-webkit-scrollbar-thumb {
+        background: #334a5e;
+    }
+    ::-webkit-scrollbar-thumb:hover {
+        background: #64748b;
+    }
+    .dark ::-webkit-scrollbar-thumb:hover {
+        background: #455a6e;
+    }
+</style>
+</head>
+<body class="bg-background-light dark:bg-background-dark text-slate-900 dark:text-white font-display antialiased min-h-screen flex overflow-hidden transition-colors duration-300">
+<nav class="hidden lg:flex w-72 flex-col justify-between border-r border-slate-200 dark:border-[#334a5e] bg-white dark:bg-[#111c26] p-6 h-screen sticky top-0 z-50 transition-colors duration-300">
+<div class="flex flex-col gap-8">
+<div class="flex items-center gap-3">
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-10 shadow-lg shadow-primary/10" data-alt="OMNICORE Logo Abstract Geometric" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuCl1YfuSPEjfrgIMbtPVZtp-wIfMUKk-z7nq4-JtxFdMiLs12JEmvd1F0y0aEpZjnp2j2u1nO499Gxba7sOp1c87rGZG82Od6nqZ_TRh9J7Ix_zzjWzZhdT5p_I1XP36zBMN5Q0R0A0bu5Kvx3C2AC57MWovAu0Ud6f7JcZW9i1-a87ZHqNUbNp357fz1hyeuQzFkvKBbD-hh5uSj3Tg7EDVCeLMC6p8Nlw1ViqAjPPV17Z7IFqKK2uzX5Z7VAh7mnrgm-JMxaBzh8G");'></div>
+<div class="flex flex-col">
+<h1 class="text-slate-900 dark:text-white text-xl font-bold tracking-tight">OMNICORE</h1>
+<p class="text-slate-500 dark:text-slate-400 text-xs font-medium tracking-wide">MASS UTILITY v2.4</p>
+</div>
+</div>
+<div class="flex flex-col gap-2">
+<p class="text-xs font-semibold text-slate-500 uppercase tracking-wider mb-2 px-3">Main Menu</p>
+<a class="flex items-center gap-3 px-4 py-3 rounded-full bg-primary/10 text-primary transition-all" href="#">
+<span class="material-symbols-outlined filled">dashboard</span>
+<span class="text-sm font-bold">Dashboard</span>
+</a>
+<a class="group flex items-center gap-3 px-4 py-3 rounded-full hover:bg-slate-100 dark:hover:bg-[#334a5e] text-slate-600 dark:text-slate-300 transition-all" href="#">
+<span class="material-symbols-outlined group-hover:text-primary dark:group-hover:text-white transition-colors">book</span>
+<span class="text-sm font-medium group-hover:text-slate-900 dark:group-hover:text-white transition-colors">Connect Meter</span>
+</a>
+<a class="group flex items-center gap-3 px-4 py-3 rounded-full hover:bg-slate-100 dark:hover:bg-[#334a5e] text-slate-600 dark:text-slate-300 transition-all" href="#">
+<span class="material-symbols-outlined group-hover:text-primary dark:group-hover:text-white transition-colors">settings_input_component</span>
+<span class="text-sm font-medium group-hover:text-slate-900 dark:group-hover:text-white transition-colors">Configure</span>
+</a>
+<a class="group flex items-center gap-3 px-4 py-3 rounded-full hover:bg-slate-100 dark:hover:bg-[#334a5e] text-slate-600 dark:text-slate-300 transition-all" href="#">
+<span class="material-symbols-outlined group-hover:text-primary dark:group-hover:text-white transition-colors">bar_chart</span>
+<span class="text-sm font-medium group-hover:text-slate-900 dark:group-hover:text-white transition-colors">Analyze Data</span>
+</a>
+<a class="group flex items-center gap-3 px-4 py-3 rounded-full hover:bg-slate-100 dark:hover:bg-[#334a5e] text-slate-600 dark:text-slate-300 transition-all" href="#">
+<span class="material-symbols-outlined group-hover:text-primary dark:group-hover:text-white transition-colors">edit_note</span>
+<span class="text-sm font-medium group-hover:text-slate-900 dark:group-hover:text-white transition-colors">Notes</span>
+</a>
+</div>
+</div>
+<div class="flex flex-col gap-4">
+<div class="p-4 rounded-xl bg-gradient-to-br from-[#1F3244] to-[#111c26] border border-slate-200 dark:border-[#334a5e] shadow-lg">
+<div class="flex items-center justify-between mb-2">
+<span class="text-xs text-slate-300">System Status</span>
+<div class="size-2 rounded-full bg-primary animate-pulse"></div>
+</div>
+<p class="text-sm font-medium text-white">Online &amp; Ready</p>
+</div>
+<div class="flex items-center gap-3 pt-4 border-t border-slate-200 dark:border-[#334a5e]">
+<div class="bg-center bg-no-repeat bg-cover rounded-full size-10 border-2 border-primary/20" data-alt="User Avatar Profile Picture" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAsJZMP0EQnUyR-LyPJPhDYMTJxxE_7S49pzHVy5UZd3dQSKoUDvUOaMSmmwjv-TJnmoR6QOcBSBHPDiuC_wBUY7h0rfWMYp9tHpWhpDuCW6ITyMOYjcnRRgXo_A3OrDBpJTGShbNrXiN0pArJ6k4ZeG781flrjqYC6hNh4vz3Ai2a8POMTcyqsyOf9BvyI4MayWt5CxWpkIws-YmA0CXzEisJfkcDE-VXRYfQ1g1Zyl3W77qzs5bwFPCoGVQ9Oyorq8Via2c5gqu_y");'></div>
+<div class="flex flex-col">
+<p class="text-slate-900 dark:text-white text-sm font-bold">Alex Chen</p>
+<p class="text-slate-500 dark:text-slate-400 text-xs">Field Technician</p>
+</div>
+<button class="ml-auto text-slate-400 hover:text-slate-900 dark:hover:text-white">
+<span class="material-symbols-outlined">logout</span>
+</button>
+</div>
+</div>
+</nav>
+<main class="flex-1 flex flex-col h-screen overflow-hidden relative">
+<header class="flex items-center justify-between px-8 py-5 border-b border-slate-200 dark:border-[#334a5e] bg-white/80 dark:bg-[#0f1821]/80 backdrop-blur-md sticky top-0 z-20 transition-colors duration-300">
+<h2 class="text-slate-900 dark:text-white text-2xl font-bold tracking-tight">Home Dashboard</h2>
+<div class="flex items-center gap-4">
+<div class="hidden lg:flex items-center bg-slate-100 dark:bg-[#111c26] p-1 rounded-full border border-slate-200 dark:border-[#334a5e] mr-2">
+<button aria-current="page" class="px-4 py-1.5 rounded-full bg-primary text-white text-xs font-bold shadow-sm transition-all">EN</button>
+<button class="px-4 py-1.5 rounded-full text-slate-500 dark:text-slate-400 hover:text-primary dark:hover:text-white hover:bg-slate-200 dark:hover:bg-[#334a5e]/50 text-xs font-bold transition-all">TR</button>
+</div>
+<div class="hidden md:flex items-center gap-2 px-3 py-1.5 rounded-full bg-emerald-500/10 border border-emerald-500/20 mr-4">
+<span class="relative flex h-2.5 w-2.5">
+<span class="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
+<span class="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+</span>
+<span class="text-xs font-semibold text-emerald-500 uppercase tracking-wider">Device Connected</span>
+</div>
+<button class="p-2 rounded-full hover:bg-slate-100 dark:hover:bg-[#334a5e] text-slate-500 dark:text-slate-300 transition-colors">
+<span class="material-symbols-outlined dark:hidden">dark_mode</span>
+<span class="material-symbols-outlined hidden dark:block">light_mode</span>
+</button>
+<button class="relative p-2 rounded-full hover:bg-slate-100 dark:hover:bg-[#334a5e] text-slate-500 dark:text-slate-300 transition-colors">
+<span class="material-symbols-outlined">notifications</span>
+<span class="absolute top-2 right-2 size-2 bg-red-500 rounded-full border-2 border-white dark:border-[#0f1821]"></span>
+</button>
+</div>
+</header>
+<div class="flex-1 overflow-y-auto p-4 md:p-8 scroll-smooth">
+<div class="max-w-7xl mx-auto space-y-8">
+<section class="grid grid-cols-1 lg:grid-cols-12 gap-6">
+<div class="lg:col-span-8 relative group">
+<div class="absolute inset-0 bg-primary/20 blur-3xl rounded-3xl opacity-20 group-hover:opacity-30 transition-opacity duration-500"></div>
+<div class="relative h-full flex flex-col rounded-3xl overflow-hidden shadow-xl bg-white dark:bg-[#1F3244] border border-slate-200 dark:border-[#334a5e]">
+<div class="absolute inset-0 z-0 opacity-5 dark:opacity-30 mix-blend-overlay bg-cover bg-center pointer-events-none" data-alt="Abstract digital network visualization dark green" style='background-image: url("https://lh3.googleusercontent.com/aida-public/AB6AXuAQUc_OBV5PlTIkcD7VxcxAwEfWW6g8hKXZhbyNXfalkP_yg-yzxA8-ndP_6kJVl6eCuo04opqdsU2ekZn1T5osXsUpTUTAoDuPjzT149Mclg8oQQuJVllPUhLyvDeFRU_qn8xUZJJHt2g_y9vT0fiQ5QNU5YbSgW-sIr6MorGXmcS---WGGBkZT-kqoQoDsxKgFRhs8J9R1vL58fRcf8Pf2j05fJRXhZ161p70UVx0_ur-oHgjLsNaR8i0VCq0mlDVGDnGKtXWDVi-");'></div>
+<div class="absolute inset-0 z-0 bg-gradient-to-r from-white via-white/80 to-transparent dark:from-[#1F3244] dark:via-[#1F3244] dark:to-transparent opacity-90 pointer-events-none"></div>
+<div class="relative z-10 p-6 md:p-8 flex flex-col h-full">
+<div class="flex flex-col md:flex-row md:items-start justify-between mb-8">
+<div>
+<div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 dark:bg-primary/20 text-primary text-xs font-bold uppercase tracking-wider mb-3 border border-primary/20 backdrop-blur-sm">
+<span class="size-2 rounded-full bg-primary animate-pulse"></span>
+                                        Ready to Connect
+                                    </div>
+<h3 class="text-3xl font-bold text-slate-900 dark:text-white leading-tight mb-2">Quick Connect</h3>
+<p class="text-slate-500 dark:text-slate-300 text-sm leading-relaxed max-w-md">System ready for secure handshake with <span class="text-primary font-semibold">Meter SN-492812</span>. Configure parameters below.</p>
+</div>
+<div class="mt-4 md:mt-0 flex flex-col items-end">
+<div class="flex items-center gap-1 px-2 py-1 rounded bg-slate-100 dark:bg-[#0f1821] border border-slate-200 dark:border-[#334a5e]">
+<span class="text-[10px] font-mono text-primary font-bold">PROFILE:</span>
+<span class="text-[10px] font-mono text-slate-600 dark:text-slate-400">DEFAULT</span>
+</div>
+</div>
+</div>
+<div class="flex flex-col lg:flex-row gap-8 items-stretch h-full">
+<div class="flex-1 bg-slate-50 dark:bg-[#0f1821]/50 rounded-xl p-5 border border-slate-200 dark:border-[#334a5e] shadow-inner">
+<div class="flex items-center gap-2 mb-4">
+<span class="material-symbols-outlined text-slate-400 text-sm">tune</span>
+<h4 class="text-slate-700 dark:text-white font-bold text-sm uppercase tracking-wider">Parameters</h4>
+</div>
+<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+<div class="flex flex-col gap-1.5">
+<label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Connection Type</label>
+<div class="relative">
+<select class="w-full bg-white dark:bg-[#1a2632] text-slate-700 dark:text-white border border-slate-300 dark:border-[#334a5e] rounded-lg pl-3 pr-8 py-2 appearance-none focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-medium cursor-pointer hover:border-slate-400 transition-colors">
+<option>Optical Probe (IEC 62056-21)</option>
+<option>RS485 Direct</option>
+<option>TCP/IP Network</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-2 text-slate-400 pointer-events-none text-sm">expand_more</span>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">COM Port</label>
+<div class="relative">
+<select class="w-full bg-white dark:bg-[#1a2632] text-slate-700 dark:text-white border border-slate-300 dark:border-[#334a5e] rounded-lg pl-3 pr-8 py-2 appearance-none focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-medium cursor-pointer hover:border-slate-400 transition-colors">
+<option>COM3 (USB Serial)</option>
+<option>COM1</option>
+<option>COM4</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-2 text-slate-400 pointer-events-none text-sm">expand_more</span>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Baud Rate</label>
+<div class="relative">
+<select class="w-full bg-white dark:bg-[#1a2632] text-slate-700 dark:text-white border border-slate-300 dark:border-[#334a5e] rounded-lg pl-3 pr-8 py-2 appearance-none focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-medium cursor-pointer hover:border-slate-400 transition-colors">
+<option>9600</option>
+<option>4800</option>
+<option>300 (Mode C)</option>
+<option>19200</option>
+</select>
+<span class="material-symbols-outlined absolute right-2 top-2 text-slate-400 pointer-events-none text-sm">expand_more</span>
+</div>
+</div>
+<div class="flex flex-col gap-1.5">
+<label class="text-[10px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider">Timeout (ms)</label>
+<input class="w-full bg-white dark:bg-[#1a2632] text-slate-700 dark:text-white border border-slate-300 dark:border-[#334a5e] rounded-lg px-3 py-2 focus:border-primary focus:ring-1 focus:ring-primary outline-none text-xs font-medium hover:border-slate-400 transition-colors" type="number" value="2000"/>
+</div>
+</div>
+<div class="flex justify-end mt-4">
+<button class="text-[10px] font-bold text-slate-400 hover:text-primary transition-colors flex items-center gap-1">
+<span class="material-symbols-outlined text-[14px]">refresh</span> Reset to Defaults
+                                         </button>
+</div>
+</div>
+<div class="md:w-1/3 flex flex-col justify-end gap-3">
+<button class="w-full h-full min-h-[120px] flex flex-col items-center justify-center gap-3 px-6 py-4 bg-primary hover:bg-[#228a92] text-white rounded-xl font-bold text-lg shadow-[0_10px_25px_-5px_rgba(39,158,167,0.4)] hover:shadow-[0_20px_35px_-10px_rgba(39,158,167,0.6)] transition-all transform hover:-translate-y-1 group/btn border border-white/10">
+<div class="p-3 bg-white/20 rounded-full group-hover/btn:scale-110 transition-transform">
+<span class="material-symbols-outlined text-3xl font-bold">power_settings_new</span>
+</div>
+<span>Connect Now</span>
+</button>
+<div class="flex items-center justify-center gap-2 text-xs text-slate-500 dark:text-slate-400">
+<span class="material-symbols-outlined text-sm">lock</span>
+                                        Encrypted (IEC 62056-21)
+                                    </div>
+</div>
+</div>
+</div>
+</div>
+</div>
+<div class="lg:col-span-4 flex flex-col gap-4">
+<div class="flex-1 bg-white dark:bg-[#1F3244] rounded-3xl p-6 border border-slate-200 dark:border-[#334a5e] flex flex-col relative overflow-hidden shadow-xl h-full">
+<div class="absolute top-0 right-0 w-48 h-48 bg-primary/5 rounded-full blur-3xl -mr-16 -mt-16 pointer-events-none"></div>
+<div class="absolute bottom-0 left-0 w-32 h-32 bg-blue-500/5 rounded-full blur-2xl -ml-10 -mb-10 pointer-events-none"></div>
+<div class="flex items-center justify-between mb-6 z-10 relative">
+<div class="flex items-center gap-3">
+<div class="flex items-center justify-center size-10 rounded-xl bg-slate-100 dark:bg-[#0f1821] border border-slate-200 dark:border-[#334a5e] text-primary shadow-lg">
+<span class="material-symbols-outlined text-[24px]">hub</span>
+</div>
+<div>
+<h4 class="text-slate-900 dark:text-white font-bold text-lg leading-tight">Interfaces</h4>
+<div class="flex items-center gap-2">
+<span class="size-1.5 rounded-full bg-emerald-500 animate-pulse"></span>
+<span class="text-xs text-slate-500 dark:text-slate-400 font-medium">All Systems Nominal</span>
+</div>
+</div>
+</div>
+<button class="size-8 flex items-center justify-center rounded-full hover:bg-slate-100 dark:hover:bg-[#334a5e] text-slate-400 hover:text-primary transition-colors">
+<span class="material-symbols-outlined text-[20px]">settings</span>
+</button>
+</div>
+<div class="flex flex-col gap-5 z-10 relative h-full">
+<div class="space-y-2">
+<div class="flex items-center justify-between px-1">
+<span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Serial Ports</span>
+<span class="text-[10px] font-mono text-slate-400">3 Available</span>
+</div>
+<div class="grid grid-cols-3 gap-3">
+<div class="group relative flex flex-col items-center justify-center p-3 rounded-xl bg-gradient-to-b from-white to-slate-50 dark:from-[#152330] dark:to-[#0f1821] border border-primary/60 dark:border-primary/40 shadow-sm cursor-pointer hover:border-primary transition-all">
+<div class="absolute top-2 right-2 size-1.5 rounded-full bg-primary shadow-[0_0_8px_#279EA7]"></div>
+<span class="material-symbols-outlined text-primary mb-2 text-[22px]">cable</span>
+<span class="text-sm font-bold text-slate-800 dark:text-white font-mono">COM3</span>
+<span class="text-[10px] text-primary font-medium">9600</span>
+</div>
+<div class="group flex flex-col items-center justify-center p-3 rounded-xl bg-slate-50 dark:bg-[#0f1821]/40 border border-slate-200 dark:border-[#334a5e] hover:bg-white dark:hover:bg-[#0f1821] hover:border-slate-400 dark:hover:border-slate-500 transition-all cursor-pointer">
+<span class="material-symbols-outlined text-slate-400 dark:text-slate-600 group-hover:text-slate-500 dark:group-hover:text-slate-400 mb-2 text-[22px] transition-colors">usb</span>
+<span class="text-sm font-bold text-slate-500 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300 font-mono transition-colors">COM1</span>
+<span class="text-[10px] text-slate-400 dark:text-slate-600 font-medium">Idle</span>
+</div>
+<div class="group flex flex-col items-center justify-center p-3 rounded-xl bg-slate-50 dark:bg-[#0f1821]/40 border border-slate-200 dark:border-[#334a5e] hover:bg-white dark:hover:bg-[#0f1821] hover:border-slate-400 dark:hover:border-slate-500 transition-all cursor-pointer">
+<span class="material-symbols-outlined text-slate-400 dark:text-slate-600 group-hover:text-slate-500 dark:group-hover:text-slate-400 mb-2 text-[22px] transition-colors">usb</span>
+<span class="text-sm font-bold text-slate-500 dark:text-slate-500 group-hover:text-slate-700 dark:group-hover:text-slate-300 font-mono transition-colors">COM4</span>
+<span class="text-[10px] text-slate-400 dark:text-slate-600 font-medium">Idle</span>
+</div>
+</div>
+</div>
+<div class="h-px w-full bg-slate-200 dark:bg-[#334a5e] opacity-50"></div>
+<div class="space-y-2 flex-1">
+<div class="flex items-center justify-between px-1">
+<span class="text-[11px] font-bold text-slate-500 uppercase tracking-wider">Ethernet Interfaces</span>
+</div>
+<div class="flex flex-col gap-2.5">
+<div class="flex items-center justify-between p-3 rounded-xl bg-slate-50 dark:bg-[#0f1821] border-l-2 border-l-emerald-500 border-y border-r border-y-slate-200 dark:border-y-[#334a5e] border-r-slate-200 dark:border-r-[#334a5e] hover:bg-slate-100 dark:hover:bg-[#131d27] transition-colors group">
+<div class="flex items-center gap-3">
+<div class="p-1.5 rounded bg-emerald-500/10 text-emerald-500 group-hover:bg-emerald-500/20 transition-colors">
+<span class="material-symbols-outlined text-[18px]">lan</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<span class="text-xs font-bold text-slate-800 dark:text-white font-mono">eth0</span>
+<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-emerald-500/10 dark:bg-emerald-500/20 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">UP</span>
+</div>
+<div class="text-[10px] text-slate-500 mt-0.5">Physical Connection</div>
+</div>
+</div>
+<div class="text-right">
+<div class="text-xs font-mono text-slate-700 dark:text-white font-medium">192.168.1.42</div>
+<div class="text-[10px] text-slate-400 dark:text-slate-500">255.255.255.0</div>
+</div>
+</div>
+<div class="flex items-center justify-between p-3 rounded-xl bg-slate-50/50 dark:bg-[#0f1821]/40 border border-slate-200 dark:border-[#334a5e] opacity-75 hover:opacity-100 transition-all">
+<div class="flex items-center gap-3">
+<div class="p-1.5 rounded bg-slate-200 dark:bg-slate-700/20 text-slate-400 dark:text-slate-500">
+<span class="material-symbols-outlined text-[18px]">wifi_off</span>
+</div>
+<div>
+<div class="flex items-center gap-2">
+<span class="text-xs font-bold text-slate-500 dark:text-slate-400 font-mono">wlan0</span>
+<span class="px-1.5 py-0.5 rounded text-[9px] font-bold bg-slate-200 dark:bg-slate-700/30 text-slate-400 dark:text-slate-500 border border-slate-200 dark:border-slate-700/30">DOWN</span>
+</div>
+<div class="text-[10px] text-slate-400 dark:text-slate-600 mt-0.5">Wireless Adapter</div>
+</div>
+</div>
+<div class="text-right">
+<div class="text-xs font-mono text-slate-400 dark:text-slate-600 font-medium">--.--.--.--</div>
+<div class="text-[10px] text-slate-400 dark:text-slate-700">No Signal</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+<div class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+<section class="flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<h3 class="text-slate-800 dark:text-white text-lg font-bold">Previous Sessions</h3>
+<a class="text-primary text-sm font-bold hover:underline" href="#">View All</a>
+</div>
+<div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-2xl overflow-hidden shadow-sm">
+<div class="group flex items-center justify-between p-4 border-b border-slate-200 dark:border-[#334a5e] hover:bg-slate-50 dark:hover:bg-[#334a5e]/40 transition-colors cursor-pointer">
+<div class="flex items-center gap-4">
+<div class="size-10 rounded-full bg-blue-500/10 text-blue-500 dark:text-blue-400 flex items-center justify-center border border-blue-500/20">
+<span class="material-symbols-outlined text-xl">electric_meter</span>
+</div>
+<div>
+<p class="text-slate-800 dark:text-white text-sm font-bold">Meter SN-882190</p>
+<p class="text-slate-500 dark:text-slate-400 text-xs">Today, 10:23 AM • Read Success</p>
+</div>
+</div>
+<button class="p-2 rounded-full text-slate-400 hover:text-primary dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all" title="Reconnect">
+<span class="material-symbols-outlined">replay</span>
+</button>
+</div>
+<div class="group flex items-center justify-between p-4 border-b border-slate-200 dark:border-[#334a5e] hover:bg-slate-50 dark:hover:bg-[#334a5e]/40 transition-colors cursor-pointer">
+<div class="flex items-center gap-4">
+<div class="size-10 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-500 flex items-center justify-center border border-amber-500/20">
+<span class="material-symbols-outlined text-xl">warning</span>
+</div>
+<div>
+<p class="text-slate-800 dark:text-white text-sm font-bold">Meter SN-112044</p>
+<p class="text-slate-500 dark:text-slate-400 text-xs">Yesterday, 04:15 PM • Connection Failed</p>
+</div>
+</div>
+<button class="p-2 rounded-full text-slate-400 hover:text-primary dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all" title="Retry">
+<span class="material-symbols-outlined">replay</span>
+</button>
+</div>
+<div class="group flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-[#334a5e]/40 transition-colors cursor-pointer">
+<div class="flex items-center gap-4">
+<div class="size-10 rounded-full bg-blue-500/10 text-blue-500 dark:text-blue-400 flex items-center justify-center border border-blue-500/20">
+<span class="material-symbols-outlined text-xl">electric_meter</span>
+</div>
+<div>
+<p class="text-slate-800 dark:text-white text-sm font-bold">Meter SN-492812</p>
+<p class="text-slate-500 dark:text-slate-400 text-xs">Oct 24, 09:00 AM • Configured</p>
+</div>
+</div>
+<button class="p-2 rounded-full text-slate-400 hover:text-primary dark:hover:text-white hover:bg-slate-100 dark:hover:bg-white/10 opacity-0 group-hover:opacity-100 transition-all" title="Reconnect">
+<span class="material-symbols-outlined">replay</span>
+</button>
+</div>
+</div>
+</section>
+<section class="flex flex-col gap-4">
+<div class="flex items-center justify-between">
+<h3 class="text-slate-800 dark:text-white text-lg font-bold">Recent Reports</h3>
+<a class="text-primary text-sm font-bold hover:underline" href="#">View All</a>
+</div>
+<div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-2xl overflow-hidden shadow-sm">
+<div class="group flex items-center justify-between p-4 border-b border-slate-200 dark:border-[#334a5e] hover:bg-slate-50 dark:hover:bg-[#334a5e]/40 transition-colors">
+<div class="flex items-center gap-4">
+<div class="size-10 rounded-lg bg-slate-100 dark:bg-[#334a5e] text-slate-500 dark:text-slate-300 flex items-center justify-center">
+<span class="material-symbols-outlined text-xl">description</span>
+</div>
+<div>
+<p class="text-slate-800 dark:text-white text-sm font-bold">Monthly_Load_Profile_Oct.pdf</p>
+<p class="text-slate-500 dark:text-slate-400 text-xs">Generated Today • 2.4 MB</p>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="p-2 rounded-full text-slate-400 hover:text-primary hover:bg-primary/10 transition-all" title="View">
+<span class="material-symbols-outlined text-[20px]">visibility</span>
+</button>
+<button class="p-2 rounded-full text-slate-400 hover:text-primary hover:bg-primary/10 transition-all" title="Download">
+<span class="material-symbols-outlined text-[20px]">download</span>
+</button>
+</div>
+</div>
+<div class="group flex items-center justify-between p-4 border-b border-slate-200 dark:border-[#334a5e] hover:bg-slate-50 dark:hover:bg-[#334a5e]/40 transition-colors">
+<div class="flex items-center gap-4">
+<div class="size-10 rounded-lg bg-slate-100 dark:bg-[#334a5e] text-slate-500 dark:text-slate-300 flex items-center justify-center">
+<span class="material-symbols-outlined text-xl">table_chart</span>
+</div>
+<div>
+<p class="text-slate-800 dark:text-white text-sm font-bold">Event_Log_SN882190.csv</p>
+<p class="text-slate-500 dark:text-slate-400 text-xs">Yesterday • 156 KB</p>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="p-2 rounded-full text-slate-400 hover:text-primary hover:bg-primary/10 transition-all" title="View">
+<span class="material-symbols-outlined text-[20px]">visibility</span>
+</button>
+<button class="p-2 rounded-full text-slate-400 hover:text-primary hover:bg-primary/10 transition-all" title="Download">
+<span class="material-symbols-outlined text-[20px]">download</span>
+</button>
+</div>
+</div>
+<div class="group flex items-center justify-between p-4 hover:bg-slate-50 dark:hover:bg-[#334a5e]/40 transition-colors">
+<div class="flex items-center gap-4">
+<div class="size-10 rounded-lg bg-slate-100 dark:bg-[#334a5e] text-slate-500 dark:text-slate-300 flex items-center justify-center">
+<span class="material-symbols-outlined text-xl">description</span>
+</div>
+<div>
+<p class="text-slate-800 dark:text-white text-sm font-bold">Config_Backup_SN492.json</p>
+<p class="text-slate-500 dark:text-slate-400 text-xs">Oct 24 • 12 KB</p>
+</div>
+</div>
+<div class="flex gap-2">
+<button class="p-2 rounded-full text-slate-400 hover:text-primary hover:bg-primary/10 transition-all" title="View">
+<span class="material-symbols-outlined text-[20px]">code</span>
+</button>
+<button class="p-2 rounded-full text-slate-400 hover:text-primary hover:bg-primary/10 transition-all" title="Download">
+<span class="material-symbols-outlined text-[20px]">download</span>
+</button>
+</div>
+</div>
+</div>
+</section>
+</div>
+</div>
+<footer class="mt-12 py-6 border-t border-slate-200 dark:border-[#334a5e] text-center">
+<p class="text-slate-500 dark:text-slate-500 text-xs">© 2023 OMNICORE Systems. Compliant with Turkish MASS Specification.</p>
+</footer>
+</div>
+<div class="flex-none border-t border-slate-200 dark:border-[#334a5e] bg-slate-100 dark:bg-[#0d151c] z-30 shadow-[0_-5px_15px_rgba(0,0,0,0.05)] dark:shadow-[0_-5px_15px_rgba(0,0,0,0.3)]">
+<details class="group" open="">
+<summary class="flex items-center justify-between px-4 py-2 bg-slate-200 dark:bg-[#111c26] cursor-pointer hover:bg-slate-300 dark:hover:bg-[#1f3244] select-none text-xs text-slate-700 dark:text-slate-300 font-medium uppercase tracking-wider transition-colors border-b border-transparent group-open:border-slate-300 dark:group-open:border-[#334a5e]">
+<div class="flex items-center gap-3">
+<div class="flex items-center gap-2">
+<span class="material-symbols-outlined text-sm">terminal</span>
+<span>Communication Log</span>
+</div>
+<span class="h-3 w-[1px] bg-slate-400 dark:bg-slate-600"></span>
+<span class="flex items-center gap-1.5 text-[10px] text-slate-600 dark:text-slate-500">
+<div class="size-1.5 rounded-full bg-emerald-500 animate-pulse"></div>
+                        Live Monitoring
+                    </span>
+</div>
+<div class="flex items-center gap-4">
+<div class="flex gap-2">
+<button class="hover:text-primary dark:hover:text-white" title="Clear Console">
+<span class="material-symbols-outlined text-sm">block</span>
+</button>
+<button class="hover:text-primary dark:hover:text-white" title="Export Log">
+<span class="material-symbols-outlined text-sm">download</span>
+</button>
+</div>
+<span class="material-symbols-outlined text-sm group-open:rotate-180 transition-transform">expand_less</span>
+</div>
+</summary>
+<div class="h-48 overflow-y-auto p-0 font-mono text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-[#0f1821] scroll-smooth">
+<div class="min-w-full inline-block align-middle">
+<div class="grid grid-cols-[100px_100px_1fr] gap-0 border-b border-slate-200 dark:border-[#334a5e]/50 bg-slate-100 dark:bg-[#111c26] sticky top-0 z-10 text-slate-500 font-bold uppercase text-[10px] tracking-wider">
+<div class="px-4 py-2">Time</div>
+<div class="px-4 py-2">Type</div>
+<div class="px-4 py-2">Details</div>
+</div>
+<div class="flex flex-col">
+<div class="grid grid-cols-[100px_100px_1fr] gap-0 hover:bg-white dark:hover:bg-white/5 transition-colors border-b border-slate-200 dark:border-[#334a5e]/20 last:border-0 group">
+<div class="px-4 py-1.5 text-primary group-hover:text-slate-900 dark:group-hover:text-white">[14:30:01]</div>
+<div class="px-4 py-1.5 text-blue-600 dark:text-blue-400 font-bold">INFO</div>
+<div class="px-4 py-1.5 text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-300">Initializing serial connection COM3...</div>
+</div>
+<div class="grid grid-cols-[100px_100px_1fr] gap-0 hover:bg-white dark:hover:bg-white/5 transition-colors border-b border-slate-200 dark:border-[#334a5e]/20 last:border-0 group">
+<div class="px-4 py-1.5 text-primary group-hover:text-slate-900 dark:group-hover:text-white">[14:30:02]</div>
+<div class="px-4 py-1.5 text-blue-600 dark:text-blue-400 font-bold">INFO</div>
+<div class="px-4 py-1.5 text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-300">Port opened successfully. Baud rate: 9600.</div>
+</div>
+<div class="grid grid-cols-[100px_100px_1fr] gap-0 hover:bg-white dark:hover:bg-white/5 transition-colors border-b border-slate-200 dark:border-[#334a5e]/20 last:border-0 group">
+<div class="px-4 py-1.5 text-primary group-hover:text-slate-900 dark:group-hover:text-white">[14:30:02]</div>
+<div class="px-4 py-1.5 text-amber-600 dark:text-amber-500 font-bold">WARN</div>
+<div class="px-4 py-1.5 text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-300">Device handshake delayed (Attempt 1/3).</div>
+</div>
+<div class="grid grid-cols-[100px_100px_1fr] gap-0 hover:bg-white dark:hover:bg-white/5 transition-colors border-b border-slate-200 dark:border-[#334a5e]/20 last:border-0 group">
+<div class="px-4 py-1.5 text-primary group-hover:text-slate-900 dark:group-hover:text-white">[14:30:05]</div>
+<div class="px-4 py-1.5 text-emerald-600 dark:text-emerald-500 font-bold">SUCCESS</div>
+<div class="px-4 py-1.5 text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-300">Device handshake acknowledged.</div>
+</div>
+<div class="grid grid-cols-[100px_100px_1fr] gap-0 hover:bg-white dark:hover:bg-white/5 transition-colors border-b border-slate-200 dark:border-[#334a5e]/20 last:border-0 group">
+<div class="px-4 py-1.5 text-primary group-hover:text-slate-900 dark:group-hover:text-white">[14:30:06]</div>
+<div class="px-4 py-1.5 text-blue-600 dark:text-blue-400 font-bold">INFO</div>
+<div class="px-4 py-1.5 text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-300">Requesting meter identification...</div>
+</div>
+<div class="grid grid-cols-[100px_100px_1fr] gap-0 hover:bg-white dark:hover:bg-white/5 transition-colors border-b border-slate-200 dark:border-[#334a5e]/20 last:border-0 group">
+<div class="px-4 py-1.5 text-primary group-hover:text-slate-900 dark:group-hover:text-white">[14:30:07]</div>
+<div class="px-4 py-1.5 text-emerald-600 dark:text-emerald-500 font-bold">RX</div>
+<div class="px-4 py-1.5 text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-300 font-mono text-[11px]">/ISk5\2MT372-1004</div>
+</div>
+<div class="grid grid-cols-[100px_100px_1fr] gap-0 hover:bg-white dark:hover:bg-white/5 transition-colors border-b border-slate-200 dark:border-[#334a5e]/20 last:border-0 group">
+<div class="px-4 py-1.5 text-primary group-hover:text-slate-900 dark:group-hover:text-white">[14:30:08]</div>
+<div class="px-4 py-1.5 text-blue-600 dark:text-blue-400 font-bold">INFO</div>
+<div class="px-4 py-1.5 text-slate-600 dark:text-slate-400 group-hover:text-slate-900 dark:group-hover:text-slate-300">Connection stable. Waiting for command...</div>
+</div>
+</div>
+</div>
+</div>
+</details>
+</div>
+</main>
+
+</body></html>

@@ -1,0 +1,107 @@
+@import "/fonts/oxanium/oxanium.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Custom scrollbar styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #94a3b8;
+  border-radius: 2px;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #334a5e;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #64748b;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #455a6e;
+}
+
+/* Base styles */
+html,
+body {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+  /* DPI/Scale awareness - use system font scaling */
+  font-size: 100%;
+  text-size-adjust: 100%;
+  -webkit-text-size-adjust: 100%;
+}
+
+body {
+  font-family: "Oxanium", sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Ensure proper rendering at high DPI */
+  text-rendering: optimizeLegibility;
+}
+
+#app {
+  height: 100%;
+}
+
+/* High DPI support - images and icons */
+@media (-webkit-min-device-pixel-ratio: 2), (min-resolution: 192dpi) {
+  .material-symbols-outlined {
+    -webkit-font-smoothing: antialiased;
+  }
+}
+
+/* Resize handle for comm log */
+.resize-handle {
+  cursor: ns-resize;
+  user-select: none;
+  touch-action: none;
+}
+
+.resize-handle:hover,
+.resize-handle:active {
+  background-color: var(--resize-handle-hover, rgba(39, 158, 167, 0.3));
+}
+
+.resize-handle::before {
+  content: "";
+  display: block;
+  width: 40px;
+  height: 3px;
+  border-radius: 2px;
+  background-color: currentColor;
+  opacity: 0.4;
+  margin: auto;
+}
+
+.resize-handle:hover::before {
+  opacity: 0.8;
+}
+
+/* Filled icon variant */
+.material-symbols-outlined.filled {
+  font-variation-settings: "FILL" 1, "wght" 400, "GRAD" 0, "opsz" 24;
+}
+
+/* Prevent text selection during drag operations */
+.no-select {
+  user-select: none;
+  -webkit-user-select: none;
+}
+
+/* Smooth transitions for theme changes */
+.theme-transition {
+  transition: background-color 0.3s ease, color 0.3s ease,
+    border-color 0.3s ease;
+}
