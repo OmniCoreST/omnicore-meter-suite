@@ -15,8 +15,6 @@ export interface UpdateProgress {
   total: number;
 }
 
-let checkPromise: ReturnType<typeof import("@tauri-apps/plugin-updater").check> | null = null;
-
 /**
  * Check for available updates
  */
@@ -31,7 +29,6 @@ export async function checkForUpdates(): Promise<UpdateInfo | null> {
     const update = await check();
 
     if (update) {
-      checkPromise = Promise.resolve(update);
       return {
         version: update.version,
         date: update.date || new Date().toISOString(),
