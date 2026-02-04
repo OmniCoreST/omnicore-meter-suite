@@ -192,11 +192,13 @@ pub fn get_meter_identity() -> Result<Option<MeterIdentity>, String> {
 pub async fn read_short(window: tauri::Window) -> Result<ShortReadResult, String> {
     log::info!("Starting short read operation");
 
-    let manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
-    if !manager.connected {
-        return Err("Not connected to meter".to_string());
+    // Check connection status (scope ensures lock is dropped before async)
+    {
+        let manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
+        if !manager.connected {
+            return Err("Not connected to meter".to_string());
+        }
     }
-    drop(manager); // Release the lock for async operations
 
     // Emit progress events
     let emit_progress = |step: u32, total: u32, message: &str| {
