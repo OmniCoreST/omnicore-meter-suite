@@ -340,7 +340,6 @@ export const tr = {
   timeDrift: "Sapma Var",
   recentEvent: "Son Olay",
   noRecentEvents: "Olay Yok",
-  autoRefresh: "Otomatik Yenile",
   loadProfileDescription: "Sayaçtan yük profili verilerini okur ve görselleştirir.",
   loadProfilePlaceholder: "Okuma sonrası yük profili grafiği ve veri tablosu burada görüntülenecek.",
   systemReadyMessage: "Sistem bağlantı için hazır. Aşağıdaki parametreleri yapılandırın.",

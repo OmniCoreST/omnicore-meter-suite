@@ -154,20 +154,26 @@ pub async fn connect(params: ConnectionParams, window: tauri::Window) -> Result<
     let port_name = params.port.clone();
     let timeout_ms = if params.timeout_ms == 0 { 2000 } else { params.timeout_ms };
     let meter_address = params.meter_address.clone();
-    let is_optical = params.connection_type == "optical" || params.connection_type == "auto";
+    let is_optical = params.connection_type == "optical";
+    let is_auto = params.connection_type == "auto";
 
     // Determine initial baud rate based on connection type
     // - Optical: Always start at 300 bps (IEC 62056-21 Mode C requirement)
-    // - RS485/other: Use the defined baud rate directly
-    // - Auto (baud_rate == 0): Try 9600, then 300, then 19200
+    // - Auto + specific baud rate: Start at 300 bps first, then negotiate
+    // - Auto + auto baud rate (0): Try 9600 first, then 19200
+    // - RS485/other + specific baud rate: Use that baud rate directly
+    // - RS485/other + auto baud rate (0): Try 9600, then 19200
     let baud_rates_to_try: Vec<u32> = if is_optical {
         // Optical always starts at 300 baud
         vec![300]
+    } else if is_auto && params.baud_rate > 0 {
+        // Auto connection type with specific baud rate: start at 300 for IEC handshake
+        vec![300]
     } else if params.baud_rate == 0 {
-        // Auto mode: try these in order
-        vec![9600, 300, 19200]
+        // Auto baud rate detection: try 9600 first, then 19200
+        vec![9600, 19200]
     } else {
-        // Specific baud rate requested
+        // Specific baud rate requested for non-optical/non-auto connection
         vec![params.baud_rate]
     };
 

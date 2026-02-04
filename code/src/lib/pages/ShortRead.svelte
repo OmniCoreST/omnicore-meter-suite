@@ -1,7 +1,6 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
   import { t, isConnected, connectionStore, progressStore, meterStore, isMeterReading, addLog, type LogType } from "$lib/stores";
-  import { exportToExcel } from "$lib/utils/export";
   import { readShort, onReadProgress, onCommLog, connect as tauriConnect, getConnectionStatus, getSetting, listSerialPorts } from "$lib/utils/tauri";
   import { onMount, onDestroy } from "svelte";
   import { get } from "svelte/store";
@@ -158,45 +157,6 @@
       minimumFractionDigits: decimals,
       maximumFractionDigits: decimals,
     });
-  }
-
-  function handleExport() {
-    const data = $meterStore.shortReadData;
-    if (!data) return;
-
-    const exportData = [
-      { parameter: $t.serialNumber, value: data.serialNumber },
-      { parameter: $t.programVersion, value: data.programVersion },
-      { parameter: $t.productionDate, value: data.productionDate },
-      { parameter: $t.calibrationDate, value: data.calibrationDate },
-      { parameter: $t.meterDate, value: data.meterDate },
-      { parameter: $t.meterTime, value: data.meterTime },
-      { parameter: $t.dayOfWeek, value: String(data.dayOfWeek) },
-      { parameter: `${$t.activeEnergyImport} - ${$t.total}`, value: `${formatNumber(data.activeEnergyImportTotal)} kWh` },
-      { parameter: `${$t.activeEnergyImport} - ${$t.t1Day}`, value: `${formatNumber(data.activeEnergyImportT1)} kWh` },
-      { parameter: `${$t.activeEnergyImport} - ${$t.t2Peak}`, value: `${formatNumber(data.activeEnergyImportT2)} kWh` },
-      { parameter: `${$t.activeEnergyImport} - ${$t.t3Night}`, value: `${formatNumber(data.activeEnergyImportT3)} kWh` },
-      { parameter: $t.maxDemand, value: `${formatNumber(data.maxDemandImport)} kW @ ${data.maxDemandImportTimestamp}` },
-      { parameter: $t.voltageL1, value: `${formatNumber(data.voltageL1, 1)} V` },
-      { parameter: $t.voltageL2, value: `${formatNumber(data.voltageL2, 1)} V` },
-      { parameter: $t.voltageL3, value: `${formatNumber(data.voltageL3, 1)} V` },
-      { parameter: $t.currentL1, value: `${formatNumber(data.currentL1, 1)} A` },
-      { parameter: $t.currentL2, value: `${formatNumber(data.currentL2, 1)} A` },
-      { parameter: $t.currentL3, value: `${formatNumber(data.currentL3, 1)} A` },
-      { parameter: $t.frequency, value: `${formatNumber(data.frequency, 1)} Hz` },
-      { parameter: $t.powerFactorL1, value: formatNumber(data.powerFactorL1, 2) },
-      { parameter: $t.powerFactorL2, value: formatNumber(data.powerFactorL2, 2) },
-      { parameter: $t.powerFactorL3, value: formatNumber(data.powerFactorL3, 2) },
-      { parameter: $t.ffStatusCode, value: data.ffCode },
-      { parameter: $t.gfGeographicCode, value: data.gfCode },
-      { parameter: $t.batteryStatus, value: data.batteryStatus === "full" ? $t.full : $t.low },
-      { parameter: $t.relayStatus, value: data.relayStatus === "active" ? $t.active : $t.passive },
-    ];
-
-    exportToExcel(exportData, "short_read", [
-      { key: "parameter", label: "Parameter" },
-      { key: "value", label: "Value" },
-    ]);
   }
 </script>
 
@@ -428,25 +388,6 @@
           </div>
         </div>
       </div>
-    </div>
-
-    <!-- Action Buttons -->
-    <div class="flex justify-end gap-4">
-      <button
-        onclick={handleExport}
-        class="flex items-center gap-2 px-6 py-3 bg-emerald-600 hover:bg-emerald-700 text-white font-bold rounded-lg transition-all"
-      >
-        <Icon name="download" />
-        {$t.exportToExcel}
-      </button>
-      <button
-        onclick={startShortRead}
-        disabled={isReading}
-        class="flex items-center gap-2 px-6 py-3 bg-primary hover:bg-primary/90 text-white font-bold rounded-lg shadow-lg shadow-primary/20 transition-all disabled:opacity-50"
-      >
-        <Icon name="refresh" />
-        {$t.reRead}
-      </button>
     </div>
   {/if}
 </div>

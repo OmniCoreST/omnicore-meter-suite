@@ -338,7 +338,6 @@ export const en = {
   timeDrift: "Drift Detected",
   recentEvent: "Recent Event",
   noRecentEvents: "No Events",
-  autoRefresh: "Auto Refresh",
   loadProfileDescription: "Read and visualize load profile data from the meter.",
   loadProfilePlaceholder: "Load profile chart and data table will be displayed here after reading.",
   systemReadyMessage: "System ready for connection. Configure parameters below.",

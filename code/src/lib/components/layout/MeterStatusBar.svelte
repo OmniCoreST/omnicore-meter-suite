@@ -2,8 +2,6 @@
   import Icon from "$lib/components/common/Icon.svelte";
   import { t, isConnected, meterStore } from "$lib/stores";
 
-  let autoRefresh = $state(false);
-
   // Mock data - will be replaced with real data from meter
   const hasAlarms = $derived($meterStore.shortReadData?.ffCode !== "0000000000000000");
   const alarmCount = $derived(hasAlarms ? 2 : 0);
@@ -104,18 +102,5 @@
         </div>
       {/if}
     </div>
-
-    <!-- Auto Refresh Toggle -->
-    <label class="flex items-center gap-2 cursor-pointer select-none {!$isConnected ? 'opacity-50' : ''}">
-      <input
-        type="checkbox"
-        bind:checked={autoRefresh}
-        disabled={!$isConnected}
-        class="w-4 h-4 rounded border-slate-300 dark:border-[#334a5e] text-primary focus:ring-primary disabled:cursor-not-allowed"
-      />
-      <span class="text-xs font-medium text-slate-600 dark:text-slate-400">
-        {$t.autoRefresh}
-      </span>
-    </label>
   </div>
 </div>
