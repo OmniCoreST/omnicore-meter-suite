@@ -126,6 +126,8 @@
 
   let isReading = $state(false);
   let readComplete = $state(false);
+  let receivedBytes = $state(0);
+  let receivedLines = $state(0);
   let chartCanvas: HTMLCanvasElement;
   let chart: Chart | null = null;
 
@@ -171,6 +173,8 @@
     isReading = true;
     readComplete = false;
     profileData = [];
+    receivedBytes = 0;
+    receivedLines = 0;
 
     const steps = loadProfileSteps.map((s) => ({
       id: s.id,
@@ -191,6 +195,17 @@
 
     const unlistenLog = await onCommLog((event) => {
       addLog(event.logType as "info" | "error" | "warn" | "success" | "tx" | "rx", event.message);
+      // Track received data from backend log messages
+      const byteMatch = event.message.match(/(\d+)\s*byte/);
+      if (byteMatch) {
+        const bytes = parseInt(byteMatch[1]);
+        if (bytes > receivedBytes) receivedBytes = bytes;
+      }
+      const lineMatch = event.message.match(/(\d+)\s*satır/);
+      if (lineMatch) {
+        const lines = parseInt(lineMatch[1]);
+        if (lines > receivedLines) receivedLines = lines;
+      }
     });
 
     try {
@@ -234,7 +249,7 @@
     } finally {
       unlistenProgress();
       unlistenLog();
-      progressStore.complete();
+      progressStore.reset();
       isReading = false;
       readComplete = profileData.length > 0;
 
@@ -368,33 +383,14 @@
 </script>
 
 <div class="space-y-6">
-  <!-- Header -->
-  <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-6 shadow-sm">
-    <div class="flex items-start justify-between">
-      <div>
-        <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">{$t.loadProfile}</h3>
-        <p class="text-sm text-slate-500 dark:text-slate-400">{$t.loadProfileDescription}</p>
+  {#if !$isConnected}
+    <div class="p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-600 dark:text-amber-500 text-sm">
+      <div class="flex items-center gap-2">
+        <Icon name="warning" />
+        <span>{$t.connectFirstWarning}</span>
       </div>
-      {#if readComplete}
-        <button
-          onclick={handleExport}
-          class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors"
-        >
-          <Icon name="download" size="sm" />
-          {$t.exportToExcel}
-        </button>
-      {/if}
     </div>
-
-    {#if !$isConnected}
-      <div class="mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-600 dark:text-amber-500 text-sm">
-        <div class="flex items-center gap-2">
-          <Icon name="warning" />
-          <span>{$t.connectFirstWarning}</span>
-        </div>
-      </div>
-    {/if}
-  </div>
+  {/if}
 
   <!-- Profile Selection with Structure Display -->
   <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-6 shadow-sm">
@@ -527,47 +523,46 @@
     </div>
   </div>
 
-  <!-- Progress Bar -->
-  {#if $progressStore.active}
-    <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-6 shadow-sm">
-      <div class="flex items-center justify-between mb-4">
-        <h4 class="font-bold text-slate-900 dark:text-white">{$progressStore.title}</h4>
-        <div class="flex items-center gap-4">
-          <span class="text-sm font-mono text-primary">{$progressStore.percentage}%</span>
-          <span class="text-sm text-slate-500 dark:text-slate-400">
-            {$progressStore.elapsedTime.toFixed(1)}s
+  <!-- Reading Indicator -->
+  {#if isReading}
+    <div class="bg-white dark:bg-surface-dark border border-primary/20 rounded-xl p-6 shadow-sm">
+      <div class="flex items-center gap-4">
+        <div class="relative flex items-center justify-center w-12 h-12 shrink-0">
+          <span class="animate-ping absolute h-10 w-10 rounded-full bg-primary/20"></span>
+          <span class="relative flex items-center justify-center h-10 w-10 rounded-full bg-primary/10">
+            <Icon name="sync" class="text-primary animate-spin" />
           </span>
         </div>
-      </div>
-
-      <div class="h-2 bg-slate-200 dark:bg-[#334a5e] rounded-lg overflow-hidden mb-6">
-        <div
-          class="h-full bg-gradient-to-r from-primary to-emerald-400 transition-all duration-300"
-          style="width: {$progressStore.percentage}%"
-        ></div>
-      </div>
-
-      <div class="grid grid-cols-2 md:grid-cols-4 gap-2">
-        {#each $progressStore.steps as step}
-          <div class="flex items-center gap-2">
-            {#if step.status === "completed"}
-              <Icon name="check_circle" class="text-emerald-500" size="sm" />
-            {:else if step.status === "in_progress"}
-              <Icon name="sync" class="text-primary animate-spin" size="sm" />
-            {:else}
-              <Icon name="circle" class="text-slate-300 dark:text-slate-600" size="sm" />
-            {/if}
-            <span
-              class="text-xs truncate {step.status === 'completed'
-                ? 'text-emerald-600 dark:text-emerald-500'
-                : step.status === 'in_progress'
-                  ? 'text-slate-900 dark:text-white font-medium'
-                  : 'text-slate-400 dark:text-slate-500'}"
-            >
-              {step.label}
-            </span>
+        <div class="flex-grow min-w-0">
+          <div class="font-bold text-slate-900 dark:text-white">{$t.reading}...</div>
+          <div class="text-sm text-slate-500 dark:text-slate-400">
+            {$t[selectedProfile.name as keyof typeof $t] || selectedProfile.name}
           </div>
-        {/each}
+        </div>
+        <div class="flex items-center gap-6 shrink-0">
+          {#if receivedBytes > 0}
+            <div class="text-right">
+              <div class="text-lg font-mono font-bold text-primary">
+                {receivedBytes >= 1024 ? `${(receivedBytes / 1024).toFixed(1)} KB` : `${receivedBytes} B`}
+              </div>
+              <div class="text-[10px] uppercase tracking-wider text-slate-400">{$t.dataReceived || "Veri"}</div>
+            </div>
+          {/if}
+          {#if receivedLines > 0}
+            <div class="text-right">
+              <div class="text-lg font-mono font-bold text-slate-700 dark:text-slate-300">
+                {receivedLines}
+              </div>
+              <div class="text-[10px] uppercase tracking-wider text-slate-400">{$t.lines || "Satır"}</div>
+            </div>
+          {/if}
+          <div class="text-right">
+            <div class="text-lg font-mono text-slate-500">
+              {$progressStore.elapsedTime.toFixed(0)}s
+            </div>
+            <div class="text-[10px] uppercase tracking-wider text-slate-400">{$t.elapsed || "Süre"}</div>
+          </div>
+        </div>
       </div>
     </div>
   {/if}
@@ -590,10 +585,15 @@
         <h4 class="font-bold text-slate-900 dark:text-white flex items-center gap-2">
           <Icon name="table_chart" class="text-primary" />
           {$t.historicalData}
+          <span class="text-sm font-normal text-slate-500 ml-1">({profileData.length} {$t.records || "records"})</span>
         </h4>
-        <div class="text-sm text-slate-500">
-          {profileData.length} records
-        </div>
+        <button
+          onclick={handleExport}
+          class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors"
+        >
+          <Icon name="download" size="sm" />
+          {$t.exportToExcel}
+        </button>
       </div>
 
       <div class="overflow-x-auto">
@@ -662,7 +662,7 @@
         </div>
       {/if}
     </div>
-  {:else if !$progressStore.active && !readComplete}
+  {:else if !isReading && !readComplete}
     <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-12 shadow-sm text-center">
       <Icon name="bar_chart" class="text-6xl text-slate-300 dark:text-slate-600 mb-4" />
       <p class="text-slate-500 dark:text-slate-400">{$t.loadProfilePlaceholder}</p>

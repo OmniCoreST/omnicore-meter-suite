@@ -222,6 +222,9 @@ export const tr = {
   dateRange: "Tarih Aralığı",
   readLoadProfile: "Yük Profili Oku",
   records: "kayıt",
+  dataReceived: "Veri",
+  lines: "Satır",
+  elapsed: "Süre",
 
   // Events
   voltageWarnings: "Gerilim Uyarıları",
@@ -586,11 +589,19 @@ export const tr = {
   presetStatus: "Durum Kodları",
   obisPlaceholder: "Örn: 1.8.0",
   noValue: "Değer yok",
+  presets: "Hazır Setler",
+  noObisSelected: "Okunacak OBIS kodu seçilmedi",
+  obisReadComplete: "OBIS okuma tamamlandı",
 
   // Time & Date Page enhancements
   lastSyncTime: "Son Senkronizasyon",
   neverSynced: "Henüz senkronize edilmedi",
   driftWarning: "Sapma 30 saniyeyi aştı!",
+  timeDateDescription: "Sayaç saatini bilgisayar saati ile senkronize edin veya manuel ayarlayın.",
+  timeDriftDescription: "Sayaç ve bilgisayar saati arasındaki fark.",
+  syncOptions: "Senkronizasyon Seçenekleri",
+  syncing: "Senkronize ediliyor...",
+  dstStatusDescription: "Yaz saati uygulaması durumu.",
 
   // Auto-update
   updateAvailable: "Güncelleme Mevcut",

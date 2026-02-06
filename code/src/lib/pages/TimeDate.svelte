@@ -81,7 +81,7 @@
       <div>
         <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">{$t.timeDate}</h3>
         <p class="text-sm text-slate-500 dark:text-slate-400">
-          Sayac saatini bilgisayar saati ile senkronize edin veya manuel ayarlayin.
+          {$t.timeDateDescription}
         </p>
       </div>
 
@@ -147,7 +147,7 @@
         </div>
         <div>
           <h4 class="font-bold text-slate-900 dark:text-white">{$t.timeDriftStatus}</h4>
-          <p class="text-sm text-slate-500">Sayac ve bilgisayar saati arasindaki fark</p>
+          <p class="text-sm text-slate-500">{$t.timeDriftDescription}</p>
         </div>
       </div>
       <div class="text-right">
@@ -166,7 +166,7 @@
 
   <!-- Sync Options -->
   <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-6 shadow-sm">
-    <h4 class="font-bold text-slate-900 dark:text-white mb-4">Senkronizasyon Secenekleri</h4>
+    <h4 class="font-bold text-slate-900 dark:text-white mb-4">{$t.syncOptions}</h4>
     <div class="flex flex-col md:flex-row gap-4">
       <button
         onclick={syncToComputer}
@@ -175,7 +175,7 @@
       >
         {#if isSyncing}
           <Icon name="sync" class="animate-spin" />
-          Senkronize ediliyor...
+          {$t.syncing}
         {:else}
           <Icon name="sync" />
           {$t.syncToComputerTime}
@@ -200,7 +200,7 @@
         </div>
         <div>
           <h4 class="font-bold text-slate-900 dark:text-white">{$t.dstStatus}</h4>
-          <p class="text-sm text-slate-500">Yaz saati uygulamasi durumu</p>
+          <p class="text-sm text-slate-500">{$t.dstStatusDescription}</p>
         </div>
       </div>
       <div class="flex items-center gap-3">

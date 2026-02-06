@@ -2,11 +2,66 @@
   import Icon from "$lib/components/common/Icon.svelte";
   import { t, isConnected, meterStore } from "$lib/stores";
 
-  // Mock data - will be replaced with real data from meter
-  const hasAlarms = $derived($meterStore.shortReadData?.ffCode !== "0000000000000000");
-  const alarmCount = $derived(hasAlarms ? 2 : 0);
-  const timeCorrect = $derived(true);
-  const recentEvent = $derived<string | null>(null);
+  // Parse FF code bits to count active alarm conditions
+  let alarmCount = $derived.by(() => {
+    const ffCode = $meterStore.shortReadData?.ffCode;
+    if (!ffCode || ffCode === "0000000000000000") return 0;
+
+    try {
+      const ffValue = BigInt("0x" + ffCode);
+      let count = 0;
+      if ((ffValue & (1n << 37n)) !== 0n) count++; // System battery low
+      if ((ffValue & (1n << 38n)) !== 0n) count++; // Clock battery low
+      if ((ffValue & (1n << 6n)) !== 0n) count++;  // Top cover open
+      if ((ffValue & (1n << 5n)) !== 0n) count++;  // Terminal cover open
+      if ((ffValue & (1n << 11n)) !== 0n || (ffValue & (1n << 12n)) !== 0n || (ffValue & (1n << 13n)) !== 0n) count++; // Magnetic
+      return count;
+    } catch {
+      return 0;
+    }
+  });
+
+  // Calculate time drift from meter time vs computer time
+  let timeDriftSeconds = $derived.by(() => {
+    const data = $meterStore.shortReadData;
+    if (!data?.meterDate || !data?.meterTime) return 0;
+
+    try {
+      const meterDateTime = new Date(`${data.meterDate}T${data.meterTime}`);
+      return Math.round((Date.now() - meterDateTime.getTime()) / 1000);
+    } catch {
+      return 0;
+    }
+  });
+
+  let timeCorrect = $derived(Math.abs(timeDriftSeconds) <= 30);
+
+  // Derive most notable event from warning counters in raw data
+  let recentEvent = $derived.by((): string | null => {
+    const data = $meterStore.shortReadData;
+    if (!data) return null;
+
+    // @ts-ignore - rawData exists on full read results
+    const raw: string = data.rawData || "";
+    if (!raw) return null;
+
+    const voltageCount = raw.match(/96\.7\.4\((\d+)\)/);
+    if (voltageCount && parseInt(voltageCount[1]) > 0) {
+      return `${voltageCount[1]}x ${$t.voltageWarnings}`;
+    }
+
+    const magneticCount = raw.match(/96\.7\.6\((\d+)\)/);
+    if (magneticCount && parseInt(magneticCount[1]) > 0) {
+      return `${magneticCount[1]}x ${$t.magneticField}`;
+    }
+
+    const currentCount = raw.match(/96\.7\.5\((\d+)\)/);
+    if (currentCount && parseInt(currentCount[1]) > 0) {
+      return `${currentCount[1]}x ${$t.currentWarnings}`;
+    }
+
+    return null;
+  });
 </script>
 
 <div

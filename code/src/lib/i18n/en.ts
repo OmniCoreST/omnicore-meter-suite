@@ -222,6 +222,9 @@ export const en = {
   dateRange: "Date Range",
   readLoadProfile: "Read Load Profile",
   records: "records",
+  dataReceived: "Data",
+  lines: "Lines",
+  elapsed: "Elapsed",
 
   // Events
   voltageWarnings: "Voltage Warnings",
@@ -584,11 +587,19 @@ export const en = {
   presetStatus: "Status Codes",
   obisPlaceholder: "E.g.: 1.8.0",
   noValue: "No value",
+  presets: "Presets",
+  noObisSelected: "No OBIS code selected to read",
+  obisReadComplete: "OBIS read complete",
 
   // Time & Date Page enhancements
   lastSyncTime: "Last Sync",
   neverSynced: "Never synced",
   driftWarning: "Drift exceeds 30 seconds!",
+  timeDateDescription: "Synchronize meter clock with computer time or set manually.",
+  timeDriftDescription: "Difference between meter and computer clock.",
+  syncOptions: "Synchronization Options",
+  syncing: "Synchronizing...",
+  dstStatusDescription: "Daylight saving time status.",
 
   // Auto-update
   updateAvailable: "Update Available",

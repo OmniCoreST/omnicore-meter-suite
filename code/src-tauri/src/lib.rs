@@ -148,6 +148,7 @@ pub fn run() {
             commands::read_short,
             commands::read_full,
             commands::read_obis,
+            commands::read_obis_batch,
             commands::read_load_profile,
             // Programming commands
             commands::authenticate,

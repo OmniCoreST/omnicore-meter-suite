@@ -1015,19 +1015,315 @@ pub async fn read_obis(obis_code: String, window: tauri::Window) -> Result<Strin
         return Err("No response".to_string());
     }
 
-    let response = String::from_utf8_lossy(&buf[..total]).to_string();
+    let raw = &buf[..total];
+    let response = String::from_utf8_lossy(raw).to_string();
     emit_log("rx", &response);
 
+    // Extract data between STX and ETX to exclude protocol framing and BCC byte
+    // BCC can be any byte value including ')' (0x29) which corrupts parsing
+    let data_slice = match (raw.iter().position(|&b| b == control::STX),
+                            raw.iter().position(|&b| b == control::ETX)) {
+        (Some(s), Some(e)) if s < e => &raw[s + 1..e],
+        _ => raw,
+    };
+    let cleaned = String::from_utf8_lossy(data_slice)
+        .chars().filter(|c| !c.is_control()).collect::<String>();
+
     // Parse the OBIS response
-    if let Some(item) = iec62056::parse_obis_response(&response) {
+    if let Some(item) = iec62056::parse_obis_response(cleaned.trim()) {
         Ok(if let Some(unit) = item.unit {
             format!("{}*{}", item.value, unit)
         } else {
             item.value
         })
     } else {
-        Ok(response)
+        Ok(cleaned.trim().to_string())
     }
+}
+
+/// Batch-read multiple OBIS codes in a single atomic programming mode session.
+/// Opens port → handshake → enters Mode 1 (Programming) → reads all codes via R2 → Break → close.
+/// Does NOT require prior connect().
+#[tauri::command]
+pub async fn read_obis_batch(
+    obis_codes: Vec<String>,
+    window: tauri::Window,
+) -> Result<std::collections::HashMap<String, String>, String> {
+    log::info!("Batch OBIS read: {:?} (atomic)", obis_codes);
+
+    let emit_log = |log_type: &str, message: &str| {
+        let _ = window.emit("comm-log", LogEvent {
+            timestamp: chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
+            log_type: log_type.to_string(),
+            message: message.to_string(),
+            data: None,
+        });
+    };
+
+    if obis_codes.is_empty() {
+        return Err("OBIS kodu listesi boş".to_string());
+    }
+
+    // Step 1: Get connection parameters from stored state
+    let (timeout_ms, port_name, meter_address, connection_type, configured_baud) = {
+        let manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
+        if manager.params.is_none() {
+            return Err("Bağlantı parametresi yok. Önce 'Bağlan' butonuna tıklayın.".to_string());
+        }
+        let params = manager.params.as_ref().unwrap();
+        (
+            if params.timeout_ms == 0 { 2000 } else { params.timeout_ms },
+            params.port.clone(),
+            params.meter_address.clone(),
+            params.connection_type.clone(),
+            params.baud_rate,
+        )
+    };
+
+    // Step 2: Close any existing connection
+    {
+        let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
+        if manager.port.is_some() {
+            emit_log("info", "Mevcut bağlantı kapatılıyor...");
+            manager.disconnect();
+        }
+    }
+
+    // Step 3: Open port and handshake with baud rate retry
+    let baud_rates = io::resolve_initial_bauds(&connection_type, configured_baud);
+    let mut port: Option<Box<dyn SerialPort>> = None;
+    let mut ident: Option<iec62056::MeterIdent> = None;
+    let mut initial_baud: u32 = 0;
+
+    for (attempt, &try_baud) in baud_rates.iter().enumerate() {
+        emit_log("info", &format!("Port açılıyor: {} @ {} baud (7E1) [Deneme {}/{}]",
+            port_name, try_baud, attempt + 1, baud_rates.len()));
+
+        let mut current_port = match iec62056::open_port(&port_name, try_baud, timeout_ms as u64) {
+            Ok(p) => p,
+            Err(e) => {
+                emit_log("warn", &format!("Port açılamadı @ {} baud: {}", try_baud, e));
+                continue;
+            }
+        };
+
+        emit_log("success", &format!("Port açıldı @ {} baud", try_baud));
+
+        let request = iec62056::build_request_message(meter_address.as_deref());
+        let request_str = iec62056::format_bytes_for_display(&request);
+        emit_log("tx", &request_str);
+
+        if let Err(e) = current_port.write_all(&request) {
+            emit_log("warn", &format!("Handshake gönderilemedi: {}", e));
+            continue;
+        }
+        let _ = current_port.flush();
+
+        emit_log("info", "Yanıt bekleniyor...");
+        std::thread::sleep(Duration::from_millis(500));
+
+        let mut response_buf = vec![0u8; 256];
+        let mut ident_read = 0;
+        let handshake_start = std::time::Instant::now();
+
+        loop {
+            match current_port.read(&mut response_buf[ident_read..]) {
+                Ok(n) if n > 0 => {
+                    ident_read += n;
+                    let _ = window.emit("comm-activity", serde_json::json!({"type": "rx"}));
+                    if ident_read >= 2 &&
+                       response_buf[ident_read - 2] == control::CR &&
+                       response_buf[ident_read - 1] == control::LF {
+                        break;
+                    }
+                }
+                Ok(_) => {}
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                    if ident_read > 0 { break; }
+                }
+                Err(_) => break,
+            }
+            if handshake_start.elapsed() > Duration::from_millis(timeout_ms as u64) {
+                break;
+            }
+        }
+
+        if ident_read > 0 {
+            let response_formatted = iec62056::format_bytes_for_display(&response_buf[..ident_read]);
+            emit_log("rx", &response_formatted);
+
+            let response = String::from_utf8_lossy(&response_buf[..ident_read]);
+            if let Some(parsed) = iec62056::parse_identification(&response) {
+                emit_log("success", &format!("Sayaç tanımlandı: {} — {} ({})",
+                    parsed.manufacturer, parsed.edas_id, parsed.model));
+                initial_baud = try_baud;
+                ident = Some(parsed);
+                port = Some(current_port);
+                break;
+            } else {
+                emit_log("warn", "Sayaç tanımlama yanıtı ayrıştırılamadı");
+            }
+        } else {
+            emit_log("warn", &format!("{} baud'da yanıt alınamadı", try_baud));
+        }
+    }
+
+    let mut port = port.ok_or_else(|| {
+        emit_log("error", "Hiçbir baud hızında yanıt alınamadı");
+        "Hiçbir baud hızında yanıt alınamadı".to_string()
+    })?;
+    let ident = ident.unwrap();
+
+    // Step 4: Send ACK with Mode 1 (Programming mode)
+    let (target_baud, baud_char) = io::resolve_target_baud(
+        &connection_type, configured_baud, ident.max_baud_rate, ident.baud_char
+    );
+
+    let ack = iec62056::build_ack_message(ProtocolMode::Programming, baud_char);
+    let ack_formatted = iec62056::format_bytes_for_display(&ack);
+    emit_log("tx", &ack_formatted);
+
+    port.write_all(&ack).map_err(|e| format!("ACK gönderilemedi: {}", e))?;
+    let _ = window.emit("comm-activity", serde_json::json!({"type": "tx"}));
+    let _ = port.flush();
+
+    // Wait and switch baud rate
+    emit_log("info", &format!("Baud hızı değiştiriliyor: {} -> {}", initial_baud, target_baud));
+    std::thread::sleep(Duration::from_millis(300));
+
+    if target_baud != initial_baud {
+        port.set_baud_rate(target_baud).map_err(|e| {
+            emit_log("error", &format!("Baud hızı değiştirilemedi: {}", e));
+            format!("Baud hızı değiştirilemedi: {}", e)
+        })?;
+        emit_log("success", &format!("Baud hızı {} olarak ayarlandı", target_baud));
+    }
+
+    // Wait for meter to be ready
+    std::thread::sleep(Duration::from_millis(500));
+
+    // Read any response from meter (password request or acknowledgment)
+    let mut prog_buf = vec![0u8; 256];
+    let prog_read = port.read(&mut prog_buf).unwrap_or(0);
+    if prog_read > 0 {
+        let prog_formatted = iec62056::format_bytes_for_display(&prog_buf[..prog_read]);
+        emit_log("rx", &prog_formatted);
+    }
+
+    emit_log("success", "Programlama moduna geçildi");
+
+    // Step 5: Read each OBIS code via R2 commands
+    let mut results = std::collections::HashMap::new();
+    let total_codes = obis_codes.len();
+
+    for (i, code) in obis_codes.iter().enumerate() {
+        let trimmed = code.trim().to_string();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        emit_log("info", &format!("[{}/{}] OBIS {} okunuyor...", i + 1, total_codes, trimmed));
+
+        let cmd = iec62056::build_read_command(&trimmed);
+        emit_log("tx", &format!("R2 {}()", trimmed));
+
+        if let Err(e) = port.write_all(&cmd) {
+            emit_log("error", &format!("R2 komutu gönderilemedi: {}", e));
+            results.insert(trimmed, format!("ERROR: {}", e));
+            continue;
+        }
+        let _ = port.flush();
+        let _ = window.emit("comm-activity", serde_json::json!({"type": "tx"}));
+
+        // Wait for response
+        std::thread::sleep(Duration::from_millis(300));
+
+        let mut buf = vec![0u8; 512];
+        let mut total = 0;
+        let read_start = std::time::Instant::now();
+
+        loop {
+            match port.read(&mut buf[total..]) {
+                Ok(n) if n > 0 => {
+                    total += n;
+                    let _ = window.emit("comm-activity", serde_json::json!({"type": "rx"}));
+                    // Check for ETX or CR+LF termination
+                    if total >= 2 {
+                        let last_bytes = &buf[..total];
+                        if last_bytes.contains(&control::ETX) ||
+                           (last_bytes[total - 2] == control::CR && last_bytes[total - 1] == control::LF) {
+                            break;
+                        }
+                    }
+                    if total >= buf.len() { break; }
+                }
+                Ok(_) => {}
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                    if total > 0 { break; }
+                }
+                Err(_) => break,
+            }
+            if read_start.elapsed() > Duration::from_millis(timeout_ms as u64) {
+                break;
+            }
+        }
+
+        if total > 0 {
+            let raw = &buf[..total];
+            let response = String::from_utf8_lossy(raw).to_string();
+            emit_log("rx", &response);
+
+            // Extract data between STX and ETX to exclude protocol framing and BCC byte
+            // BCC can be any byte value including ')' (0x29) which corrupts parsing
+            let data_slice = match (raw.iter().position(|&b| b == control::STX),
+                                    raw.iter().position(|&b| b == control::ETX)) {
+                (Some(s), Some(e)) if s < e => &raw[s + 1..e],
+                _ => raw,
+            };
+            let cleaned = String::from_utf8_lossy(data_slice)
+                .chars().filter(|c| !c.is_control()).collect::<String>();
+
+            if let Some(item) = iec62056::parse_obis_response(cleaned.trim()) {
+                let value = if let Some(unit) = item.unit {
+                    format!("{}*{}", item.value, unit)
+                } else {
+                    item.value
+                };
+                emit_log("success", &format!("{} = {}", trimmed, value));
+                results.insert(trimmed, value);
+            } else {
+                results.insert(trimmed, cleaned.trim().to_string());
+            }
+        } else {
+            emit_log("warn", &format!("{} için yanıt alınamadı", trimmed));
+            results.insert(trimmed, "ERROR: No response".to_string());
+        }
+
+        // Small delay between reads
+        std::thread::sleep(Duration::from_millis(100));
+    }
+
+    // Step 6: Send Break command and close port
+    emit_log("info", "Oturum sonlandırılıyor...");
+    let break_cmd = iec62056::build_break_command();
+    let _ = port.write_all(&break_cmd);
+    let _ = port.flush();
+    std::thread::sleep(Duration::from_millis(100));
+    drop(port);
+    emit_log("info", "Port kapatıldı");
+
+    // Mark as not connected since we closed the port
+    {
+        let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
+        manager.connected = false;
+        manager.port = None;
+        manager.in_programming_mode = false;
+    }
+
+    emit_log("success", &format!("OBIS toplu okuma tamamlandı: {} / {} başarılı",
+        results.values().filter(|v| !v.starts_with("ERROR:")).count(), total_codes));
+
+    Ok(results)
 }
 
 /// Write a value to an OBIS code (requires programming mode)

@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, isConnected, addLog } from "$lib/stores";
-  import { readObis } from "$lib/utils/tauri";
+  import { t, addLog } from "$lib/stores";
+  import { readObisBatch } from "$lib/utils/tauri";
 
   interface ObisRow {
     id: number;
@@ -41,7 +41,7 @@
       value: "",
       checked: !!codes[i],
     }));
-    addLog("info", `${type} preset yuklendi`);
+    addLog("info", `${type} preset loaded`);
   }
 
   function clearAll() {
@@ -72,11 +72,11 @@
   }
 
   async function readSelectedCodes() {
-    if (!$isConnected || isReading) return;
+    if (isReading) return;
 
     const selectedRows = rows.filter(r => r.checked && r.code.trim());
     if (selectedRows.length === 0) {
-      addLog("warn", "Okunacak OBIS kodu secilmedi");
+      addLog("warn", $t.noObisSelected);
       return;
     }
 
@@ -89,28 +89,34 @@
       value: r.checked && r.code.trim() ? "" : r.value,
     }));
 
-    addLog("info", `${selectedRows.length} OBIS kodu okunuyor...`);
+    addLog("info", `${selectedRows.length} OBIS ${$t.reading}`);
 
-    for (const row of selectedRows) {
-      try {
-        const result = await readObis(row.code.trim());
+    try {
+      const codes = selectedRows.map(r => r.code.trim());
+      const results = await readObisBatch(codes);
 
-        rows = rows.map(r =>
-          r.id === row.id
-            ? { ...r, value: result || $t.noValue, loading: false }
-            : r
-        );
-      } catch (error) {
-        rows = rows.map(r =>
-          r.id === row.id
-            ? { ...r, value: `Hata: ${error}`, loading: false }
-            : r
-        );
-      }
+      // Apply results to rows
+      rows = rows.map(r => {
+        const code = r.code.trim();
+        if (r.checked && code && code in results) {
+          return { ...r, value: results[code] || $t.noValue, loading: false };
+        }
+        if (r.loading) {
+          return { ...r, loading: false };
+        }
+        return r;
+      });
+
+      addLog("success", $t.obisReadComplete);
+    } catch (error) {
+      // Mark all loading rows as error
+      rows = rows.map(r =>
+        r.loading ? { ...r, value: `${$t.logError}: ${error}`, loading: false } : r
+      );
+      addLog("error", `${$t.logError}: ${error}`);
     }
 
     isReading = false;
-    addLog("success", "OBIS okuma tamamlandi");
   }
 
   function toggleRow(id: number) {
@@ -135,21 +141,12 @@
         <p class="text-sm text-slate-500 dark:text-slate-400">{$t.obisReaderDescription}</p>
       </div>
     </div>
-
-    {#if !$isConnected}
-      <div class="mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-600 dark:text-amber-500 text-sm">
-        <div class="flex items-center gap-2">
-          <Icon name="warning" />
-          <span>{$t.connectFirstWarning}</span>
-        </div>
-      </div>
-    {/if}
   </div>
 
   <!-- Preset Buttons -->
   <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-4 shadow-sm">
     <div class="flex flex-wrap items-center gap-3">
-      <span class="text-sm font-bold text-slate-500">Hazir Setler:</span>
+      <span class="text-sm font-bold text-slate-500">{$t.presets}:</span>
       <button
         onclick={() => applyPreset("energy")}
         class="px-4 py-2 bg-blue-500/10 hover:bg-blue-500/20 border border-blue-500/20 rounded-lg text-sm font-medium text-blue-600 dark:text-blue-400 transition-colors"
@@ -244,7 +241,7 @@
                 <button
                   onclick={() => removeRow(row.id)}
                   class="p-1 text-slate-400 hover:text-red-500 transition-colors"
-                  title="Satiri Sil"
+                  title={$t.delete}
                 >
                   <Icon name="close" size="sm" />
                 </button>
@@ -272,7 +269,7 @@
   <div class="flex justify-center">
     <button
       onclick={readSelectedCodes}
-      disabled={!$isConnected || isReading || !rows.some(r => r.checked && r.code.trim())}
+      disabled={isReading || !rows.some(r => r.checked && r.code.trim())}
       class="flex items-center gap-3 px-8 py-4 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {#if isReading}

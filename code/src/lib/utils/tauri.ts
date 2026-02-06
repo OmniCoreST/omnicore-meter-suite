@@ -182,6 +182,19 @@ export async function readObis(obisCode: string): Promise<string> {
   return invoke<string>("read_obis", { obisCode });
 }
 
+export async function readObisBatch(obisCodes: string[]): Promise<Record<string, string>> {
+  if (!isTauri()) {
+    // Mock data for development
+    await new Promise((r) => setTimeout(r, 1500));
+    const result: Record<string, string> = {};
+    for (const code of obisCodes) {
+      result[code] = `${(Math.random() * 1000).toFixed(3)}*kWh`;
+    }
+    return result;
+  }
+  return invoke<Record<string, string>>("read_obis_batch", { obisCodes });
+}
+
 // Load profile types
 export interface LoadProfileEntry {
   timestamp: string;
