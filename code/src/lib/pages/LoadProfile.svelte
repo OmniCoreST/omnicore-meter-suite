@@ -357,16 +357,25 @@
     return col.unit ? `${label} (${col.unit})` : String(label);
   }
 
-  function handleExport() {
-    const columns = [
-      { key: "timestamp", label: $t.dateTime },
-      ...selectedProfile.columns.map(col => ({
-        key: col.obis,
-        label: getColumnLabel(col),
-      })),
-    ];
+  async function handleExport() {
+    try {
+      if (!profileData || profileData.length === 0) {
+        alert("Veri yok - önce okuma yapın");
+        return;
+      }
 
-    exportToExcel(profileData, `load_profile_${selectedProfileId}`, columns);
+      const columns = [
+        { key: "timestamp", label: $t.dateTime },
+        ...selectedProfile.columns.map(col => ({
+          key: col.obis,
+          label: getColumnLabel(col),
+        })),
+      ];
+
+      await exportToExcel(profileData, `load_profile_${selectedProfileId}`, columns);
+    } catch (e) {
+      alert("Export hatası: " + e);
+    }
   }
 
   // Re-render chart when theme changes

@@ -38,16 +38,11 @@ pub struct ConnectionParams {
     pub password: Option<String>,
 }
 
-// File export command - saves to Desktop
+// File export command - writes binary data to a given path
 #[tauri::command]
-fn save_file_dialog(content: String, default_name: String) -> Result<String, String> {
-    let desktop = dirs::desktop_dir()
-        .ok_or_else(|| "Masaüstü dizini bulunamadı".to_string())?;
-
-    let file_path = desktop.join(&default_name);
-    std::fs::write(&file_path, &content).map_err(|e| format!("Dosya kaydedilemedi: {}", e))?;
-
-    Ok(file_path.to_string_lossy().to_string())
+fn write_export_file(path: String, data: Vec<u8>) -> Result<String, String> {
+    std::fs::write(&path, &data).map_err(|e| format!("Dosya kaydedilemedi: {}", e))?;
+    Ok(path)
 }
 
 // Database commands
@@ -141,6 +136,8 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_fs::init())
         .setup(|app| {
             // Initialize database
             let app_data_dir = app.path().app_data_dir()
@@ -181,7 +178,7 @@ pub fn run() {
             db_commands::get_recent_reports,
             db_commands::get_setting,
             db_commands::set_setting,
-            save_file_dialog,
+            write_export_file,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

@@ -1085,15 +1085,16 @@ pub async fn read_obis(obis_code: String, window: tauri::Window) -> Result<Strin
     }
 }
 
-/// Batch-read multiple OBIS codes in a single atomic programming mode session.
-/// Opens port → handshake → enters Mode 1 (Programming) → reads all codes via R2 → Break → close.
-/// Does NOT require prior connect().
+/// Batch-read multiple OBIS codes using Mode 0 (Data Readout).
+/// Opens port → handshake → Mode 0 → reads full data block → parses requested OBIS codes.
+/// Does NOT require prior connect() or password.
 #[tauri::command]
 pub async fn read_obis_batch(
     obis_codes: Vec<String>,
+    password: Option<String>,
     window: tauri::Window,
 ) -> Result<std::collections::HashMap<String, String>, String> {
-    log::info!("Batch OBIS read: {:?} (atomic)", obis_codes);
+    log::info!("Batch OBIS read: {:?} (atomic, Mode 0)", obis_codes);
 
     let emit_log = |log_type: &str, message: &str| {
         let _ = window.emit("comm-log", LogEvent {
@@ -1222,12 +1223,12 @@ pub async fn read_obis_batch(
     })?;
     let ident = ident.unwrap();
 
-    // Step 4: Send ACK with Mode 1 (Programming mode)
+    // Step 4: Send ACK with Mode 0 (Data Readout - no password needed)
     let (target_baud, baud_char) = io::resolve_target_baud(
         &connection_type, configured_baud, ident.max_baud_rate, ident.baud_char
     );
 
-    let ack = iec62056::build_ack_message(ProtocolMode::Programming, baud_char);
+    let ack = iec62056::build_ack_message(ProtocolMode::Readout, baud_char);
     let ack_formatted = iec62056::format_bytes_for_display(&ack);
     emit_log("tx", &ack_formatted);
 
@@ -1247,108 +1248,59 @@ pub async fn read_obis_batch(
         emit_log("success", &format!("Baud hızı {} olarak ayarlandı", target_baud));
     }
 
-    // Wait for meter to be ready
-    std::thread::sleep(Duration::from_millis(500));
+    // Step 5: Read the full data block from meter (Mode 0 readout)
+    emit_log("info", "Veri bloğu bekleniyor (Mod 0 - Tüm veriler)...");
+    std::thread::sleep(Duration::from_millis(300));
 
-    // Read any response from meter (password request or acknowledgment)
-    let mut prog_buf = vec![0u8; 256];
-    let prog_read = port.read(&mut prog_buf).unwrap_or(0);
-    if prog_read > 0 {
-        let prog_formatted = iec62056::format_bytes_for_display(&prog_buf[..prog_read]);
-        emit_log("rx", &prog_formatted);
-    }
+    let mut data_buf = vec![0u8; 131072]; // 128KB buffer
+    let mut total_read = 0;
+    let mut found_etx = false;
+    let read_start = std::time::Instant::now();
+    let mut last_read_time = std::time::Instant::now();
 
-    emit_log("success", "Programlama moduna geçildi");
+    loop {
+        match port.read(&mut data_buf[total_read..]) {
+            Ok(n) if n > 0 => {
+                total_read += n;
+                last_read_time = std::time::Instant::now();
+                let _ = window.emit("comm-activity", serde_json::json!({"type": "rx"}));
 
-    // Step 5: Read each OBIS code via R2 commands
-    let mut results = std::collections::HashMap::new();
-    let total_codes = obis_codes.len();
-
-    for (i, code) in obis_codes.iter().enumerate() {
-        let trimmed = code.trim().to_string();
-        if trimmed.is_empty() {
-            continue;
-        }
-
-        emit_log("info", &format!("[{}/{}] OBIS {} okunuyor...", i + 1, total_codes, trimmed));
-
-        let cmd = iec62056::build_read_command(&trimmed);
-        emit_log("tx", &format!("R2 {}()", trimmed));
-
-        if let Err(e) = port.write_all(&cmd) {
-            emit_log("error", &format!("R2 komutu gönderilemedi: {}", e));
-            results.insert(trimmed, format!("ERROR: {}", e));
-            continue;
-        }
-        let _ = port.flush();
-        let _ = window.emit("comm-activity", serde_json::json!({"type": "tx"}));
-
-        // Wait for response
-        std::thread::sleep(Duration::from_millis(300));
-
-        let mut buf = vec![0u8; 512];
-        let mut total = 0;
-        let read_start = std::time::Instant::now();
-
-        loop {
-            match port.read(&mut buf[total..]) {
-                Ok(n) if n > 0 => {
-                    total += n;
-                    let _ = window.emit("comm-activity", serde_json::json!({"type": "rx"}));
-                    // Check for ETX or CR+LF termination
-                    if total >= 2 {
-                        let last_bytes = &buf[..total];
-                        if last_bytes.contains(&control::ETX) ||
-                           (last_bytes[total - 2] == control::CR && last_bytes[total - 1] == control::LF) {
+                // Check for ETX
+                if total_read >= 2 {
+                    for i in 0..total_read - 1 {
+                        if data_buf[i] == control::ETX && i + 1 < total_read {
+                            found_etx = true;
                             break;
                         }
                     }
-                    if total >= buf.len() { break; }
+                    if found_etx {
+                        emit_log("info", &format!("Veri alımı tamamlandı: {} byte, süre: {:.1}s",
+                            total_read, read_start.elapsed().as_secs_f32()));
+                        break;
+                    }
                 }
-                Ok(_) => {}
-                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
-                    if total > 0 { break; }
-                }
-                Err(_) => break,
             }
-            if read_start.elapsed() > Duration::from_millis(timeout_ms as u64) {
+            Ok(_) => {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                std::thread::sleep(Duration::from_millis(100));
+            }
+            Err(e) => {
+                emit_log("error", &format!("Okuma hatası: {}", e));
                 break;
             }
         }
 
-        if total > 0 {
-            let raw = &buf[..total];
-            let response = String::from_utf8_lossy(raw).to_string();
-            emit_log("rx", &response);
-
-            // Extract data between STX and ETX to exclude protocol framing and BCC byte
-            // BCC can be any byte value including ')' (0x29) which corrupts parsing
-            let data_slice = match (raw.iter().position(|&b| b == control::STX),
-                                    raw.iter().position(|&b| b == control::ETX)) {
-                (Some(s), Some(e)) if s < e => &raw[s + 1..e],
-                _ => raw,
-            };
-            let cleaned = String::from_utf8_lossy(data_slice)
-                .chars().filter(|c| !c.is_control()).collect::<String>();
-
-            if let Some(item) = iec62056::parse_obis_response(cleaned.trim()) {
-                let value = if let Some(unit) = item.unit {
-                    format!("{}*{}", item.value, unit)
-                } else {
-                    item.value
-                };
-                emit_log("success", &format!("{} = {}", trimmed, value));
-                results.insert(trimmed, value);
+        // Idle timeout: 5 seconds
+        if last_read_time.elapsed() > Duration::from_millis(5000) {
+            if total_read == 0 {
+                emit_log("error", "Zaman aşımı: Hiç veri alınamadı");
             } else {
-                results.insert(trimmed, cleaned.trim().to_string());
+                emit_log("warn", &format!("Boşta kalma zaman aşımı: {} byte alındı", total_read));
             }
-        } else {
-            emit_log("warn", &format!("{} için yanıt alınamadı", trimmed));
-            results.insert(trimmed, "ERROR: No response".to_string());
+            break;
         }
-
-        // Small delay between reads
-        std::thread::sleep(Duration::from_millis(100));
     }
 
     // Step 6: Send Break command and close port
@@ -1368,8 +1320,41 @@ pub async fn read_obis_batch(
         manager.in_programming_mode = false;
     }
 
+    if total_read == 0 {
+        return Err("Sayaçtan veri alınamadı".to_string());
+    }
+
+    // Step 7: Parse the data block and extract requested OBIS codes
+    let raw_data = String::from_utf8_lossy(&data_buf[..total_read]).to_string();
+    let items = iec62056::parse_data_block(&raw_data);
+    emit_log("info", &format!("{} OBIS kodu ayrıştırıldı", items.len()));
+
+    let mut results = std::collections::HashMap::new();
+    let total_codes = obis_codes.len();
+
+    for code in &obis_codes {
+        let trimmed = code.trim().to_string();
+        if trimmed.is_empty() {
+            continue;
+        }
+
+        // Search for the OBIS code in parsed items
+        if let Some(item) = items.iter().find(|item| item.code == trimmed || item.code.starts_with(&format!("{}*", trimmed))) {
+            let value = if let Some(ref unit) = item.unit {
+                format!("{}*{}", item.value, unit)
+            } else {
+                item.value.clone()
+            };
+            emit_log("success", &format!("{} = {}", trimmed, value));
+            results.insert(trimmed, value);
+        } else {
+            emit_log("warn", &format!("{} veri bloğunda bulunamadı", trimmed));
+            results.insert(trimmed, String::new());
+        }
+    }
+
     emit_log("success", &format!("OBIS toplu okuma tamamlandı: {} / {} başarılı",
-        results.values().filter(|v| !v.starts_with("ERROR:")).count(), total_codes));
+        results.values().filter(|v| !v.is_empty()).count(), total_codes));
 
     Ok(results)
 }

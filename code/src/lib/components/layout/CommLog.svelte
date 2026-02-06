@@ -5,6 +5,8 @@
   import { onMount, onDestroy } from "svelte";
   import { listen } from "@tauri-apps/api/event";
   import { onCommLog } from "$lib/utils/tauri";
+  import { save } from "@tauri-apps/plugin-dialog";
+  import { invoke } from "@tauri-apps/api/core";
 
   let txActive = $state(false);
   let rxActive = $state(false);
@@ -148,19 +150,36 @@
     logsStore.clear();
   }
 
-  function exportLogs() {
-    const logs = $logsStore;
-    const content = logs
-      .map((log) => `[${formatTime(log.timestamp)}] ${getTypeLabel(log.type)} - ${log.message}`)
-      .join("\n");
+  async function exportLogs() {
+    try {
+      const logs = $logsStore;
+      if (logs.length === 0) {
+        alert("Log kaydı yok");
+        return;
+      }
 
-    const blob = new Blob([content], { type: "text/plain" });
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement("a");
-    a.href = url;
-    a.download = `comm-log-${new Date().toISOString().slice(0, 10)}.txt`;
-    a.click();
-    URL.revokeObjectURL(url);
+      const content = logs
+        .map((log) => `[${formatTime(log.timestamp)}] ${getTypeLabel(log.type)} - ${log.message}`)
+        .join("\n");
+
+      const now = new Date();
+      const dateStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+      const timeStr = `${String(now.getHours()).padStart(2, "0")}-${String(now.getMinutes()).padStart(2, "0")}-${String(now.getSeconds()).padStart(2, "0")}`;
+      const defaultName = `comm-log-${dateStr}_${timeStr}.txt`;
+
+      const filePath = await save({
+        defaultPath: defaultName,
+        filters: [{ name: "Text", extensions: ["txt"] }],
+      });
+
+      if (!filePath) return;
+
+      const encoder = new TextEncoder();
+      const data = Array.from(encoder.encode(content));
+      await invoke("write_export_file", { path: filePath, data });
+    } catch (e) {
+      alert("Log kaydetme hatası: " + e);
+    }
   }
 </script>
 

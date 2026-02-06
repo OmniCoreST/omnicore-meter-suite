@@ -68,18 +68,21 @@
     return months;
   });
 
-  function handleExport() {
-    const exportData = monthlyDemand.map(m => ({
-      month: m.monthName,
-      maxDemand: m.maxDemand,
-      timestamp: m.timestamp,
-    }));
+  async function handleExport() {
+    try {
+      if (!monthlyDemand || monthlyDemand.length === 0) { alert("Veri yok - önce okuma yapın"); return; }
+      const exportData = monthlyDemand.map(m => ({
+        month: m.monthName,
+        maxDemand: m.maxDemand,
+        timestamp: m.timestamp,
+      }));
 
-    exportToExcel(exportData, "demand_history", [
-      { key: "month", label: $t.month },
-      { key: "maxDemand", label: `${$t.maxDemand} (kW)` },
-      { key: "timestamp", label: $t.dateTime },
-    ]);
+      await exportToExcel(exportData, "demand_history", [
+        { key: "month", label: $t.month },
+        { key: "maxDemand", label: `${$t.maxDemand} (kW)` },
+        { key: "timestamp", label: $t.dateTime },
+      ]);
+    } catch (e) { alert("Export hatası: " + e); }
   }
 </script>
 

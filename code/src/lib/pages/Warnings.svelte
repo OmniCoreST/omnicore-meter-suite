@@ -93,25 +93,29 @@
     };
   });
 
-  function handleExport() {
-    const allRecords: any[] = [];
+  async function handleExport() {
+    try {
+      const allRecords: any[] = [];
 
-    warningsData.voltage.records.forEach(r => {
-      allRecords.push({ type: "Gerilim", id: r.id, start: r.start, end: r.end });
-    });
-    warningsData.current.records.forEach(r => {
-      allRecords.push({ type: "Akim", id: r.id, start: r.start, end: r.end });
-    });
-    warningsData.magnetic.records.forEach(r => {
-      allRecords.push({ type: "Manyetik", id: r.id, start: r.start, end: r.end });
-    });
+      warningsData?.voltage?.records?.forEach(r => {
+        allRecords.push({ type: "Gerilim", id: r.id, start: r.start, end: r.end });
+      });
+      warningsData?.current?.records?.forEach(r => {
+        allRecords.push({ type: "Akim", id: r.id, start: r.start, end: r.end });
+      });
+      warningsData?.magnetic?.records?.forEach(r => {
+        allRecords.push({ type: "Manyetik", id: r.id, start: r.start, end: r.end });
+      });
 
-    exportToExcel(allRecords, "warnings", [
-      { key: "type", label: $t.type },
-      { key: "id", label: "#" },
-      { key: "start", label: $t.startTime },
-      { key: "end", label: $t.endTime },
-    ]);
+      if (allRecords.length === 0) { alert("Veri yok - önce okuma yapın"); return; }
+
+      await exportToExcel(allRecords, "warnings", [
+        { key: "type", label: $t.type },
+        { key: "id", label: "#" },
+        { key: "start", label: $t.startTime },
+        { key: "end", label: $t.endTime },
+      ]);
+    } catch (e) { alert("Export hatası: " + e); }
   }
 </script>
 

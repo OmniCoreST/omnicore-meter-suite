@@ -182,7 +182,7 @@ export async function readObis(obisCode: string): Promise<string> {
   return invoke<string>("read_obis", { obisCode });
 }
 
-export async function readObisBatch(obisCodes: string[]): Promise<Record<string, string>> {
+export async function readObisBatch(obisCodes: string[], password?: string): Promise<Record<string, string>> {
   if (!isTauri()) {
     // Mock data for development
     await new Promise((r) => setTimeout(r, 1500));
@@ -192,7 +192,7 @@ export async function readObisBatch(obisCodes: string[]): Promise<Record<string,
     }
     return result;
   }
-  return invoke<Record<string, string>>("read_obis_batch", { obisCodes });
+  return invoke<Record<string, string>>("read_obis_batch", { obisCodes, password: password || null });
 }
 
 // Load profile types

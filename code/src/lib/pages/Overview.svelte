@@ -65,6 +65,8 @@
     const secs = Math.abs(seconds) % 60;
     return `${sign}${mins}m ${secs}s`;
   }
+
+  let relayColor = $derived(hasRelayData ? (relayActive ? '#f59e0b' : '#94a3b8') : '#94a3b8');
 </script>
 
 <div class="space-y-6">
@@ -241,13 +243,55 @@
           </div>
 
           <!-- Relay Status -->
-          <div class="flex items-center justify-between p-3 rounded-lg {hasRelayData ? (relayActive ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-red-500/10 border border-red-500/20') : 'bg-slate-100 dark:bg-[#1a2632] border border-slate-200 dark:border-[#334a5e]'}">
+          <div class="flex flex-col items-center gap-3 p-4 rounded-lg {hasRelayData ? (relayActive ? 'bg-amber-500/10 border border-amber-500/20 relay-glow' : 'bg-slate-400/10 border border-slate-400/20 backdrop-blur-md') : 'bg-slate-100 dark:bg-[#1a2632] border border-slate-200 dark:border-[#334a5e]'}"
+            style={hasRelayData && !relayActive ? 'filter: blur(0.5px);' : ''}>
             <div class="flex items-center gap-2">
-              <Icon name="power" class="{hasRelayData ? (relayActive ? 'text-emerald-500' : 'text-red-500') : 'text-slate-400'}" size="sm" />
-              <span class="text-sm {hasRelayData ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}">{$t.relayState}</span>
+              <Icon name="power" class="{hasRelayData ? (relayActive ? 'text-amber-500' : 'text-slate-400') : 'text-slate-400'}" size="sm" />
+              <span class="text-sm font-bold {hasRelayData ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}">{$t.relayState}</span>
             </div>
-            <span class="text-sm font-bold {hasRelayData ? (relayActive ? 'text-emerald-500' : 'text-red-500') : 'text-slate-400'}">
-              {hasRelayData ? (relayActive ? $t.energyOn : $t.energyCut) : '-'}
+
+            <!-- Relay Symbol SVG -->
+            <svg viewBox="0 0 120 60" width="120" height="60" class="my-1">
+              <!-- Left wire -->
+              <line x1="0" y1="30" x2="30" y2="30" stroke={relayColor} stroke-width="3" stroke-linecap="round" />
+              <!-- Left terminal dot -->
+              <circle cx="32" cy="30" r="4" fill={relayColor} />
+
+              <!-- Switch arm -->
+              {#if hasRelayData && relayActive}
+                <!-- Closed: arm connects both terminals -->
+                <line x1="36" y1="30" x2="84" y2="30" stroke={relayColor} stroke-width="3" stroke-linecap="round" />
+                <!-- Energy sparks -->
+                <circle cx="60" cy="30" r="2" fill="#fff" opacity="0.8" />
+                <line x1="55" y1="22" x2="57" y2="26" stroke="#fde68a" stroke-width="1.5" stroke-linecap="round" />
+                <line x1="65" y1="22" x2="63" y2="26" stroke="#fde68a" stroke-width="1.5" stroke-linecap="round" />
+                <line x1="60" y1="19" x2="60" y2="24" stroke="#fde68a" stroke-width="1.5" stroke-linecap="round" />
+              {:else}
+                <!-- Open: arm lifted up -->
+                <line x1="36" y1="30" x2="76" y2="12" stroke={relayColor} stroke-width="3" stroke-linecap="round" />
+              {/if}
+
+              <!-- Right terminal dot -->
+              <circle cx="88" cy="30" r="4" fill={relayColor} />
+              <!-- Right wire -->
+              <line x1="90" y1="30" x2="120" y2="30" stroke={relayColor} stroke-width="3" stroke-linecap="round" />
+
+              <!-- Coil symbol below -->
+              <path d="M 42 42 Q 48 36, 54 42 Q 60 48, 66 42 Q 72 36, 78 42" fill="none" stroke={relayColor} stroke-width="2" stroke-linecap="round" />
+              <!-- Coil connection lines -->
+              <line x1="42" y1="42" x2="36" y2="42" stroke={relayColor} stroke-width="1.5" />
+              <line x1="36" y1="35" x2="36" y2="42" stroke={relayColor} stroke-width="1.5" />
+              <line x1="78" y1="42" x2="84" y2="42" stroke={relayColor} stroke-width="1.5" />
+              <line x1="84" y1="35" x2="84" y2="42" stroke={relayColor} stroke-width="1.5" />
+            </svg>
+
+            <span class="flex items-center gap-1 text-sm font-bold {hasRelayData ? (relayActive ? 'text-amber-500' : 'text-slate-400') : 'text-slate-400'}">
+              {#if hasRelayData}
+                <Icon name={relayActive ? "flash_on" : "flash_off"} size="sm" />
+                {relayActive ? $t.energyCut : $t.energyOn}
+              {:else}
+                -
+              {/if}
             </span>
           </div>
         </div>
@@ -256,3 +300,22 @@
 
   {/if}
 </div>
+
+<style>
+  :global(.relay-glow) {
+    animation: relay-pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes relay-pulse {
+    0%, 100% {
+      box-shadow:
+        0 0 10px rgba(245, 158, 11, 0.2),
+        0 0 25px rgba(245, 158, 11, 0.1);
+    }
+    50% {
+      box-shadow:
+        0 0 20px rgba(245, 158, 11, 0.4),
+        0 0 40px rgba(245, 158, 11, 0.2);
+    }
+  }
+</style>

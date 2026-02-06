@@ -47,23 +47,25 @@
     return months;
   });
 
-  function handleExport() {
-    const data = $meterStore.shortReadData;
-    if (!data) return;
+  async function handleExport() {
+    try {
+      const data = $meterStore.shortReadData;
+      if (!data) { alert("Veri yok - önce okuma yapın"); return; }
 
-    const exportData = [
-      { tariff: $t.total, value: data.activeEnergyImportTotal, unit: "kWh" },
-      { tariff: $t.t1Day, value: data.activeEnergyImportT1, unit: "kWh" },
-      { tariff: $t.t2Peak, value: data.activeEnergyImportT2, unit: "kWh" },
-      { tariff: $t.t3Night, value: data.activeEnergyImportT3, unit: "kWh" },
-      { tariff: $t.t4, value: data.activeEnergyImportT4, unit: "kWh" },
-    ];
+      const exportData = [
+        { tariff: $t.total, value: data.activeEnergyImportTotal, unit: "kWh" },
+        { tariff: $t.t1Day, value: data.activeEnergyImportT1, unit: "kWh" },
+        { tariff: $t.t2Peak, value: data.activeEnergyImportT2, unit: "kWh" },
+        { tariff: $t.t3Night, value: data.activeEnergyImportT3, unit: "kWh" },
+        { tariff: $t.t4, value: data.activeEnergyImportT4, unit: "kWh" },
+      ];
 
-    exportToExcel(exportData, "energy_data", [
-      { key: "tariff", label: "Tarife" },
-      { key: "value", label: "Deger" },
-      { key: "unit", label: "Birim" },
-    ]);
+      await exportToExcel(exportData, "energy_data", [
+        { key: "tariff", label: "Tarife" },
+        { key: "value", label: "Deger" },
+        { key: "unit", label: "Birim" },
+      ]);
+    } catch (e) { alert("Export hatası: " + e); }
   }
 </script>
 

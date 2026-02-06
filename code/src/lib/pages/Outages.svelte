@@ -115,39 +115,43 @@
   });
 
 
-  function handleExport() {
-    const allRecords: any[] = [];
+  async function handleExport() {
+    try {
+      const allRecords: any[] = [];
 
-    const addRecords = (phase: string, type: string, records: any[]) => {
-      records.forEach(r => {
-        allRecords.push({
-          phase,
-          type,
-          id: r.id,
-          start: r.start,
-          end: r.end,
-          duration: formatDuration(r.duration),
+      const addRecords = (phase: string, type: string, records: any[]) => {
+        records?.forEach(r => {
+          allRecords.push({
+            phase,
+            type,
+            id: r.id,
+            start: r.start,
+            end: r.end,
+            duration: formatDuration(r.duration),
+          });
         });
-      });
-    };
+      };
 
-    addRecords("3-Faz", "Uzun", outagesData.threePhase.long.records);
-    addRecords("3-Faz", "Kisa", outagesData.threePhase.short.records);
-    addRecords("L1", "Uzun", outagesData.phase1.long.records);
-    addRecords("L1", "Kisa", outagesData.phase1.short.records);
-    addRecords("L2", "Uzun", outagesData.phase2.long.records);
-    addRecords("L2", "Kisa", outagesData.phase2.short.records);
-    addRecords("L3", "Uzun", outagesData.phase3.long.records);
-    addRecords("L3", "Kisa", outagesData.phase3.short.records);
+      addRecords("3-Faz", "Uzun", outagesData?.threePhase?.long?.records);
+      addRecords("3-Faz", "Kisa", outagesData?.threePhase?.short?.records);
+      addRecords("L1", "Uzun", outagesData?.phase1?.long?.records);
+      addRecords("L1", "Kisa", outagesData?.phase1?.short?.records);
+      addRecords("L2", "Uzun", outagesData?.phase2?.long?.records);
+      addRecords("L2", "Kisa", outagesData?.phase2?.short?.records);
+      addRecords("L3", "Uzun", outagesData?.phase3?.long?.records);
+      addRecords("L3", "Kisa", outagesData?.phase3?.short?.records);
 
-    exportToExcel(allRecords, "outages", [
-      { key: "phase", label: "Faz" },
-      { key: "type", label: $t.type },
-      { key: "id", label: "#" },
-      { key: "start", label: $t.startTime },
-      { key: "end", label: $t.endTime },
-      { key: "duration", label: $t.duration },
-    ]);
+      if (allRecords.length === 0) { alert("Veri yok - önce okuma yapın"); return; }
+
+      await exportToExcel(allRecords, "outages", [
+        { key: "phase", label: "Faz" },
+        { key: "type", label: $t.type },
+        { key: "id", label: "#" },
+        { key: "start", label: $t.startTime },
+        { key: "end", label: $t.endTime },
+        { key: "duration", label: $t.duration },
+      ]);
+    } catch (e) { alert("Export hatası: " + e); }
   }
 </script>
 
