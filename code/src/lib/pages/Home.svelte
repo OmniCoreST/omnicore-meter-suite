@@ -1,8 +1,8 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, connectionStore, isConnected, isConnecting, addLog, meterStore, isMeterReading, errorToast, successToast, sessionsStore, navigationStore, type LogType, type SessionInfo } from "$lib/stores";
-  import { onMount, onDestroy } from "svelte";
-  import { listSerialPorts, connect as tauriConnect, disconnect as tauriDisconnect, onCommLog, readFull, setSetting, loadSessionFile, type PortInfo } from "$lib/utils/tauri";
+  import { t, connectionStore, isConnected, isConnecting, addLog, meterStore, isMeterReading, errorToast, successToast, sessionsStore, navigationStore, type SessionInfo } from "$lib/stores";
+  import { onMount } from "svelte";
+  import { listSerialPorts, connect as tauriConnect, disconnect as tauriDisconnect, readFull, setSetting, loadSessionFile, type PortInfo } from "$lib/utils/tauri";
 
   // Connection parameters
   let connectionType = $state("auto");
@@ -18,8 +18,6 @@
   // Computed state for ports display
   let portsLoading = $derived(loadingPorts);
 
-  let unlistenLog: (() => void) | null = null;
-
   // Fetch serial ports and previous sessions on mount
   onMount(async () => {
     // Delay port refresh slightly to let UI render first
@@ -27,17 +25,6 @@
 
     // Load previous sessions from saved files
     sessionsStore.refresh();
-
-    // Listen to communication log events from backend
-    unlistenLog = await onCommLog((event) => {
-      const logType = event.logType.toLowerCase() as LogType;
-      // For TX/RX, show the message directly (it's already formatted)
-      addLog(logType, event.message);
-    });
-  });
-
-  onDestroy(() => {
-    if (unlistenLog) unlistenLog();
   });
 
   async function refreshPorts() {

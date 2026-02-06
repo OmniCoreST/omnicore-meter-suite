@@ -1,15 +1,17 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { logsStore, t } from "$lib/stores";
+  import { logsStore, addLog, t } from "$lib/stores";
   import type { LogType } from "$lib/stores";
   import { onMount, onDestroy } from "svelte";
   import { listen } from "@tauri-apps/api/event";
+  import { onCommLog } from "$lib/utils/tauri";
 
   let txActive = $state(false);
   let rxActive = $state(false);
   let txTimer: ReturnType<typeof setTimeout> | null = null;
   let rxTimer: ReturnType<typeof setTimeout> | null = null;
   let unlistenActivity: (() => void) | null = null;
+  let unlistenCommLog: (() => void) | null = null;
 
   onMount(async () => {
     // Listen to communication activity events for LED blinking
@@ -26,10 +28,17 @@
         rxTimer = setTimeout(() => rxActive = false, 200);
       }
     });
+
+    // Global listener for all backend comm-log events
+    unlistenCommLog = await onCommLog((event) => {
+      const logType = event.logType.toLowerCase() as LogType;
+      addLog(logType, event.message);
+    });
   });
 
   onDestroy(() => {
     if (unlistenActivity) unlistenActivity();
+    if (unlistenCommLog) unlistenCommLog();
     if (txTimer) clearTimeout(txTimer);
     if (rxTimer) clearTimeout(rxTimer);
   });

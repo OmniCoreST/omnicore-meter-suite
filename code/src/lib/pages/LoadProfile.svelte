@@ -193,9 +193,8 @@
       }
     });
 
+    // Track received data from backend log messages (logging handled globally by CommLog)
     const unlistenLog = await onCommLog((event) => {
-      addLog(event.logType as "info" | "error" | "warn" | "success" | "tx" | "rx", event.message);
-      // Track received data from backend log messages
       const byteMatch = event.message.match(/(\d+)\s*byte/);
       if (byteMatch) {
         const bytes = parseInt(byteMatch[1]);
