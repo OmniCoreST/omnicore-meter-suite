@@ -616,7 +616,7 @@ export const tr = {
   saveDstSettings: "YSU Ayarlarını Kaydet",
   savingDstSettings: "YSU ayarları kaydediliyor...",
   dstSaveSuccess: "YSU ayarları başarıyla kaydedildi!",
-  writeToMeter: "Sayacıya Yaz",
+  writeToMeter: "Sayaca Yaz",
   tariffSettingsDescription: "Hafta içi, Cumartesi ve Pazar için tarife zaman dilimlerini yapılandırın.",
   savingTariffSettings: "Tarife ayarları kaydediliyor...",
   tariffSaveSuccess: "Tarife ayarları başarıyla kaydedildi!",

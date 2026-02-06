@@ -38,6 +38,18 @@ pub struct ConnectionParams {
     pub password: Option<String>,
 }
 
+// File export command - saves to Desktop
+#[tauri::command]
+fn save_file_dialog(content: String, default_name: String) -> Result<String, String> {
+    let desktop = dirs::desktop_dir()
+        .ok_or_else(|| "Masaüstü dizini bulunamadı".to_string())?;
+
+    let file_path = desktop.join(&default_name);
+    std::fs::write(&file_path, &content).map_err(|e| format!("Dosya kaydedilemedi: {}", e))?;
+
+    Ok(file_path.to_string_lossy().to_string())
+}
+
 // Database commands
 mod db_commands {
     use super::*;
@@ -169,6 +181,7 @@ pub fn run() {
             db_commands::get_recent_reports,
             db_commands::get_setting,
             db_commands::set_setting,
+            save_file_dialog,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

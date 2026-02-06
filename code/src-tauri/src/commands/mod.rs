@@ -44,6 +44,12 @@ pub async fn connect(params: ConnectionParams, window: tauri::Window) -> Result<
     {
         let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
         if manager.is_connected() {
+            if let Some(ref mut port) = manager.port {
+                let break_cmd = iec62056::build_break_command();
+                let _ = port.write_all(&break_cmd);
+                let _ = port.flush();
+                std::thread::sleep(Duration::from_millis(300));
+            }
             manager.disconnect();
         }
     }
@@ -600,7 +606,7 @@ pub async fn read_full(window: tauri::Window) -> Result<ShortReadResult, String>
         relay_status: {
             let relay_val = get_value("96.3.10");
             if relay_val.is_empty() { "".to_string() }
-            else if relay_val.contains("1") { "active".to_string() }
+            else if relay_val.contains("0") { "active".to_string() }
             else { "passive".to_string() }
         },
         raw_data: Some(raw_data),
@@ -678,10 +684,14 @@ pub async fn read_short(window: tauri::Window) -> Result<ShortReadResult, String
     // Step 2: Close any existing connection - we'll do a fresh atomic read
     {
         let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
-        if manager.port.is_some() {
+        if let Some(ref mut port) = manager.port {
             emit_log("info", "Mevcut bağlantı kapatılıyor...", None);
-            manager.disconnect();
+            let break_cmd = iec62056::build_break_command();
+            let _ = port.write_all(&break_cmd);
+            let _ = port.flush();
+            std::thread::sleep(Duration::from_millis(300));
         }
+        manager.disconnect();
     }
 
     emit_progress(2, total_steps, "Seri port açılıyor...");
@@ -975,7 +985,7 @@ pub async fn read_short(window: tauri::Window) -> Result<ShortReadResult, String
         relay_status: {
             let relay_val = get_value("96.3.10");
             if relay_val.is_empty() { "".to_string() }
-            else if relay_val.contains("1") { "active".to_string() }
+            else if relay_val.contains("0") { "active".to_string() }
             else { "passive".to_string() }
         },
         raw_data: Some(raw_data),
@@ -1117,10 +1127,14 @@ pub async fn read_obis_batch(
     // Step 2: Close any existing connection
     {
         let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
-        if manager.port.is_some() {
+        if let Some(ref mut port) = manager.port {
             emit_log("info", "Mevcut bağlantı kapatılıyor...");
-            manager.disconnect();
+            let break_cmd = iec62056::build_break_command();
+            let _ = port.write_all(&break_cmd);
+            let _ = port.flush();
+            std::thread::sleep(Duration::from_millis(300));
         }
+        manager.disconnect();
     }
 
     // Step 3: Open port and handshake with baud rate retry
@@ -1452,10 +1466,14 @@ pub async fn authenticate(password: String, window: tauri::Window) -> Result<boo
     // Step 2: Close any existing connection
     {
         let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
-        if manager.port.is_some() {
+        if let Some(ref mut port) = manager.port {
             emit_log("info", "Mevcut bağlantı kapatılıyor...");
-            manager.disconnect();
+            let break_cmd = iec62056::build_break_command();
+            let _ = port.write_all(&break_cmd);
+            let _ = port.flush();
+            std::thread::sleep(Duration::from_millis(300));
         }
+        manager.disconnect();
     }
 
     // Step 3: Open port and handshake with baud rate retry
@@ -1747,10 +1765,14 @@ pub async fn read_load_profile(
     // Step 2: Close any existing connection - we'll do a fresh atomic read
     {
         let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
-        if manager.port.is_some() {
+        if let Some(ref mut port) = manager.port {
             emit_log("info", "Mevcut bağlantı kapatılıyor...", None);
-            manager.disconnect();
+            let break_cmd = iec62056::build_break_command();
+            let _ = port.write_all(&break_cmd);
+            let _ = port.flush();
+            std::thread::sleep(Duration::from_millis(300));
         }
+        manager.disconnect();
     }
 
     emit_progress(2, total_steps, "Seri port açılıyor...");

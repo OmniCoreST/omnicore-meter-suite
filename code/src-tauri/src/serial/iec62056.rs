@@ -235,10 +235,13 @@ pub fn build_request_message(address: Option<&str>) -> Vec<u8> {
 
 /// Build the acknowledgment message for mode selection
 /// Format: ACK V Z Y CR LF
+/// V = protocol control (always '0' for normal protocol)
+/// Z = baud rate identification
+/// Y = mode control
 pub fn build_ack_message(mode: ProtocolMode, baud_char: char) -> Vec<u8> {
     vec![
         control::ACK,
-        mode.as_char() as u8,
+        b'0',
         baud_char as u8,
         mode.as_char() as u8,
         control::CR,
@@ -260,7 +263,7 @@ pub fn build_password_command(password: &str) -> Vec<u8> {
     msg.push(control::ETX);
 
     // Calculate BCC from STX to ETX
-    let bcc_data = &msg[3..];
+    let bcc_data = &msg[1..];
     let bcc = calculate_bcc(bcc_data);
     msg.push(bcc);
 
@@ -280,7 +283,7 @@ pub fn build_read_command(obis: &str) -> Vec<u8> {
     msg.push(b')');
     msg.push(control::ETX);
 
-    let bcc_data = &msg[3..];
+    let bcc_data = &msg[1..];
     let bcc = calculate_bcc(bcc_data);
     msg.push(bcc);
 
@@ -301,7 +304,7 @@ pub fn build_write_command(obis: &str, value: &str) -> Vec<u8> {
     msg.push(b')');
     msg.push(control::ETX);
 
-    let bcc_data = &msg[3..];
+    let bcc_data = &msg[1..];
     let bcc = calculate_bcc(bcc_data);
     msg.push(bcc);
 
@@ -317,7 +320,7 @@ pub fn build_break_command() -> Vec<u8> {
     msg.push(b'0');
     msg.push(control::ETX);
 
-    let bcc_data = &msg[3..];
+    let bcc_data = &msg[1..];
     let bcc = calculate_bcc(bcc_data);
     msg.push(bcc);
 
@@ -359,7 +362,7 @@ pub fn build_load_profile_command(profile_number: u8, start_time: Option<&str>, 
     msg.push(b')');
     msg.push(control::ETX);
 
-    let bcc_data = &msg[3..];
+    let bcc_data = &msg[1..];
     let bcc = calculate_bcc(bcc_data);
     msg.push(bcc);
 

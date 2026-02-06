@@ -1,7 +1,9 @@
+import { invoke } from "@tauri-apps/api/core";
+
 /**
  * Export data to Excel (CSV format with UTF-8 BOM for Turkish character support)
  */
-export function exportToExcel(data: Record<string, unknown>[], filename: string, columns?: { key: string; label: string }[]) {
+export async function exportToExcel(data: Record<string, unknown>[], filename: string, columns?: { key: string; label: string }[]) {
   if (!data || data.length === 0) {
     console.warn("No data to export");
     return;
@@ -36,17 +38,19 @@ export function exportToExcel(data: Record<string, unknown>[], filename: string,
   // Create CSV with UTF-8 BOM for Excel compatibility
   const BOM = "\uFEFF";
   const csvContent = BOM + csvRows.join("\n");
+  const defaultName = `${filename}_${formatDateForFilename(new Date())}.csv`;
 
-  // Create and download file
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${filename}_${formatDateForFilename(new Date())}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  try {
+    const savedPath = await invoke("save_file_dialog", {
+      content: csvContent,
+      defaultName: defaultName,
+    });
+    console.log("File saved to:", savedPath);
+  } catch (e) {
+    if (e !== "cancelled") {
+      console.error("Export failed:", e);
+    }
+  }
 }
 
 /**
@@ -64,7 +68,7 @@ function formatDateForFilename(date: Date): string {
 /**
  * Export table element directly to Excel
  */
-export function exportTableToExcel(tableId: string, filename: string) {
+export async function exportTableToExcel(tableId: string, filename: string) {
   const table = document.getElementById(tableId);
   if (!table) {
     console.warn(`Table with id "${tableId}" not found`);
@@ -85,14 +89,17 @@ export function exportTableToExcel(tableId: string, filename: string) {
 
   const BOM = "\uFEFF";
   const csvContent = BOM + csvRows.join("\n");
+  const defaultName = `${filename}_${formatDateForFilename(new Date())}.csv`;
 
-  const blob = new Blob([csvContent], { type: "text/csv;charset=utf-8" });
-  const url = URL.createObjectURL(blob);
-  const link = document.createElement("a");
-  link.href = url;
-  link.download = `${filename}_${formatDateForFilename(new Date())}.csv`;
-  document.body.appendChild(link);
-  link.click();
-  document.body.removeChild(link);
-  URL.revokeObjectURL(url);
+  try {
+    const savedPath = await invoke("save_file_dialog", {
+      content: csvContent,
+      defaultName: defaultName,
+    });
+    console.log("File saved to:", savedPath);
+  } catch (e) {
+    if (e !== "cancelled") {
+      console.error("Export failed:", e);
+    }
+  }
 }
