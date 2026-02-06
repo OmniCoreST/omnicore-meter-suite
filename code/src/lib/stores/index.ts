@@ -30,3 +30,4 @@ export {
   type Toast,
   type ToastType,
 } from "./toast";
+export { sessionsStore, type SessionInfo } from "./sessions";

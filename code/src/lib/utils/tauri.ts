@@ -56,8 +56,8 @@ export interface ShortReadResult {
   powerFactorL3: number;
   ffCode: string;
   gfCode: string;
-  batteryStatus: string;
-  relayStatus: string;
+  batteryStatus: "full" | "low" | "";
+  relayStatus: "active" | "passive" | "";
   rawData: string | null;
 }
 
@@ -162,6 +162,7 @@ export async function readShort(): Promise<ShortReadResult> {
       gfCode: "0000000000000004",
       batteryStatus: "full",
       relayStatus: "active",
+      rawData: null,
     };
   }
   return invoke<ShortReadResult>("read_short");
@@ -179,6 +180,56 @@ export async function readObis(obisCode: string): Promise<string> {
     return "mock-value";
   }
   return invoke<string>("read_obis", { obisCode });
+}
+
+// Load profile types
+export interface LoadProfileEntry {
+  timestamp: string;
+  values: number[];
+  status: string | null;
+}
+
+export interface LoadProfileResult {
+  profileNumber: number;
+  entries: LoadProfileEntry[];
+  rawData: string;
+}
+
+export async function readLoadProfile(
+  profileNumber: number,
+  startTime: string | null,
+  endTime: string | null
+): Promise<LoadProfileResult> {
+  if (!isTauri()) {
+    // Mock data for development
+    await new Promise((r) => setTimeout(r, 2000));
+    const entries: LoadProfileEntry[] = [];
+    const start = startTime ? new Date(`20${startTime.replace(",", " ")}`) : new Date("2024-12-01");
+    const end = endTime ? new Date(`20${endTime.replace(",", " ")}`) : new Date("2024-12-15");
+    const interval = 15 * 60 * 1000;
+
+    let current = new Date(start);
+    while (current <= end) {
+      entries.push({
+        timestamp: current.toISOString().slice(2, 16).replace("T", ",").replace(/-/g, "-"),
+        values: [
+          Math.random() * 10 + 50,
+          220 + Math.random() * 5 - 2.5,
+          220 + Math.random() * 5 - 2.5,
+          220 + Math.random() * 5 - 2.5,
+        ],
+        status: null,
+      });
+      current = new Date(current.getTime() + interval);
+    }
+
+    return {
+      profileNumber,
+      entries,
+      rawData: "",
+    };
+  }
+  return invoke<LoadProfileResult>("read_load_profile", { profileNumber, startTime, endTime });
 }
 
 // Programming commands
@@ -328,4 +379,89 @@ export async function setSetting(key: string, value: string): Promise<void> {
     return;
   }
   return invoke("set_setting", { key, value });
+}
+
+// Session file commands (file-based storage next to executable)
+export interface SessionFileData {
+  flag: string;
+  serialNumber: string;
+  model: string;
+  savedAt: string;
+  note: string;
+  meterData: Record<string, unknown>;
+  connectionInfo: Record<string, unknown>;
+}
+
+export interface SessionFileInfo {
+  fileName: string;
+  flag: string;
+  serialNumber: string;
+  model: string;
+  savedAt: string;
+  note: string;
+}
+
+export async function saveSessionFile(
+  flag: string,
+  serialNumber: string,
+  model: string,
+  note: string,
+  meterData: Record<string, unknown>,
+  connectionInfo: Record<string, unknown>,
+  overwriteExisting: boolean
+): Promise<string> {
+  if (!isTauri()) {
+    // Mock for development
+    const timestamp = new Date().toISOString().replace(/[-:T]/g, "").slice(0, 12);
+    return `${flag}-${serialNumber}-${timestamp}.json`;
+  }
+  return invoke<string>("save_session_file", {
+    flag,
+    serialNumber,
+    model,
+    note,
+    meterData,
+    connectionInfo,
+    overwriteExisting,
+  });
+}
+
+export async function listSessionFiles(): Promise<SessionFileInfo[]> {
+  if (!isTauri()) {
+    // Mock for development
+    return [
+      {
+        fileName: "MKS-123456789-202412151430.json",
+        flag: "MKS",
+        serialNumber: "123456789",
+        model: "M550.2251",
+        savedAt: "2024-12-15T14:30:00Z",
+        note: "Test session",
+      },
+    ];
+  }
+  return invoke<SessionFileInfo[]>("list_session_files");
+}
+
+export async function loadSessionFile(filename: string): Promise<SessionFileData> {
+  if (!isTauri()) {
+    // Mock for development
+    return {
+      flag: "MKS",
+      serialNumber: "123456789",
+      model: "M550.2251",
+      savedAt: "2024-12-15T14:30:00Z",
+      note: "Test session",
+      meterData: {},
+      connectionInfo: {},
+    };
+  }
+  return invoke<SessionFileData>("load_session_file", { filename });
+}
+
+export async function deleteSessionFile(filename: string): Promise<void> {
+  if (!isTauri()) {
+    return;
+  }
+  return invoke("delete_session_file", { filename });
 }

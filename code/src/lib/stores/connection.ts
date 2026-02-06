@@ -7,7 +7,7 @@ export interface SerialPort {
 }
 
 export interface ConnectionParams {
-  connectionType: "optical" | "rs485" | "tcpip";
+  connectionType: "optical" | "serial" | "auto" | "tcpip";
   port: string;
   baudRate: number;
   timeout: number;

@@ -9,10 +9,11 @@
   let rxActive = $state(false);
   let txTimer: ReturnType<typeof setTimeout> | null = null;
   let rxTimer: ReturnType<typeof setTimeout> | null = null;
+  let unlistenActivity: (() => void) | null = null;
 
   onMount(async () => {
     // Listen to communication activity events for LED blinking
-    await listen("comm-activity", (event: any) => {
+    unlistenActivity = await listen("comm-activity", (event: any) => {
       const activityType = event.payload.type;
 
       if (activityType === 'tx') {
@@ -28,6 +29,7 @@
   });
 
   onDestroy(() => {
+    if (unlistenActivity) unlistenActivity();
     if (txTimer) clearTimeout(txTimer);
     if (rxTimer) clearTimeout(rxTimer);
   });

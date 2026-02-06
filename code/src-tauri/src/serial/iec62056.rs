@@ -324,6 +324,48 @@ pub fn build_break_command() -> Vec<u8> {
     msg
 }
 
+/// Build load profile read command
+/// Format: SOH R2 STX P.XX(param) ETX BCC
+/// param can be:
+/// - "*" for all entries
+/// - ";" for all data (empty range)
+/// - "yy-mm-dd,hh:mm;yy-mm-dd,hh:mm" for date range
+pub fn build_load_profile_command(profile_number: u8, start_time: Option<&str>, end_time: Option<&str>) -> Vec<u8> {
+    let mut msg = Vec::new();
+    msg.push(control::SOH);
+    msg.push(b'R');
+    msg.push(b'2');
+    msg.push(control::STX);
+
+    // Profile identifier: P.01, P.02, P.03
+    let profile_str = format!("P.{:02}", profile_number);
+    msg.extend_from_slice(profile_str.as_bytes());
+    msg.push(b'(');
+
+    // Add parameter based on date range
+    match (start_time, end_time) {
+        (Some(start), Some(end)) if !start.is_empty() && !end.is_empty() => {
+            // Date range format: yy-mm-dd,hh:mm;yy-mm-dd,hh:mm
+            msg.extend_from_slice(start.as_bytes());
+            msg.push(b';');
+            msg.extend_from_slice(end.as_bytes());
+        }
+        _ => {
+            // Read all data
+            msg.push(b';');
+        }
+    }
+
+    msg.push(b')');
+    msg.push(control::ETX);
+
+    let bcc_data = &msg[3..];
+    let bcc = calculate_bcc(bcc_data);
+    msg.push(bcc);
+
+    msg
+}
+
 /// Parse the meter identification message
 /// Format: /XXXZ<generation>YYYYY(MODEL)\r\n
 /// Example: /MKS5<2>ADM(M550.2251)
@@ -396,7 +438,13 @@ pub fn parse_obis_response(line: &str) -> Option<ObisDataItem> {
 /// Parse multiple OBIS lines from a data block
 pub fn parse_data_block(data: &str) -> Vec<ObisDataItem> {
     data.lines()
-        .filter_map(|line| parse_obis_response(line.trim()))
+        .filter_map(|line| {
+            // Strip control characters (ASCII 0-31) and whitespace
+            let cleaned: String = line.chars()
+                .filter(|c| !c.is_control())
+                .collect();
+            parse_obis_response(cleaned.trim())
+        })
         .collect()
 }
 

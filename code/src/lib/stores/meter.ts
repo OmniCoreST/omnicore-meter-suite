@@ -53,8 +53,11 @@ export interface ShortReadData {
   // Status Codes
   ffCode: string;
   gfCode: string;
-  batteryStatus: "full" | "low";
-  relayStatus: "active" | "passive";
+  batteryStatus: "full" | "low" | "";
+  relayStatus: "active" | "passive" | "";
+
+  // Raw data for parsing profile definitions etc.
+  rawData?: string | null;
 }
 
 export interface FullReadData extends ShortReadData {

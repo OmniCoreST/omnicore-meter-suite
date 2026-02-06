@@ -1,17 +1,34 @@
 import { writable } from "svelte/store";
 
 export type Page =
-  | "dashboard"
-  | "short-read"
-  | "full-read"
+  | "dashboard"  // Dashboard - device connection
+  | "sessions"   // All sessions view
+  // OKUMA (Reading) Section - 8 pages
+  | "overview"
+  | "live-measurements"
+  | "energy"
+  | "demand"
   | "load-profile"
-  | "events"
-  | "alarms"
-  | "time-sync"
+  | "warnings"
+  | "outages"
+  | "status-codes"
+  // AYARLAR (Settings) Section - 7 pages
+  | "time-date"
   | "password"
   | "dst"
+  | "tariffs"
   | "periods"
-  | "tariffs";
+  | "relay-control"
+  | "obis-reader";
+
+// URL aliases for backward compatibility
+const pageAliases: Record<string, Page> = {
+  "short-read": "energy",
+  "full-read": "energy",
+  "events": "warnings",
+  "alarms": "status-codes",
+  "time-sync": "time-date",
+};
 
 function createNavigationStore() {
   const { subscribe, set } = writable<Page>("dashboard");
@@ -23,15 +40,29 @@ function createNavigationStore() {
       set(page);
     },
     init: () => {
-      const hash = window.location.hash.slice(1) as Page;
+      let hash = window.location.hash.slice(1) as string;
+
+      // Apply alias if exists
+      if (hash && pageAliases[hash]) {
+        hash = pageAliases[hash];
+        window.location.hash = hash;
+      }
+
       if (hash) {
-        set(hash);
+        set(hash as Page);
       }
 
       window.addEventListener("hashchange", () => {
-        const newHash = window.location.hash.slice(1) as Page;
+        let newHash = window.location.hash.slice(1) as string;
+
+        // Apply alias if exists
+        if (newHash && pageAliases[newHash]) {
+          newHash = pageAliases[newHash];
+          window.location.hash = newHash;
+        }
+
         if (newHash) {
-          set(newHash);
+          set(newHash as Page);
         }
       });
     },

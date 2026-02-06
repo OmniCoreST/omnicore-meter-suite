@@ -8,21 +8,30 @@
     labelKey: keyof typeof import("$lib/i18n/tr").tr;
   }
 
-  const mainMenuItems: NavItem[] = [
-    { id: "dashboard", icon: "dashboard", labelKey: "dashboard" },
-    { id: "short-read", icon: "menu_book", labelKey: "shortRead" },
-    { id: "full-read", icon: "assignment", labelKey: "fullRead" },
+  // Dashboard at top (no section header)
+  const dashboardItem: NavItem = { id: "dashboard", icon: "home", labelKey: "dashboard" };
+
+  // OKUMA (Reading) Section - 8 pages
+  const okumaItems: NavItem[] = [
+    { id: "overview", icon: "info", labelKey: "overview" },
+    { id: "live-measurements", icon: "speed", labelKey: "liveMeasurements" },
+    { id: "energy", icon: "bolt", labelKey: "energy" },
+    { id: "demand", icon: "trending_up", labelKey: "demand" },
     { id: "load-profile", icon: "bar_chart", labelKey: "loadProfile" },
-    { id: "events", icon: "event_note", labelKey: "events" },
-    { id: "alarms", icon: "notifications", labelKey: "alarms" },
+    { id: "warnings", icon: "warning", labelKey: "warnings" },
+    { id: "outages", icon: "power_off", labelKey: "outages" },
+    { id: "status-codes", icon: "qr_code_2", labelKey: "statusCodes" },
   ];
 
-  const settingsMenuItems: NavItem[] = [
-    { id: "time-sync", icon: "schedule", labelKey: "timeSync" },
+  // AYARLAR (Settings) Section - 7 pages
+  const ayarlarItems: NavItem[] = [
+    { id: "time-date", icon: "schedule", labelKey: "timeDate" },
     { id: "password", icon: "lock_reset", labelKey: "passwordChange" },
     { id: "dst", icon: "wb_sunny", labelKey: "dstSettings" },
-    { id: "periods", icon: "timer", labelKey: "periodSettings" },
     { id: "tariffs", icon: "payments", labelKey: "tariffSettings" },
+    { id: "periods", icon: "timer", labelKey: "periodSettings" },
+    { id: "relay-control", icon: "power_settings_new", labelKey: "relayControl" },
+    { id: "obis-reader", icon: "terminal", labelKey: "obisReader" },
   ];
 
   function navigate(page: Page) {
@@ -51,12 +60,39 @@
 
   <!-- Scrollable Menu Area -->
   <div class="flex-1 overflow-y-auto p-3">
-    <!-- Main Menu -->
+    <!-- Dashboard (no section header) -->
+    <div class="mb-3">
+      <button
+        onclick={() => navigate(dashboardItem.id)}
+        class="flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-left w-full
+          {$navigationStore === dashboardItem.id
+          ? 'bg-primary/10 text-primary'
+          : 'hover:bg-slate-100 dark:hover:bg-[#334a5e] text-slate-600 dark:text-slate-300 group'}"
+      >
+        <Icon
+          name={dashboardItem.icon}
+          size="sm"
+          filled={$navigationStore === dashboardItem.id}
+          class={$navigationStore === dashboardItem.id
+            ? ""
+            : "group-hover:text-primary dark:group-hover:text-white transition-colors"}
+        />
+        <span
+          class="text-xs {$navigationStore === dashboardItem.id
+            ? 'font-bold'
+            : 'font-medium group-hover:text-slate-900 dark:group-hover:text-white transition-colors'}"
+        >
+          {$t[dashboardItem.labelKey]}
+        </span>
+      </button>
+    </div>
+
+    <!-- OKUMA Section -->
     <div class="flex flex-col gap-1 mb-4">
       <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-2">
-        {$t.mainMenu}
+        {$t.okumaSection}
       </p>
-      {#each mainMenuItems as item}
+      {#each okumaItems as item}
         <button
           onclick={() => navigate(item.id)}
           class="flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-left w-full
@@ -83,12 +119,12 @@
       {/each}
     </div>
 
-    <!-- Settings Menu -->
+    <!-- AYARLAR Section -->
     <div class="flex flex-col gap-1">
       <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-2">
-        {$t.meterSettings}
+        {$t.ayarlarSection}
       </p>
-      {#each settingsMenuItems as item}
+      {#each ayarlarItems as item}
         <button
           onclick={() => navigate(item.id)}
           class="flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-left w-full
@@ -128,7 +164,7 @@
       <span class="text-xs font-medium text-slate-600 dark:text-slate-400 group-hover:text-primary transition-colors">
         omnicore.com.tr
       </span>
-      <Icon name="open_in_new" size="xs" class="text-slate-300 dark:text-slate-600 group-hover:text-primary transition-colors ml-auto" />
+      <Icon name="open_in_new" size="sm" class="text-slate-300 dark:text-slate-600 group-hover:text-primary transition-colors ml-auto" />
     </a>
   </div>
 </nav>

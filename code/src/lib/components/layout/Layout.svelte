@@ -8,18 +8,28 @@
   import { navigationStore, localeStore, t } from "$lib/stores";
   import { onMount } from "svelte";
 
-  // Pages
+  // Pages - Dashboard
   import Home from "$lib/pages/Home.svelte";
-  import ShortRead from "$lib/pages/ShortRead.svelte";
-  import FullRead from "$lib/pages/FullRead.svelte";
+  import Sessions from "$lib/pages/Sessions.svelte";
+
+  // Pages - OKUMA (Reading) Section
+  import Overview from "$lib/pages/Overview.svelte";
+  import LiveMeasurements from "$lib/pages/LiveMeasurements.svelte";
+  import Energy from "$lib/pages/Energy.svelte";
+  import Demand from "$lib/pages/Demand.svelte";
   import LoadProfile from "$lib/pages/LoadProfile.svelte";
-  import Events from "$lib/pages/Events.svelte";
-  import Alarms from "$lib/pages/Alarms.svelte";
-  import TimeSync from "$lib/pages/TimeSync.svelte";
+  import Warnings from "$lib/pages/Warnings.svelte";
+  import Outages from "$lib/pages/Outages.svelte";
+  import StatusCodes from "$lib/pages/StatusCodes.svelte";
+
+  // Pages - AYARLAR (Settings) Section
+  import TimeDate from "$lib/pages/TimeDate.svelte";
   import Password from "$lib/pages/Password.svelte";
   import DST from "$lib/pages/DST.svelte";
-  import Periods from "$lib/pages/Periods.svelte";
   import Tariffs from "$lib/pages/Tariffs.svelte";
+  import Periods from "$lib/pages/Periods.svelte";
+  import RelayControl from "$lib/pages/RelayControl.svelte";
+  import ObisReader from "$lib/pages/ObisReader.svelte";
 
   onMount(() => {
     navigationStore.init();
@@ -27,17 +37,26 @@
   });
 
   const pageComponents = {
+    // Dashboard
     dashboard: Home,
-    "short-read": ShortRead,
-    "full-read": FullRead,
+    sessions: Sessions,
+    // OKUMA Section
+    overview: Overview,
+    "live-measurements": LiveMeasurements,
+    energy: Energy,
+    demand: Demand,
     "load-profile": LoadProfile,
-    events: Events,
-    alarms: Alarms,
-    "time-sync": TimeSync,
+    warnings: Warnings,
+    outages: Outages,
+    "status-codes": StatusCodes,
+    // AYARLAR Section
+    "time-date": TimeDate,
     password: Password,
     dst: DST,
-    periods: Periods,
     tariffs: Tariffs,
+    periods: Periods,
+    "relay-control": RelayControl,
+    "obis-reader": ObisReader,
   };
 
   let currentPage = $derived(pageComponents[$navigationStore] || Home);

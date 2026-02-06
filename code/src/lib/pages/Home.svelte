@@ -1,8 +1,8 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, connectionStore, isConnected, isConnecting, addLog, meterStore, isMeterReading, errorToast, type LogType } from "$lib/stores";
+  import { t, connectionStore, isConnected, isConnecting, addLog, meterStore, isMeterReading, errorToast, successToast, sessionsStore, navigationStore, type LogType, type SessionInfo } from "$lib/stores";
   import { onMount, onDestroy } from "svelte";
-  import { listSerialPorts, connect as tauriConnect, disconnect as tauriDisconnect, onCommLog, readFull, setSetting, type PortInfo } from "$lib/utils/tauri";
+  import { listSerialPorts, connect as tauriConnect, disconnect as tauriDisconnect, onCommLog, readFull, setSetting, loadSessionFile, type PortInfo } from "$lib/utils/tauri";
 
   // Connection parameters
   let connectionType = $state("auto");
@@ -15,12 +15,18 @@
   let serialPorts = $state<{ name: string; description: string; active: boolean }[]>([]);
   let loadingPorts = $state(false);
 
+  // Computed state for ports display
+  let portsLoading = $derived(loadingPorts);
+
   let unlistenLog: (() => void) | null = null;
 
-  // Fetch serial ports on mount
+  // Fetch serial ports and previous sessions on mount
   onMount(async () => {
     // Delay port refresh slightly to let UI render first
     setTimeout(() => refreshPorts(), 500);
+
+    // Load previous sessions from saved files
+    sessionsStore.refresh();
 
     // Listen to communication log events from backend
     unlistenLog = await onCommLog((event) => {
@@ -64,43 +70,31 @@
     }
   }
 
-  // Mock previous sessions
-  const previousSessions = [
-    {
-      id: 1,
-      flag: "MKS",
-      serialNumber: "882190345",
-      dateTime: "2024-12-15 14:30",
-      success: true,
-    },
-    {
-      id: 2,
-      flag: "ADM",
-      serialNumber: "776234891",
-      dateTime: "2024-12-14 09:15",
-      success: true,
-    },
-    {
-      id: 3,
-      flag: "MKS",
-      serialNumber: "445678123",
-      dateTime: "2024-12-13 16:45",
-      success: false,
-    },
-    {
-      id: 4,
-      flag: "GDZ",
-      serialNumber: "998877665",
-      dateTime: "2024-12-12 11:20",
-      success: true,
-    },
-  ];
+  // Previous sessions (from store, loaded from saved session files)
+  let previousSessions = $derived($sessionsStore);
+
+  // Session load confirmation dialog
+  let showLoadConfirmDialog = $state(false);
+  let pendingSessionToLoad = $state<SessionInfo | null>(null);
+  let isLoadingSession = $state(false);
+
+  // Session delete confirmation dialog
+  let showDeleteConfirmDialog = $state(false);
+  let pendingSessionToDelete = $state<SessionInfo | null>(null);
+  let isDeletingSession = $state(false);
 
   const connectionTypes = [
     { value: "auto", labelKey: "autoDetect" as const },
     { value: "optical", labelKey: "opticalProbe" as const },
-    { value: "rs485", labelKey: "rs485Direct" as const },
+    { value: "serial", labelKey: "serialDirect" as const },
   ];
+
+  // When optical is selected, force baudRate to auto (IEC 62056-21 requires 300 bps start)
+  $effect(() => {
+    if (connectionType === "optical") {
+      baudRate = "auto";
+    }
+  });
 
   const baudRates = [
     { value: "auto", label: null },
@@ -143,7 +137,7 @@
         connectionStore.connect({
           port: selectedPort,
           baudRate: baud || 9600,
-          connectionType: connectionType as "optical" | "rs485",
+          connectionType: connectionType as "optical" | "serial" | "auto",
           meterAddress: meterAddress || undefined,
         });
 
@@ -173,7 +167,7 @@
             console.log("[Home] readFull() returned successfully:", result);
 
             // Detect meter type
-            let meterType = "single-phase";
+            let meterType: "single-phase" | "three-phase" | "kombi" = "single-phase";
             if (result.voltageL2 > 0 || result.voltageL3 > 0) {
               meterType = "three-phase";
             }
@@ -205,8 +199,126 @@
     }
   }
 
-  function loadSession(session: (typeof previousSessions)[0]) {
+  function loadSession(session: SessionInfo) {
+    // Check if there's an active session with data
+    if ($meterStore.shortReadData) {
+      // Show confirmation dialog
+      pendingSessionToLoad = session;
+      showLoadConfirmDialog = true;
+    } else {
+      // No active session, load directly
+      performSessionLoad(session);
+    }
+  }
+
+  function cancelLoadSession() {
+    showLoadConfirmDialog = false;
+    pendingSessionToLoad = null;
+  }
+
+  function confirmLoadSession() {
+    if (pendingSessionToLoad) {
+      performSessionLoad(pendingSessionToLoad);
+    }
+    showLoadConfirmDialog = false;
+    pendingSessionToLoad = null;
+  }
+
+  async function performSessionLoad(session: SessionInfo) {
+    if (!session.fileName) {
+      errorToast($t.sessionLoadError || "Session file not found");
+      return;
+    }
+
+    isLoadingSession = true;
     addLog("info", `Oturum yükleniyor: ${session.flag} — ${session.serialNumber}`);
+
+    try {
+      const sessionData = await loadSessionFile(session.fileName);
+
+      // Extract meter data from session
+      const meterData = sessionData.meterData as {
+        shortReadData?: Record<string, unknown>;
+        fullReadData?: Record<string, unknown>;
+        loadProfileData?: Record<string, unknown>;
+        meterType?: "single-phase" | "three-phase" | "kombi";
+        isBidirectional?: boolean;
+      };
+
+      if (meterData?.shortReadData) {
+        // Load the data into meterStore
+        meterStore.setShortReadData(
+          meterData.shortReadData as unknown as Parameters<typeof meterStore.setShortReadData>[0],
+          meterData.meterType || "single-phase",
+          meterData.isBidirectional || false
+        );
+
+        // Load full read data if available
+        if (meterData.fullReadData) {
+          meterStore.setFullReadData(
+            meterData.fullReadData as unknown as Parameters<typeof meterStore.setFullReadData>[0]
+          );
+        }
+
+        // Load profile data if available
+        if (meterData.loadProfileData) {
+          meterStore.setLoadProfileData(
+            meterData.loadProfileData as unknown as Parameters<typeof meterStore.setLoadProfileData>[0]
+          );
+        }
+
+        // Set connection status to "connected" so pages display the data
+        connectionStore.setConnected({
+          flag: sessionData.flag || session.flag,
+          manufacturer: sessionData.flag || session.flag,
+          edasId: "",
+          model: sessionData.model || "",
+          baudChar: "",
+          serialNumber: sessionData.serialNumber || session.serialNumber,
+        });
+
+        successToast($t.sessionLoaded || `Session loaded: ${session.flag} — ${session.serialNumber}`);
+        addLog("success", `Oturum yüklendi: ${session.flag} — ${session.serialNumber}`);
+      } else {
+        errorToast($t.sessionLoadError || "Invalid session data");
+        addLog("error", "Oturum verisi geçersiz");
+      }
+    } catch (e) {
+      console.error("Failed to load session:", e);
+      errorToast(`${$t.sessionLoadError || "Failed to load session"}: ${e}`);
+      addLog("error", `Oturum yüklenemedi: ${e}`);
+    } finally {
+      isLoadingSession = false;
+    }
+  }
+
+  function promptDeleteSession(session: SessionInfo, event: MouseEvent) {
+    event.stopPropagation();
+    pendingSessionToDelete = session;
+    showDeleteConfirmDialog = true;
+  }
+
+  function cancelDeleteSession() {
+    showDeleteConfirmDialog = false;
+    pendingSessionToDelete = null;
+  }
+
+  async function confirmDeleteSession() {
+    if (!pendingSessionToDelete) return;
+
+    isDeletingSession = true;
+    try {
+      await sessionsStore.delete(pendingSessionToDelete.fileName);
+      successToast($t.sessionDeleted || "Session deleted");
+      addLog("info", `Oturum silindi: ${pendingSessionToDelete.flag} — ${pendingSessionToDelete.serialNumber}`);
+    } catch (e) {
+      console.error("Failed to delete session:", e);
+      errorToast(`${$t.sessionDeleteError || "Failed to delete session"}: ${e}`);
+    } finally {
+      isDeletingSession = false;
+      showDeleteConfirmDialog = false;
+      pendingSessionToDelete = null;
+    }
   }
 
   let showPortsAsDropdown = $derived(serialPorts.length > 5);
@@ -260,7 +372,8 @@
             </label>
             <select
               bind:value={baudRate}
-              class="w-full px-3 py-2.5 bg-white dark:bg-[#1a2632] border border-slate-300 dark:border-[#334a5e] rounded-lg text-sm text-slate-900 dark:text-white focus:border-primary focus:ring-1 focus:ring-primary transition-colors"
+              disabled={connectionType === "optical"}
+              class="w-full px-3 py-2.5 bg-white dark:bg-[#1a2632] border border-slate-300 dark:border-[#334a5e] rounded-lg text-sm text-slate-900 dark:text-white focus:border-primary focus:ring-1 focus:ring-primary transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {#each baudRates as rate}
                 <option value={rate.value}>{rate.label || $t.autoDetect}</option>
@@ -314,7 +427,13 @@
             <span class="text-primary ml-1">({serialPorts.length} {$t.available})</span>
           </label>
 
-          {#if hasNoPorts}
+          {#if portsLoading}
+            <!-- Loading Ports -->
+            <div class="p-6 bg-slate-50 dark:bg-[#0f1821] border border-slate-200 dark:border-[#334a5e] rounded-lg text-center">
+              <Icon name="sync" class="text-primary text-3xl mb-2 animate-spin" />
+              <p class="text-sm font-bold text-slate-600 dark:text-slate-400">{$t.loadingPorts}</p>
+            </div>
+          {:else if hasNoPorts}
             <!-- No Ports Detected -->
             <div class="p-6 bg-amber-500/10 border border-amber-500/20 rounded-lg text-center">
               <Icon name="usb_off" class="text-amber-500 text-3xl mb-2" />
@@ -397,7 +516,10 @@
             </p>
           </div>
         </div>
-        <button class="text-primary text-sm font-bold hover:underline">{$t.viewAll}</button>
+        <button
+          onclick={() => navigationStore.navigate("sessions")}
+          class="text-primary text-sm font-bold hover:underline"
+        >{$t.viewAll}</button>
       </div>
     </div>
 
@@ -406,47 +528,173 @@
       {#if previousSessions.length === 0}
         <div class="p-8 text-center">
           <Icon name="folder_off" class="text-slate-300 dark:text-slate-600 text-4xl mb-2" />
-          <p class="text-sm text-slate-500">{$t.noRecentEvents}</p>
+          <p class="text-sm text-slate-500">{$t.noPreviousSessions}</p>
         </div>
       {:else}
         <div class="space-y-2">
-          {#each previousSessions as session}
-            <button
-              onclick={() => loadSession(session)}
-              class="w-full flex items-center gap-4 p-3 rounded-lg border border-slate-200 dark:border-[#334a5e] hover:bg-slate-50 dark:hover:bg-[#1a2632] transition-all text-left group"
-            >
-              <!-- Meter Flag Badge -->
-              <div
-                class="w-12 h-12 flex items-center justify-center rounded-lg font-mono font-bold text-sm
-                  {session.success
-                  ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
-                  : 'bg-red-500/10 text-red-600 dark:text-red-400'}"
+          {#each previousSessions.slice(0, 4) as session}
+            <div class="flex items-center gap-2 group">
+              <button
+                onclick={() => loadSession(session)}
+                class="flex-1 flex items-center gap-4 p-3 rounded-lg border border-slate-200 dark:border-[#334a5e] hover:bg-slate-50 dark:hover:bg-[#1a2632] transition-all text-left"
               >
-                {session.flag}
-              </div>
-
-              <!-- Session Info -->
-              <div class="flex-1">
-                <div class="flex items-center gap-2">
-                  <span class="font-mono font-bold text-slate-900 dark:text-white">
-                    {session.serialNumber}
-                  </span>
-                  {#if !session.success}
-                    <Icon name="error" size="sm" class="text-red-500" />
-                  {/if}
+                <!-- Meter Flag Badge -->
+                <div
+                  class="w-10 h-10 flex items-center justify-center rounded-lg font-mono font-bold text-xs
+                    {session.success
+                    ? 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+                    : 'bg-red-500/10 text-red-600 dark:text-red-400'}"
+                >
+                  {session.flag}
                 </div>
-                <span class="text-xs text-slate-500">{session.dateTime}</span>
-              </div>
 
-              <!-- Arrow Icon -->
-              <Icon
-                name="chevron_right"
-                class="text-slate-300 dark:text-slate-600 group-hover:text-primary transition-colors"
-              />
-            </button>
+                <!-- Session Info -->
+                <div class="flex-1 min-w-0">
+                  <div class="flex items-center gap-2">
+                    <span class="font-mono font-bold text-slate-900 dark:text-white truncate">
+                      {session.serialNumber}
+                    </span>
+                  </div>
+                  <span class="text-xs text-slate-500">{session.dateTime}</span>
+                </div>
+
+                <!-- Arrow Icon -->
+                <Icon
+                  name="chevron_right"
+                  size="sm"
+                  class="text-slate-300 dark:text-slate-600 group-hover:text-primary transition-colors"
+                />
+              </button>
+
+              <!-- Delete Button -->
+              <button
+                onclick={(e) => promptDeleteSession(session, e)}
+                class="p-2 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-50 dark:hover:bg-red-500/10 transition-colors opacity-0 group-hover:opacity-100"
+                title={$t.delete}
+              >
+                <Icon name="delete" size="sm" />
+              </button>
+            </div>
           {/each}
         </div>
       {/if}
     </div>
   </div>
 </div>
+
+<!-- Session Load Confirmation Dialog -->
+{#if showLoadConfirmDialog && pendingSessionToLoad}
+  <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={cancelLoadSession}>
+    <div
+      class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl shadow-xl w-full max-w-md mx-4"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <!-- Dialog Header -->
+      <div class="flex items-center gap-3 px-5 py-4 border-b border-slate-200 dark:border-[#334a5e]">
+        <div class="p-2 bg-amber-500/10 rounded-lg">
+          <Icon name="warning" class="text-amber-500" />
+        </div>
+        <h3 class="text-lg font-bold text-slate-900 dark:text-white">{$t.loadSessionConfirmTitle || "Load Session?"}</h3>
+      </div>
+
+      <!-- Dialog Body -->
+      <div class="p-5 space-y-4">
+        <p class="text-sm text-slate-600 dark:text-slate-400">
+          {$t.loadSessionConfirmMessage || "There is existing meter data. Loading this session will replace the current data."}
+        </p>
+
+        <!-- Session to load info -->
+        <div class="p-3 bg-slate-50 dark:bg-[#0f1821] rounded-lg">
+          <p class="text-xs text-slate-500 mb-1">{$t.sessionToLoad || "Session to load"}</p>
+          <p class="text-sm font-bold text-slate-900 dark:text-white">
+            {pendingSessionToLoad.flag} — {pendingSessionToLoad.serialNumber}
+          </p>
+          <p class="text-xs text-slate-500">{pendingSessionToLoad.dateTime}</p>
+        </div>
+      </div>
+
+      <!-- Dialog Footer -->
+      <div class="flex justify-end gap-3 px-5 py-4 border-t border-slate-200 dark:border-[#334a5e]">
+        <button
+          onclick={cancelLoadSession}
+          class="px-4 py-2 text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#334a5e] rounded-lg transition-colors"
+        >
+          {$t.cancel}
+        </button>
+        <button
+          onclick={confirmLoadSession}
+          class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-bold rounded-lg transition-colors"
+        >
+          <Icon name="folder_open" size="sm" />
+          {$t.loadSession || "Load Session"}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}
+
+<!-- Loading Overlay -->
+{#if isLoadingSession}
+  <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+    <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl shadow-xl p-8 text-center">
+      <Icon name="sync" class="text-primary text-4xl mb-3 animate-spin" />
+      <p class="text-sm font-bold text-slate-900 dark:text-white">{$t.loadingSession || "Loading session..."}</p>
+    </div>
+  </div>
+{/if}
+
+<!-- Delete Confirmation Dialog -->
+{#if showDeleteConfirmDialog && pendingSessionToDelete}
+  <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50" onclick={cancelDeleteSession}>
+    <div
+      class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl shadow-xl w-full max-w-md mx-4"
+      onclick={(e) => e.stopPropagation()}
+    >
+      <!-- Dialog Header -->
+      <div class="flex items-center gap-3 px-5 py-4 border-b border-slate-200 dark:border-[#334a5e]">
+        <div class="p-2 bg-red-500/10 rounded-lg">
+          <Icon name="delete" class="text-red-500" />
+        </div>
+        <h3 class="text-lg font-bold text-slate-900 dark:text-white">{$t.deleteSessionConfirmTitle || "Delete Session?"}</h3>
+      </div>
+
+      <!-- Dialog Body -->
+      <div class="p-5 space-y-4">
+        <p class="text-sm text-slate-600 dark:text-slate-400">
+          {$t.deleteSessionConfirmMessage || "This action cannot be undone. The session file will be permanently deleted."}
+        </p>
+
+        <!-- Session to delete info -->
+        <div class="p-3 bg-red-50 dark:bg-red-500/10 border border-red-200 dark:border-red-500/20 rounded-lg">
+          <p class="text-xs text-red-500 mb-1">{$t.sessionToDelete || "Session to delete"}</p>
+          <p class="text-sm font-bold text-slate-900 dark:text-white">
+            {pendingSessionToDelete.flag} — {pendingSessionToDelete.serialNumber}
+          </p>
+          <p class="text-xs text-slate-500">{pendingSessionToDelete.dateTime}</p>
+        </div>
+      </div>
+
+      <!-- Dialog Footer -->
+      <div class="flex justify-end gap-3 px-5 py-4 border-t border-slate-200 dark:border-[#334a5e]">
+        <button
+          onclick={cancelDeleteSession}
+          class="px-4 py-2 text-sm font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#334a5e] rounded-lg transition-colors"
+        >
+          {$t.cancel}
+        </button>
+        <button
+          onclick={confirmDeleteSession}
+          disabled={isDeletingSession}
+          class="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50"
+        >
+          {#if isDeletingSession}
+            <Icon name="sync" size="sm" class="animate-spin" />
+          {:else}
+            <Icon name="delete" size="sm" />
+          {/if}
+          {$t.delete}
+        </button>
+      </div>
+    </div>
+  </div>
+{/if}

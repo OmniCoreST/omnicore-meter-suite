@@ -4,6 +4,7 @@ version = "0.1.0"
 description = "Desktop application for reading and programming Turkish MASS-compliant electricity meters"
 authors = ["OmniCore Systems"]
 edition = "2021"
+default-run = "omnicore-meter-suite"
 
 [lib]
 name = "omnicore_meter_suite_lib"

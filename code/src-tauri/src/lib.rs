@@ -1,5 +1,5 @@
 use serde::{Deserialize, Serialize};
-use tauri::{Emitter, Manager};
+use tauri::Manager;
 
 mod serial;
 mod commands;
@@ -148,11 +148,17 @@ pub fn run() {
             commands::read_short,
             commands::read_full,
             commands::read_obis,
+            commands::read_load_profile,
             // Programming commands
             commands::authenticate,
             commands::write_obis,
             commands::sync_time,
             commands::end_session,
+            // Session file commands
+            commands::sessions::save_session_file,
+            commands::sessions::list_session_files,
+            commands::sessions::load_session_file,
+            commands::sessions::delete_session_file,
             // Database commands
             db_commands::save_session,
             db_commands::get_session,

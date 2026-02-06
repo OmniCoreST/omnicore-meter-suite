@@ -39,7 +39,7 @@
         onclick={() => toastStore.dismiss(toast.id)}
         class="hover:bg-white/20 rounded p-1 transition-colors"
       >
-        <Icon name="close" size="xs" />
+        <Icon name="close" size="sm" />
       </button>
     </div>
   {/each}
