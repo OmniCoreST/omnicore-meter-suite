@@ -1420,8 +1420,9 @@ pub async fn read_load_profile(
     emit_log("info", "Yük profili verisi bekleniyor (bu işlem uzun sürebilir)...", None);
 
     // Step 7: Read response - load profile can be very large
-    let mut data_buf = vec![0u8; 524288]; // 512KB buffer
-    let mut total_read = 0;
+    // Use growable buffer — profile 2 (10 columns) can exceed 1MB
+    let mut data_buf: Vec<u8> = Vec::with_capacity(1048576); // Start with 1MB capacity
+    let mut chunk_buf = [0u8; 8192]; // Read in 8KB chunks
     let mut found_etx = false;
     let read_start = std::time::Instant::now();
     let mut last_read_time = std::time::Instant::now();
@@ -1430,34 +1431,36 @@ pub async fn read_load_profile(
     std::thread::sleep(Duration::from_millis(500));
 
     loop {
-        match port.read(&mut data_buf[total_read..]) {
+        match port.read(&mut chunk_buf) {
             Ok(n) if n > 0 => {
-                total_read += n;
+                let old_len = data_buf.len();
+                data_buf.extend_from_slice(&chunk_buf[..n]);
                 last_read_time = std::time::Instant::now();
                 let _ = window.emit("comm-activity", serde_json::json!({"type": "rx"}));
 
                 // Count data blocks for progress indication
-                let new_blocks = data_buf[total_read-n..total_read]
+                let new_blocks = data_buf[old_len..]
                     .iter()
                     .filter(|&&b| b == control::CR)
                     .count();
                 if new_blocks > 0 {
                     block_count += new_blocks;
                     if block_count % 50 == 0 {
-                        emit_log("info", &format!("{} satır alındı ({} byte)...", block_count, total_read), None);
+                        emit_log("info", &format!("{} satır alındı ({} byte, {:.1}s)...",
+                            block_count, data_buf.len(), read_start.elapsed().as_secs_f32()), None);
                     }
                 }
 
-                // Check for ETX
-                for i in (total_read.saturating_sub(n)..total_read).rev() {
-                    if data_buf[i] == control::ETX && i + 1 < total_read {
+                // Check for ETX in newly received bytes
+                for i in (old_len..data_buf.len()).rev() {
+                    if data_buf[i] == control::ETX {
                         found_etx = true;
                         break;
                     }
                 }
                 if found_etx {
                     emit_log("info", &format!("Veri alımı tamamlandı: {} byte, {} satır, süre: {:.1}s",
-                        total_read, block_count, read_start.elapsed().as_secs_f32()), None);
+                        data_buf.len(), block_count, read_start.elapsed().as_secs_f32()), None);
                     break;
                 }
             }
@@ -1469,7 +1472,6 @@ pub async fn read_load_profile(
             }
             Err(e) => {
                 emit_log("error", &format!("Okuma hatası: {}", e), None);
-                // Send break and close port before returning error
                 let break_cmd = iec62056::build_break_command();
                 let _ = port.write_all(&break_cmd);
                 let _ = port.flush();
@@ -1477,31 +1479,18 @@ pub async fn read_load_profile(
             }
         }
 
-        // Idle timeout: 15 seconds for slow meters
+        // Sliding idle timeout only — resets with every data arrival
+        // No global timeout: we don't know the data size
         if last_read_time.elapsed() > Duration::from_millis(15000) {
-            if total_read == 0 {
+            if data_buf.is_empty() {
                 emit_log("error", "Zaman aşımı: Hiç veri alınamadı (15s). Sayaç bu profili desteklemiyor olabilir.", None);
-                // Send break and close port before returning error
                 let break_cmd = iec62056::build_break_command();
                 let _ = port.write_all(&break_cmd);
                 let _ = port.flush();
                 return Err("15 saniye zaman aşımı. Sayaç bu profili desteklemiyor olabilir.".to_string());
             } else {
-                emit_log("warn", &format!("Boşta kalma zaman aşımı: {} byte alındı ama ETX yok", total_read), None);
-            }
-            break;
-        }
-
-        // Overall timeout: 5 minutes for very large profiles
-        if read_start.elapsed() > Duration::from_millis(300000) {
-            if total_read == 0 {
-                emit_log("error", "Genel zaman aşımı: Hiç veri alınamadı (5 dakika)", None);
-                let break_cmd = iec62056::build_break_command();
-                let _ = port.write_all(&break_cmd);
-                let _ = port.flush();
-                return Err("5 dakika genel zaman aşımı".to_string());
-            } else {
-                emit_log("warn", &format!("Genel zaman aşımı: {} byte alındı (5 dakika)", total_read), None);
+                emit_log("warn", &format!("Boşta kalma zaman aşımı: {} byte alındı, {} satır, süre: {:.1}s",
+                    data_buf.len(), block_count, read_start.elapsed().as_secs_f32()), None);
             }
             break;
         }
@@ -1527,7 +1516,8 @@ pub async fn read_load_profile(
     emit_progress(6, total_steps, "Yük profili verileri ayrıştırılıyor...");
 
     // Convert to string
-    let raw_data = String::from_utf8_lossy(&data_buf[..total_read]).to_string();
+    let total_read = data_buf.len();
+    let raw_data = String::from_utf8_lossy(&data_buf).to_string();
     let data_formatted = iec62056::format_bytes_for_display(&data_buf[..total_read.min(2000)]);
     let truncation_note = if total_read > 2000 {
         Some(format!("... ({} byte toplam)", total_read))
@@ -1537,21 +1527,47 @@ pub async fn read_load_profile(
     emit_log("rx", &data_formatted, truncation_note.as_deref());
 
     // Parse load profile entries
-    // Format: P.01(yy-mm-dd,hh:mm)(value1)(value2)...(status)
+    // Format varies by meter:
+    //   Type A: P.01(yy-mm-dd,hh:mm)(value1)(value2)...(status)
+    //   Type B (BYL): LPCH:1.8.0*kWh\r\n(yy-mm-dd,hh:mm)(value)\r\n...
     let mut entries: Vec<LoadProfileEntry> = Vec::new();
 
     for line in raw_data.lines() {
-        let trimmed = line.trim();
-        if trimmed.is_empty() || !trimmed.starts_with("P.") {
+        // Strip control chars (STX=0x02, ETX=0x03, SOH=0x01, etc.)
+        let clean: String = line.chars()
+            .filter(|c| !c.is_ascii_control())
+            .collect();
+        let trimmed = clean.trim();
+
+        if trimmed.is_empty() {
             continue;
         }
+
+        // Skip header/metadata lines
+        if trimmed.starts_with("LPCH:") || trimmed.starts_with("LPC:") {
+            continue;
+        }
+
+        // Find where parenthesized data starts
+        let data_part = if trimmed.starts_with("P.") {
+            // Type A: P.01(date,time)(value)...
+            match trimmed.find('(') {
+                Some(pos) => &trimmed[pos..],
+                None => continue,
+            }
+        } else if trimmed.starts_with('(') {
+            // Type B: (date,time)(value)...
+            trimmed
+        } else {
+            continue;
+        };
 
         // Find all parenthesized values
         let mut values: Vec<&str> = Vec::new();
         let mut depth = 0;
         let mut start = 0;
 
-        for (i, c) in trimmed.char_indices() {
+        for (i, c) in data_part.char_indices() {
             if c == '(' {
                 if depth == 0 {
                     start = i + 1;
@@ -1560,7 +1576,7 @@ pub async fn read_load_profile(
             } else if c == ')' {
                 depth -= 1;
                 if depth == 0 {
-                    values.push(&trimmed[start..i]);
+                    values.push(&data_part[start..i]);
                 }
             }
         }
@@ -1571,18 +1587,23 @@ pub async fn read_load_profile(
             let mut status: Option<String> = None;
 
             for val in &values[1..] {
-                // Try parsing as number, if fails it might be status
-                if let Ok(num) = val.replace('*', "").parse::<f64>() {
-                    numeric_values.push(num);
-                } else if val.len() <= 16 && val.chars().all(|c| c.is_ascii_hexdigit()) {
-                    // Status code (hex string)
-                    status = Some(val.to_string());
-                } else {
-                    // Try to extract number from value with unit like "123.45*kWh"
-                    if let Some(star_pos) = val.find('*') {
-                        if let Ok(num) = val[..star_pos].parse::<f64>() {
-                            numeric_values.push(num);
-                        }
+                // Values can be comma-separated inside parentheses:
+                //   Single: (000000.000) or (123.45*kWh)
+                //   Multi:  (220.61,000.52,003.02,000.028,0.00,50.0)
+                let parts: Vec<&str> = val.split(',').collect();
+                for part in &parts {
+                    let part = part.trim();
+                    if part.is_empty() { continue; }
+                    // Strip optional unit suffix: "123.45*kWh" -> "123.45"
+                    let num_str = if let Some(star_pos) = part.find('*') {
+                        &part[..star_pos]
+                    } else {
+                        part
+                    };
+                    if let Ok(num) = num_str.parse::<f64>() {
+                        numeric_values.push(num);
+                    } else if part.len() <= 16 && !part.is_empty() && part.chars().all(|c| c.is_ascii_hexdigit()) {
+                        status = Some(part.to_string());
                     }
                 }
             }

@@ -107,8 +107,10 @@
       addLog("info", "Kisa okuma baslatiliyor...");
       const result = await readShort();
 
+      // Detect meter type by OBIS code presence (not voltage value — unloaded phases read 0V)
       let meterType: "single-phase" | "three-phase" | "kombi" = "single-phase";
-      if (result.voltageL2 > 0 || result.voltageL3 > 0) {
+      const raw = result.rawData || "";
+      if (raw.includes("52.7.0") || raw.includes("72.7.0")) {
         meterType = "three-phase";
       }
 

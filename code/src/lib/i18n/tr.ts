@@ -182,6 +182,7 @@ export const tr = {
   currentL2: "Akım L2",
   currentL3: "Akım L3",
   frequency: "Frekans",
+  gridFrequency: "Şebeke frekansı",
   powerFactorL1: "Cos φ L1",
   powerFactorL2: "Cos φ L2",
   powerFactorL3: "Cos φ L3",

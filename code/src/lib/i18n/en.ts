@@ -182,6 +182,7 @@ export const en = {
   currentL2: "Current L2",
   currentL3: "Current L3",
   frequency: "Frequency",
+  gridFrequency: "Grid frequency",
   powerFactorL1: "Cos φ L1",
   powerFactorL2: "Cos φ L2",
   powerFactorL3: "Cos φ L3",
