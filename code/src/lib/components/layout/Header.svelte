@@ -37,8 +37,8 @@
   let meterInfo = $derived($connectionStore.meterIdentity);
   let isViewingSession = $derived(false); // Will be used for viewing saved sessions
 
-  // Check if reading data exists
-  let hasReadingData = $derived($meterStore.shortReadData !== null);
+  // Only enable save when full readout data (with rawData) is available
+  let hasReadingData = $derived(!!$meterStore.shortReadData?.rawData);
 
   // Session save panel (slide-down)
   let showSavePanel = $state(false);
@@ -164,7 +164,7 @@
             {$isConnected ? 'text-emerald-600 dark:text-emerald-400' : isViewingSession ? 'text-blue-600 dark:text-blue-400' : 'text-slate-500 dark:text-slate-400'}"
         >
           {#if $isConnected && meterInfo}
-            {meterInfo.flag} — {meterInfo.serialNumber}
+            {meterInfo.flag} — {$meterStore.shortReadData?.serialNumber || meterInfo.serialNumber || "..."}
           {:else if isViewingSession}
             MKS — 123456789
           {:else}

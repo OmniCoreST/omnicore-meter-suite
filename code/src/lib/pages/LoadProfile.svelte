@@ -129,10 +129,11 @@
   let chartCanvas: HTMLCanvasElement;
   let chart: Chart | null = null;
 
-  // Date range
-  let startDate = $state("2024-12-01");
+  // Date range — default to today
+  const today = new Date().toISOString().slice(0, 10);
+  let startDate = $state(today);
   let startTime = $state("00:00");
-  let endDate = $state("2024-12-15");
+  let endDate = $state(today);
   let endTime = $state("23:59");
   let readAllData = $state(false);
 
