@@ -48,6 +48,16 @@
   });
   let driftWarning = $derived(Math.abs(timeDriftSeconds) > 30);
 
+  // Parse DST status from raw meter data (96.90.0 OBIS code)
+  let dstEnabled = $derived.by(() => {
+    // @ts-ignore
+    const raw: string | null = $meterStore.fullReadData?.rawData || $meterStore.shortReadData?.rawData || null;
+    if (!raw) return null; // unknown
+    const match = raw.match(/96\.90\.0\((\d+)\)/);
+    if (!match) return null;
+    return match[1] !== "0";
+  });
+
   function formatDrift(seconds: number): string {
     const sign = seconds >= 0 ? "+" : "";
     if (Math.abs(seconds) < 60) return `${sign}${seconds}s`;
@@ -142,11 +152,11 @@
             <!-- DST Status -->
             <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-[#0f1821] rounded-lg">
               <div class="flex items-center gap-2">
-                <Icon name="wb_sunny" class="text-amber-500" size="sm" />
+                <Icon name="wb_sunny" class="{dstEnabled ? 'text-emerald-500' : 'text-amber-500'}" size="sm" />
                 <span class="text-sm text-slate-600 dark:text-slate-400">{$t.dstStatus}</span>
               </div>
-              <span class="text-sm font-bold text-slate-900 dark:text-white">
-                {$t.dstInactive}
+              <span class="text-sm font-bold {dstEnabled ? 'text-emerald-500' : 'text-slate-900 dark:text-white'}">
+                {dstEnabled === null ? '-' : dstEnabled ? $t.dstActive : $t.dstInactive}
               </span>
             </div>
 

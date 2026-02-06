@@ -270,6 +270,7 @@ export const tr = {
   passwordMustBe8Digits: "Şifre 8 haneli olmalıdır",
   passwordsDontMatch: "Şifreler eşleşmiyor",
   changePassword: "Şifreyi Değiştir",
+  importantWarning: "Önemli Uyarı",
   passwordWarning:
     "3 yanlış deneme sonrası sayaç 6 saat kilitlenir. Dikkatli olun!",
 
@@ -548,6 +549,8 @@ export const tr = {
   outageCount: "Kesinti Sayısı",
   totalDuration: "Toplam Süre",
   noOutages: "Kesinti kaydı yok",
+  noData: "Veri mevcut değil",
+  fullReadRequired: "Bu veriyi görüntülemek için tam okuma yapın.",
 
   // Status Codes Page
   statusCodesDescription: "FF hata/durum kodları ve GF coğrafi kodları detaylı görünümü.",
@@ -576,6 +579,8 @@ export const tr = {
   demandButtonStatus: "Talep Butonu Durumu",
   demandButtonEnabled: "Aktif",
   demandButtonDisabled: "Pasif",
+  notSupported: "Desteklenmiyor",
+  notSupportedDescription: "Bu özellik mevcut sayaç için kullanılamaz.",
 
   // OBIS Reader Page
   obisReaderDescription: "Manuel OBIS kodu sorgulama aracı.",
@@ -601,7 +606,28 @@ export const tr = {
   timeDriftDescription: "Sayaç ve bilgisayar saati arasındaki fark.",
   syncOptions: "Senkronizasyon Seçenekleri",
   syncing: "Senkronize ediliyor...",
+  syncComplete: "Saat başarıyla senkronize edildi!",
+  readComplete: "Okuma tamamlandı.",
+  refresh: "Yenile",
   dstStatusDescription: "Yaz saati uygulaması durumu.",
+  dstSettingsDescription: "Yaz saati uygulamasını etkinleştirin veya devre dışı bırakın.",
+  currentMeterDst: "Mevcut Sayaç YSU",
+  editDstSettings: "YSU Ayarlarını Düzenle",
+  saveDstSettings: "YSU Ayarlarını Kaydet",
+  savingDstSettings: "YSU ayarları kaydediliyor...",
+  dstSaveSuccess: "YSU ayarları başarıyla kaydedildi!",
+  writeToMeter: "Sayacıya Yaz",
+  tariffSettingsDescription: "Hafta içi, Cumartesi ve Pazar için tarife zaman dilimlerini yapılandırın.",
+  savingTariffSettings: "Tarife ayarları kaydediliyor...",
+  tariffSaveSuccess: "Tarife ayarları başarıyla kaydedildi!",
+  addTimeSlot: "Zaman Dilimi Ekle",
+  tariff: "Tarife",
+  periodSettingsDescription: "Demant periyodu, yük profili periyodu ve kesinti eşiği ayarları.",
+  savingPeriodSettings: "Periyot ayarları kaydediliyor...",
+  periodSaveSuccess: "Periyot ayarları başarıyla kaydedildi!",
+  demandResetDescription: "Maksimum demant değerini sıfırlar. Bu işlem geri alınamaz.",
+  demandResetExecuting: "Demant sıfırlama yapılıyor...",
+  demandResetSuccess: "Demant sıfırlama başarıyla tamamlandı!",
 
   // Auto-update
   updateAvailable: "Güncelleme Mevcut",

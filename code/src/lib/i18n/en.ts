@@ -270,6 +270,7 @@ export const en = {
   passwordMustBe8Digits: "Password must be 8 digits",
   passwordsDontMatch: "Passwords do not match",
   changePassword: "Change Password",
+  importantWarning: "Important Warning",
   passwordWarning:
     "3 wrong attempts will lock the meter for 6 hours. Be careful!",
 
@@ -546,6 +547,8 @@ export const en = {
   outageCount: "Outage Count",
   totalDuration: "Total Duration",
   noOutages: "No outage records",
+  noData: "No data available",
+  fullReadRequired: "Perform a full readout to view this data.",
 
   // Status Codes Page
   statusCodesDescription: "Detailed view of FF error/status codes and GF geographic codes.",
@@ -574,6 +577,8 @@ export const en = {
   demandButtonStatus: "Demand Button Status",
   demandButtonEnabled: "Enabled",
   demandButtonDisabled: "Disabled",
+  notSupported: "Not Supported",
+  notSupportedDescription: "This feature is not available for the current meter.",
 
   // OBIS Reader Page
   obisReaderDescription: "Manual OBIS code query tool.",
@@ -599,7 +604,28 @@ export const en = {
   timeDriftDescription: "Difference between meter and computer clock.",
   syncOptions: "Synchronization Options",
   syncing: "Synchronizing...",
+  syncComplete: "Time synchronized successfully!",
+  readComplete: "Read complete.",
+  refresh: "Refresh",
   dstStatusDescription: "Daylight saving time status.",
+  dstSettingsDescription: "Enable or disable daylight saving time adjustments.",
+  currentMeterDst: "Current Meter DST",
+  editDstSettings: "Edit DST Settings",
+  saveDstSettings: "Save DST Settings",
+  savingDstSettings: "Saving DST settings...",
+  dstSaveSuccess: "DST settings saved successfully!",
+  writeToMeter: "Write To Meter",
+  tariffSettingsDescription: "Configure tariff time zones for weekdays, Saturday, and Sunday.",
+  savingTariffSettings: "Saving tariff settings...",
+  tariffSaveSuccess: "Tariff settings saved successfully!",
+  addTimeSlot: "Add Time Slot",
+  tariff: "Tariff",
+  periodSettingsDescription: "Configure demand period, load profile period, and outage threshold.",
+  savingPeriodSettings: "Saving period settings...",
+  periodSaveSuccess: "Period settings saved successfully!",
+  demandResetDescription: "Reset the maximum demand value. This action cannot be undone.",
+  demandResetExecuting: "Executing demand reset...",
+  demandResetSuccess: "Demand reset completed successfully!",
 
   // Auto-update
   updateAvailable: "Update Available",

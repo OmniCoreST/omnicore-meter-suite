@@ -5,7 +5,9 @@
       "Bash(cargo build:*)",
       "Bash(sudo chmod:*)",
       "Bash(sudo usermod:*)",
-      "Bash(cmd.exe:*)"
+      "Bash(cmd.exe:*)",
+      "Bash(pdftoppm:*)",
+      "Bash(pdftotext:*)"
     ]
   }
 }

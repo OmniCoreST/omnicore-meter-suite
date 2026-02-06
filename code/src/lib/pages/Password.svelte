@@ -38,7 +38,7 @@
     <div class="flex items-start gap-3">
       <Icon name="warning" class="text-2xl flex-shrink-0" />
       <div>
-        <h4 class="font-bold mb-1">Important Warning</h4>
+        <h4 class="font-bold mb-1">{$t.importantWarning}</h4>
         <p class="text-sm">{$t.passwordWarning}</p>
       </div>
     </div>
