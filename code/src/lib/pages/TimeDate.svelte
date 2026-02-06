@@ -9,14 +9,23 @@
   let isSyncing = $state(false);
   let lastSyncTime = $state<string | null>(null);
 
+  // Convert YY-MM-DD to YYYY-MM-DD (meter returns 2-digit year)
+  function toFullYear(d: string): string {
+    if (d.length === 8 && d[2] === "-") return `20${d}`;
+    return d;
+  }
+
   // Calculate time drift in seconds
   let timeDrift = $derived.by(() => {
     if (!$meterStore.shortReadData) return 0;
 
     try {
-      const meterDateTime = new Date(`${$meterStore.shortReadData.meterDate}T${$meterStore.shortReadData.meterTime}`);
-      const now = new Date();
-      return Math.round((now.getTime() - meterDateTime.getTime()) / 1000);
+      const data = $meterStore.shortReadData;
+      const fullDate = toFullYear(data.meterDate);
+      const meterDateTime = new Date(`${fullDate}T${data.meterTime}`);
+      if (isNaN(meterDateTime.getTime())) return 0;
+      const referenceTime = data.timeOf09xRead || Date.now();
+      return Math.round((referenceTime - meterDateTime.getTime()) / 1000);
     } catch {
       return 0;
     }

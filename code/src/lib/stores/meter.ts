@@ -58,6 +58,9 @@ export interface ShortReadData {
 
   // Raw data for parsing profile definitions etc.
   rawData?: string | null;
+
+  // Timestamp (epoch ms) captured when 0.9.1 and 0.9.2 were received from meter
+  timeOf09xRead?: number | null;
 }
 
 export interface FullReadData extends ShortReadData {
@@ -193,7 +196,10 @@ function createMeterStore() {
       }));
     },
     setReading: (isReading: boolean) => {
-      update((state) => ({ ...state, isReading }));
+      update((state) => ({
+        ...state,
+        isReading,
+      }));
     },
     clear: () => {
       set(initialState);

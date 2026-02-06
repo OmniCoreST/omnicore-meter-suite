@@ -551,12 +551,20 @@
 
                 <!-- Session Info -->
                 <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2">
-                    <span class="font-mono font-bold text-slate-900 dark:text-white truncate">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="font-mono font-bold text-sm text-slate-900 dark:text-white truncate">
                       {session.serialNumber}
                     </span>
+                    <span class="text-xs text-slate-500 whitespace-nowrap">{session.dateTime}</span>
                   </div>
-                  <span class="text-xs text-slate-500">{session.dateTime}</span>
+                  {#if session.note}
+                    <span
+                      class="text-xs text-slate-400 dark:text-slate-500 truncate block"
+                      title={session.note}
+                    >
+                      {session.note.length > 50 ? session.note.slice(0, 50) + "..." : session.note}
+                    </span>
+                  {/if}
                 </div>
 
                 <!-- Arrow Icon -->

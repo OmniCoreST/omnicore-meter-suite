@@ -4,7 +4,6 @@
   import { exportToExcel } from "$lib/utils/export";
 
   let activePhase = $state<"three" | "l1" | "l2" | "l3">("three");
-  let showLong = $state(true);
 
   function parseDateTime(dateTimeStr: string): Date {
     // Format: yy-mm-dd,hh:mm
@@ -55,6 +54,8 @@
         if (match) {
           const start = match[1];
           const end = match[2];
+          // Skip empty/null records
+          if (start.startsWith("00-00-00")) continue;
           try {
             const startDate = parseDateTime(start);
             const endDate = parseDateTime(end);
@@ -75,38 +76,30 @@
       return records;
     };
 
-    // Three-phase outages
-    const threePhaseLongCount = raw.match(/96\.7\.0\((\d+)\)/);
-    const threePhaseShortCount = raw.match(/96\.7\.00\((\d+)\)/);
+    // Three-phase outage count: 96.7.0, records: 96.7.10*N
+    const threePhaseCount = raw.match(/96\.7\.0\((\d+)\)/);
 
-    // Phase 1 outages
-    const phase1LongCount = raw.match(/96\.7\.1\((\d+)\)/);
-    const phase1ShortCount = raw.match(/96\.7\.10\((\d+)\)/);
-
-    // Phase 2 outages
-    const phase2LongCount = raw.match(/96\.7\.2\((\d+)\)/);
-    const phase2ShortCount = raw.match(/96\.7\.20\((\d+)\)/);
-
-    // Phase 3 outages
-    const phase3LongCount = raw.match(/96\.7\.3\((\d+)\)/);
-    const phase3ShortCount = raw.match(/96\.7\.30\((\d+)\)/);
+    // Per-phase outage counts: 96.77.X, records: 96.77.X0*N
+    const phase1Count = raw.match(/96\.77\.1\((\d+)\)/);
+    const phase2Count = raw.match(/96\.77\.2\((\d+)\)/);
+    const phase3Count = raw.match(/96\.77\.3\((\d+)\)/);
 
     return {
       threePhase: {
-        long: { count: threePhaseLongCount ? parseInt(threePhaseLongCount[1]) : 0, records: parseOutageRecords('96.77.0', 99) },
-        short: { count: threePhaseShortCount ? parseInt(threePhaseShortCount[1]) : 0, records: parseOutageRecords('96.77.00', 99) },
+        long: { count: threePhaseCount ? parseInt(threePhaseCount[1]) : 0, records: parseOutageRecords('96.7.10', 99) },
+        short: { count: 0, records: [] },
       },
       phase1: {
-        long: { count: phase1LongCount ? parseInt(phase1LongCount[1]) : 0, records: parseOutageRecords('96.77.1', 99) },
-        short: { count: phase1ShortCount ? parseInt(phase1ShortCount[1]) : 0, records: parseOutageRecords('96.77.10', 99) },
+        long: { count: phase1Count ? parseInt(phase1Count[1]) : 0, records: parseOutageRecords('96.77.10', 99) },
+        short: { count: 0, records: [] },
       },
       phase2: {
-        long: { count: phase2LongCount ? parseInt(phase2LongCount[1]) : 0, records: parseOutageRecords('96.77.2', 99) },
-        short: { count: phase2ShortCount ? parseInt(phase2ShortCount[1]) : 0, records: parseOutageRecords('96.77.20', 99) },
+        long: { count: phase2Count ? parseInt(phase2Count[1]) : 0, records: parseOutageRecords('96.77.20', 10) },
+        short: { count: 0, records: [] },
       },
       phase3: {
-        long: { count: phase3LongCount ? parseInt(phase3LongCount[1]) : 0, records: parseOutageRecords('96.77.3', 99) },
-        short: { count: phase3ShortCount ? parseInt(phase3ShortCount[1]) : 0, records: parseOutageRecords('96.77.30', 99) },
+        long: { count: phase3Count ? parseInt(phase3Count[1]) : 0, records: parseOutageRecords('96.77.30', 10) },
+        short: { count: 0, records: [] },
       },
     };
   });
@@ -195,10 +188,10 @@
           <span class="font-bold {activePhase === 'three' ? 'text-white' : 'text-slate-900 dark:text-white'}">{$t.threePhaseOutage}</span>
         </div>
         <div class="text-3xl font-mono font-bold">
-          {outagesData.threePhase.long.count + outagesData.threePhase.short.count}
+          {outagesData.threePhase.long.count}
         </div>
         <div class="text-xs {activePhase === 'three' ? 'text-white/70' : 'text-slate-500'}">
-          {outagesData.threePhase.long.count} uzun / {outagesData.threePhase.short.count} kisa
+          {outagesData.threePhase.long.records.length} {$t.records}
         </div>
       </button>
 
@@ -211,10 +204,10 @@
           <span class="font-bold {activePhase === 'l1' ? 'text-white' : 'text-slate-900 dark:text-white'}">{$t.l1Outage}</span>
         </div>
         <div class="text-3xl font-mono font-bold">
-          {outagesData.phase1.long.count + outagesData.phase1.short.count}
+          {outagesData.phase1.long.count}
         </div>
         <div class="text-xs {activePhase === 'l1' ? 'text-white/70' : 'text-slate-500'}">
-          {outagesData.phase1.long.count} uzun / {outagesData.phase1.short.count} kisa
+          {outagesData.phase1.long.records.length} {$t.records}
         </div>
       </button>
 
@@ -227,10 +220,10 @@
           <span class="font-bold {activePhase === 'l2' ? 'text-white' : 'text-slate-900 dark:text-white'}">{$t.l2Outage}</span>
         </div>
         <div class="text-3xl font-mono font-bold">
-          {outagesData.phase2.long.count + outagesData.phase2.short.count}
+          {outagesData.phase2.long.count}
         </div>
         <div class="text-xs {activePhase === 'l2' ? 'text-white/70' : 'text-slate-500'}">
-          {outagesData.phase2.long.count} uzun / {outagesData.phase2.short.count} kisa
+          {outagesData.phase2.long.records.length} {$t.records}
         </div>
       </button>
 
@@ -243,50 +236,28 @@
           <span class="font-bold {activePhase === 'l3' ? 'text-white' : 'text-slate-900 dark:text-white'}">{$t.l3Outage}</span>
         </div>
         <div class="text-3xl font-mono font-bold">
-          {outagesData.phase3.long.count + outagesData.phase3.short.count}
+          {outagesData.phase3.long.count}
         </div>
         <div class="text-xs {activePhase === 'l3' ? 'text-white/70' : 'text-slate-500'}">
-          {outagesData.phase3.long.count} uzun / {outagesData.phase3.short.count} kisa
+          {outagesData.phase3.long.records.length} {$t.records}
         </div>
       </button>
-    </div>
-
-    <!-- Outage Type Toggle -->
-    <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-2 shadow-sm">
-      <div class="flex gap-2">
-        <button
-          onclick={() => showLong = true}
-          class="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold transition-colors
-            {showLong ? 'bg-red-500 text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#334a5e]'}"
-        >
-          <Icon name="timer" size="sm" />
-          {$t.longOutages} ({currentPhaseData.long.count})
-        </button>
-        <button
-          onclick={() => showLong = false}
-          class="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-lg font-bold transition-colors
-            {!showLong ? 'bg-amber-500 text-white' : 'text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-[#334a5e]'}"
-        >
-          <Icon name="timer_off" size="sm" />
-          {$t.shortOutages} ({currentPhaseData.short.count})
-        </button>
-      </div>
     </div>
 
     <!-- Outage Records Table -->
     <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl shadow-sm overflow-hidden">
       <div class="p-4 border-b border-slate-200 dark:border-[#334a5e]">
         <h4 class="font-bold text-slate-900 dark:text-white flex items-center gap-2">
-          <Icon name={showLong ? "timer" : "timer_off"} class={showLong ? "text-red-500" : "text-amber-500"} />
-          {showLong ? $t.longOutages : $t.shortOutages}
+          <Icon name="timer" class="text-red-500" />
+          {$t.outages}
           <span class="text-sm font-normal text-slate-500">
-            ({showLong ? ">= 180sn" : "< 180sn"})
+            ({currentPhaseData.long.records.length} {$t.records})
           </span>
         </h4>
       </div>
 
-      {#if showLong ? currentPhaseData.long.records.length > 0 : currentPhaseData.short.records.length > 0}
-        {@const records = showLong ? currentPhaseData.long.records : currentPhaseData.short.records}
+      {#if currentPhaseData.long.records.length > 0}
+        {@const records = currentPhaseData.long.records}
         <div class="overflow-x-auto">
           <table class="w-full text-sm">
             <thead class="bg-slate-50 dark:bg-[#0f1821]">

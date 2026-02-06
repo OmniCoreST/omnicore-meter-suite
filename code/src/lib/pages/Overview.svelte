@@ -25,6 +25,36 @@
   let relayStatus = $derived($meterStore.shortReadData?.relayStatus);
   let hasRelayData = $derived(relayStatus !== undefined && relayStatus !== null && relayStatus !== "");
   let relayActive = $derived(relayStatus === "active");
+
+  // Convert YY-MM-DD to YYYY-MM-DD (meter returns 2-digit year)
+  function toFullYear(d: string): string {
+    if (d.length === 8 && d[2] === "-") return `20${d}`;
+    return d;
+  }
+
+  // Calculate time drift using timeOf09xRead for accuracy
+  let timeDriftSeconds = $derived.by(() => {
+    const data = $meterStore.shortReadData;
+    if (!data?.meterDate || !data?.meterTime) return 0;
+    try {
+      const fullDate = toFullYear(data.meterDate);
+      const meterDateTime = new Date(`${fullDate}T${data.meterTime}`);
+      if (isNaN(meterDateTime.getTime())) return 0;
+      const referenceTime = data.timeOf09xRead || Date.now();
+      return Math.round((referenceTime - meterDateTime.getTime()) / 1000);
+    } catch {
+      return 0;
+    }
+  });
+  let driftWarning = $derived(Math.abs(timeDriftSeconds) > 30);
+
+  function formatDrift(seconds: number): string {
+    const sign = seconds >= 0 ? "+" : "";
+    if (Math.abs(seconds) < 60) return `${sign}${seconds}s`;
+    const mins = Math.floor(Math.abs(seconds) / 60);
+    const secs = Math.abs(seconds) % 60;
+    return `${sign}${mins}m ${secs}s`;
+  }
 </script>
 
 <div class="space-y-6">
@@ -120,13 +150,13 @@
               </span>
             </div>
 
-            <!-- Time Drift (placeholder) -->
+            <!-- Time Drift -->
             <div class="flex items-center justify-between p-3 bg-slate-50 dark:bg-[#0f1821] rounded-lg">
               <div class="flex items-center gap-2">
-                <Icon name="sync_problem" class="text-slate-400" size="sm" />
+                <Icon name={driftWarning ? "sync_problem" : "check_circle"} class="{driftWarning ? 'text-amber-500' : 'text-emerald-500'}" size="sm" />
                 <span class="text-sm text-slate-600 dark:text-slate-400">{$t.timeDriftStatus}</span>
               </div>
-              <span class="text-sm font-mono text-emerald-500">+0s</span>
+              <span class="text-sm font-mono {driftWarning ? 'text-amber-500' : 'text-emerald-500'}">{formatDrift(timeDriftSeconds)}</span>
             </div>
           </div>
         {:else}

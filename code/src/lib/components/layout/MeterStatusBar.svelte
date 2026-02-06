@@ -21,14 +21,24 @@
     }
   });
 
-  // Calculate time drift from meter time vs computer time
+  // Calculate time drift: compare meter time against computer time at the moment of read
+  // (not Date.now(), which grows as time passes since the read)
+  // Convert YY-MM-DD to YYYY-MM-DD (meter returns 2-digit year)
+  function toFullYear(d: string): string {
+    if (d.length === 8 && d[2] === "-") return `20${d}`;
+    return d;
+  }
+
   let timeDriftSeconds = $derived.by(() => {
     const data = $meterStore.shortReadData;
     if (!data?.meterDate || !data?.meterTime) return 0;
 
     try {
-      const meterDateTime = new Date(`${data.meterDate}T${data.meterTime}`);
-      return Math.round((Date.now() - meterDateTime.getTime()) / 1000);
+      const fullDate = toFullYear(data.meterDate);
+      const meterDateTime = new Date(`${fullDate}T${data.meterTime}`);
+      if (isNaN(meterDateTime.getTime())) return 0;
+      const referenceTime = data.timeOf09xRead || Date.now();
+      return Math.round((referenceTime - meterDateTime.getTime()) / 1000);
     } catch {
       return 0;
     }

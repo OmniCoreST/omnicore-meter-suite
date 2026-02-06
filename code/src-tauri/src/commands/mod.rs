@@ -433,6 +433,7 @@ pub async fn read_full(window: tauri::Window) -> Result<ShortReadResult, String>
     let mut found_etx = false;
     let read_start = std::time::Instant::now();
     let mut last_read_time = std::time::Instant::now();
+    let mut time_of_09x_read: Option<u64> = None;
 
     // Wait a bit for data to start arriving
     std::thread::sleep(Duration::from_millis(300));
@@ -443,6 +444,21 @@ pub async fn read_full(window: tauri::Window) -> Result<ShortReadResult, String>
                 total_read += n;
                 last_read_time = std::time::Instant::now();
                 let _ = window.emit("comm-activity", serde_json::json!({"type": "rx"}));
+
+                // Capture system time when both 0.9.1 and 0.9.2 have arrived in the buffer
+                if time_of_09x_read.is_none() && total_read >= 6 {
+                    let buf = &data_buf[..total_read];
+                    let has_091 = buf.windows(6).any(|w| w == b"0.9.1(");
+                    let has_092 = buf.windows(6).any(|w| w == b"0.9.2(");
+                    if has_091 && has_092 {
+                        time_of_09x_read = Some(
+                            std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_millis() as u64
+                        );
+                    }
+                }
 
                 // Check for ETX
                 if total_read >= 2 {
@@ -588,6 +604,7 @@ pub async fn read_full(window: tauri::Window) -> Result<ShortReadResult, String>
             else { "passive".to_string() }
         },
         raw_data: Some(raw_data),
+        time_of_09x_read,
     };
 
     // Update stored identity with serial number (for display purposes)
@@ -791,6 +808,7 @@ pub async fn read_short(window: tauri::Window) -> Result<ShortReadResult, String
     let mut found_etx = false;
     let read_start = std::time::Instant::now();
     let mut last_read_time = std::time::Instant::now();
+    let mut time_of_09x_read: Option<u64> = None;
 
     // Wait a bit for data to start arriving
     std::thread::sleep(Duration::from_millis(300));
@@ -801,6 +819,21 @@ pub async fn read_short(window: tauri::Window) -> Result<ShortReadResult, String
                 total_read += n;
                 last_read_time = std::time::Instant::now();
                 let _ = window.emit("comm-activity", serde_json::json!({"type": "rx"}));
+
+                // Capture system time when both 0.9.1 and 0.9.2 have arrived in the buffer
+                if time_of_09x_read.is_none() && total_read >= 6 {
+                    let buf = &data_buf[..total_read];
+                    let has_091 = buf.windows(6).any(|w| w == b"0.9.1(");
+                    let has_092 = buf.windows(6).any(|w| w == b"0.9.2(");
+                    if has_091 && has_092 {
+                        time_of_09x_read = Some(
+                            std::time::SystemTime::now()
+                                .duration_since(std::time::UNIX_EPOCH)
+                                .unwrap_or_default()
+                                .as_millis() as u64
+                        );
+                    }
+                }
 
                 // Check for ETX
                 if total_read >= 2 {
@@ -946,6 +979,7 @@ pub async fn read_short(window: tauri::Window) -> Result<ShortReadResult, String
             else { "passive".to_string() }
         },
         raw_data: Some(raw_data),
+        time_of_09x_read,
     };
 
     // Update stored identity with serial number (for display purposes)

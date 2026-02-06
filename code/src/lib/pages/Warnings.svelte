@@ -74,11 +74,11 @@
       }
     }
 
-    // Tariff changes (96.2.2*1-10)
+    // Tariff changes (96.2.2*1-10), skip null dates
     const tariffChanges = [];
     for (let i = 1; i <= 10; i++) {
       const match = raw.match(new RegExp(`96\\.2\\.2\\*${i}\\(([^)]+)\\)`));
-      if (match) {
+      if (match && !match[1].startsWith("00-00-00")) {
         tariffChanges.push({ id: i, timestamp: match[1] });
       }
     }

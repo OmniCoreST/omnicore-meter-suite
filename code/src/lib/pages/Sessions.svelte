@@ -307,8 +307,11 @@
 
               <!-- Note -->
               <td class="px-4 py-3 hidden lg:table-cell">
-                <span class="text-sm text-slate-500 dark:text-slate-500 truncate max-w-[200px] block">
-                  {session.note || "-"}
+                <span
+                  class="text-sm text-slate-500 dark:text-slate-500 truncate max-w-[200px] block"
+                  title={session.note || ""}
+                >
+                  {session.note ? (session.note.length > 50 ? session.note.slice(0, 50) + "..." : session.note) : "-"}
                 </span>
               </td>
 

@@ -50,6 +50,9 @@ pub struct ShortReadResult {
 
     // Raw data for debugging
     pub raw_data: Option<String>,
+
+    // Timestamp (epoch ms) captured when 0.9.1 and 0.9.2 were received from meter
+    pub time_of_09x_read: Option<u64>,
 }
 
 /// Progress event for reading operations

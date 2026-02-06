@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, addLog } from "$lib/stores";
+  import { t, addLog, isConnected } from "$lib/stores";
   import { readObisBatch } from "$lib/utils/tauri";
 
   interface ObisRow {
@@ -140,6 +140,19 @@
         <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">{$t.obisReader}</h3>
         <p class="text-sm text-slate-500 dark:text-slate-400">{$t.obisReaderDescription}</p>
       </div>
+      <button
+        onclick={readSelectedCodes}
+        disabled={isReading || !$isConnected || !rows.some(r => r.checked && r.code.trim())}
+        class="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+      >
+        {#if isReading}
+          <Icon name="sync" class="animate-spin" />
+          {$t.reading}
+        {:else}
+          <Icon name="play_arrow" />
+          {$t.readSelectedObis}
+        {/if}
+      </button>
     </div>
   </div>
 
@@ -265,20 +278,4 @@
     </div>
   </div>
 
-  <!-- Read Button -->
-  <div class="flex justify-center">
-    <button
-      onclick={readSelectedCodes}
-      disabled={isReading || !rows.some(r => r.checked && r.code.trim())}
-      class="flex items-center gap-3 px-8 py-4 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-    >
-      {#if isReading}
-        <Icon name="sync" class="animate-spin" />
-        {$t.reading}
-      {:else}
-        <Icon name="play_arrow" />
-        {$t.readSelectedObis}
-      {/if}
-    </button>
-  </div>
 </div>
