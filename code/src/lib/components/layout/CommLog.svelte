@@ -43,6 +43,20 @@
     if (rxTimer) clearTimeout(rxTimer);
   });
 
+  let logContainer: HTMLDivElement | undefined = $state();
+
+  // Auto-scroll to bottom when new log entries arrive
+  $effect(() => {
+    // Track the logs array to detect changes
+    if ($logsStore.length && logContainer && isOpen) {
+      requestAnimationFrame(() => {
+        if (logContainer) {
+          logContainer.scrollTop = logContainer.scrollHeight;
+        }
+      });
+    }
+  });
+
   let isOpen = $state(false); // Collapsed by default
   let panelHeight = $state(192); // 48 * 4 = 192px (h-48)
   let isResizing = $state(false);
@@ -234,6 +248,7 @@
     </summary>
 
     <div
+      bind:this={logContainer}
       style="height: {panelHeight}px"
       class="overflow-y-auto p-0 font-mono text-xs text-slate-600 dark:text-slate-400 bg-slate-50 dark:bg-[#0f1821] scroll-smooth transition-none"
       class:transition-none={isResizing}

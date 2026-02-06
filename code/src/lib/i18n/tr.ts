@@ -319,7 +319,7 @@ export const tr = {
   errorNoResponse: "Sayaçtan cevap alınamadı. Optik probu kontrol edin.",
   errorHandshakeFailed:
     "El sıkışma başarısız oldu. Sayaç bağlantısını kontrol edin.",
-  errorWrongPassword: "Şifre hatalı. Kalan deneme: {0} (3 hatada 6 saat kilitleme!)",
+  errorWrongPassword: "Şifre hatalı. (3 hatada 6 saat kilitleme!)",
   errorTimeout: "Zaman aşımı: {0}ms içinde cevap alınamadı.",
   errorBccMismatch: "Veri doğrulama hatası (BCC). Tekrar denenecek...",
   errorWriteFailed:

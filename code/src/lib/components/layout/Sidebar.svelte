@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { navigationStore, type Page, t } from "$lib/stores";
+  import { navigationStore, type Page, t, hasMeterData } from "$lib/stores";
 
   interface NavItem {
     id: Page;
@@ -89,14 +89,17 @@
 
     <!-- OKUMA Section -->
     <div class="flex flex-col gap-1 mb-4">
-      <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-2">
+      <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-2 {!$hasMeterData ? 'opacity-40' : ''}">
         {$t.okumaSection}
       </p>
       {#each okumaItems as item}
         <button
           onclick={() => navigate(item.id)}
+          disabled={!$hasMeterData}
           class="flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-left w-full
-            {$navigationStore === item.id
+            {!$hasMeterData
+            ? 'opacity-40 cursor-not-allowed'
+            : $navigationStore === item.id
             ? 'bg-primary/10 text-primary'
             : 'hover:bg-slate-100 dark:hover:bg-[#334a5e] text-slate-600 dark:text-slate-300 group'}"
         >
@@ -121,14 +124,17 @@
 
     <!-- AYARLAR Section -->
     <div class="flex flex-col gap-1">
-      <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-2">
+      <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-2 {!$hasMeterData ? 'opacity-40' : ''}">
         {$t.ayarlarSection}
       </p>
       {#each ayarlarItems as item}
         <button
           onclick={() => navigate(item.id)}
+          disabled={!$hasMeterData}
           class="flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-left w-full
-            {$navigationStore === item.id
+            {!$hasMeterData
+            ? 'opacity-40 cursor-not-allowed'
+            : $navigationStore === item.id
             ? 'bg-primary/10 text-primary'
             : 'hover:bg-slate-100 dark:hover:bg-[#334a5e] text-slate-600 dark:text-slate-300 group'}"
         >

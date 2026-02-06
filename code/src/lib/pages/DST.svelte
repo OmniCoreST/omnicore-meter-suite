@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, isConnected, meterStore, addLog } from "$lib/stores";
+  import { t, isConnected, meterStore, addLog, errorToast, successToast } from "$lib/stores";
   import { authenticate, writeObis, endSession } from "$lib/utils/tauri";
 
   interface DstPeriod {
@@ -118,7 +118,8 @@
     try {
       const authOk = await authenticate(password);
       if (!authOk) {
-        addLog("error", $t.errorWrongPassword.replace("{0}", "?"));
+        addLog("error", $t.errorWrongPassword);
+        errorToast($t.errorWrongPassword);
         return;
       }
 
@@ -135,8 +136,10 @@
 
       await endSession();
       addLog("success", $t.dstSaveSuccess);
+      successToast($t.dstSaveSuccess);
     } catch (error) {
       addLog("error", `${$t.logError}: ${error}`);
+      errorToast(`${$t.logError}: ${error}`);
     } finally {
       isSaving = false;
     }

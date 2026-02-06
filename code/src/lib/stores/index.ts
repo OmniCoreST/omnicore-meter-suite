@@ -15,6 +15,7 @@ export { progressStore, isProgressActive, type ProgressState, type ProgressStep 
 export {
   meterStore,
   isMeterReading,
+  hasMeterData,
   type ShortReadData,
   type FullReadData,
   type LoadProfileData,

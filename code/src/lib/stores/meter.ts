@@ -210,3 +210,7 @@ function createMeterStore() {
 export const meterStore = createMeterStore();
 
 export const isMeterReading = derived(meterStore, ($meter) => $meter.isReading);
+
+export const hasMeterData = derived(meterStore, ($meter) =>
+  $meter.shortReadData !== null || $meter.fullReadData !== null
+);

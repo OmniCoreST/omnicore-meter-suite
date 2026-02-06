@@ -40,8 +40,8 @@ impl ConnectionManager {
 
     pub fn disconnect(&mut self) {
         self.port = None;
-        self.params = None;
-        self.identity = None;
+        // Keep params and identity — they represent the configured connection,
+        // not the active session. Atomic operations need params to reconnect.
         self.connected = false;
         self.in_programming_mode = false;
         self.negotiated_baud = 300;

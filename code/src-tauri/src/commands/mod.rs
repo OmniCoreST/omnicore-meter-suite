@@ -1412,9 +1412,12 @@ pub async fn write_obis(obis_code: String, value: String, window: tauri::Window)
 }
 
 /// Authenticate with the meter (enter programming mode)
+/// This is an ATOMIC operation: opens port, handshakes, enters Mode 1 (Programming),
+/// switches baud, sends password. Does NOT require a prior active connection —
+/// only needs stored params from a previous connect() call.
 #[tauri::command]
 pub async fn authenticate(password: String, window: tauri::Window) -> Result<bool, String> {
-    log::info!("Authenticating with meter");
+    log::info!("Authenticating with meter (atomic)");
 
     let emit_log = |log_type: &str, message: &str| {
         let _ = window.emit("comm-log", LogEvent {
@@ -1430,14 +1433,155 @@ pub async fn authenticate(password: String, window: tauri::Window) -> Result<boo
         return Err("Password must be exactly 8 digits".to_string());
     }
 
-    let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
-    if !manager.connected {
-        return Err("Not connected to meter".to_string());
+    // Step 1: Get connection parameters from stored state
+    let (timeout_ms, port_name, meter_address, connection_type, configured_baud) = {
+        let manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
+        if manager.params.is_none() {
+            return Err("Bağlantı parametresi yok. Önce 'Bağlan' butonuna tıklayın.".to_string());
+        }
+        let params = manager.params.as_ref().unwrap();
+        (
+            if params.timeout_ms == 0 { 2000 } else { params.timeout_ms },
+            params.port.clone(),
+            params.meter_address.clone(),
+            params.connection_type.clone(),
+            params.baud_rate,
+        )
+    };
+
+    // Step 2: Close any existing connection
+    {
+        let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
+        if manager.port.is_some() {
+            emit_log("info", "Mevcut bağlantı kapatılıyor...");
+            manager.disconnect();
+        }
     }
 
-    let port = manager.port.as_mut().ok_or("Port not available")?;
+    // Step 3: Open port and handshake with baud rate retry
+    let baud_rates = io::resolve_initial_bauds(&connection_type, configured_baud);
+    let mut port: Option<Box<dyn SerialPort>> = None;
+    let mut ident: Option<iec62056::MeterIdent> = None;
+    let mut initial_baud: u32 = 0;
 
-    // Build and send password command
+    for (attempt, &try_baud) in baud_rates.iter().enumerate() {
+        emit_log("info", &format!("Port açılıyor: {} @ {} baud (7E1) [Deneme {}/{}]",
+            port_name, try_baud, attempt + 1, baud_rates.len()));
+
+        let mut current_port = match iec62056::open_port(&port_name, try_baud, timeout_ms as u64) {
+            Ok(p) => p,
+            Err(e) => {
+                emit_log("warn", &format!("Port açılamadı @ {} baud: {}", try_baud, e));
+                continue;
+            }
+        };
+
+        emit_log("success", &format!("Port açıldı @ {} baud", try_baud));
+
+        let request = iec62056::build_request_message(meter_address.as_deref());
+        let request_str = iec62056::format_bytes_for_display(&request);
+        emit_log("tx", &request_str);
+
+        if let Err(e) = current_port.write_all(&request) {
+            emit_log("warn", &format!("Handshake gönderilemedi: {}", e));
+            continue;
+        }
+        let _ = current_port.flush();
+
+        emit_log("info", "Yanıt bekleniyor...");
+        std::thread::sleep(Duration::from_millis(500));
+
+        let mut response_buf = vec![0u8; 256];
+        let mut ident_read = 0;
+        let handshake_start = std::time::Instant::now();
+
+        loop {
+            match current_port.read(&mut response_buf[ident_read..]) {
+                Ok(n) if n > 0 => {
+                    ident_read += n;
+                    let _ = window.emit("comm-activity", serde_json::json!({"type": "rx"}));
+                    if ident_read >= 2 &&
+                       response_buf[ident_read - 2] == control::CR &&
+                       response_buf[ident_read - 1] == control::LF {
+                        break;
+                    }
+                }
+                Ok(_) => {}
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                    if ident_read > 0 { break; }
+                }
+                Err(_) => break,
+            }
+            if handshake_start.elapsed() > Duration::from_millis(timeout_ms as u64) {
+                break;
+            }
+        }
+
+        if ident_read > 0 {
+            let response_formatted = iec62056::format_bytes_for_display(&response_buf[..ident_read]);
+            emit_log("rx", &response_formatted);
+
+            let response = String::from_utf8_lossy(&response_buf[..ident_read]);
+            if let Some(parsed) = iec62056::parse_identification(&response) {
+                emit_log("success", &format!("Sayaç tanımlandı: {} — {} ({})",
+                    parsed.manufacturer, parsed.edas_id, parsed.model));
+                initial_baud = try_baud;
+                ident = Some(parsed);
+                port = Some(current_port);
+                break;
+            } else {
+                emit_log("warn", "Sayaç tanımlama yanıtı ayrıştırılamadı");
+            }
+        } else {
+            emit_log("warn", &format!("{} baud'da yanıt alınamadı", try_baud));
+        }
+    }
+
+    let mut port = port.ok_or_else(|| {
+        emit_log("error", "Hiçbir baud hızında yanıt alınamadı");
+        "Hiçbir baud hızında yanıt alınamadı".to_string()
+    })?;
+    let ident = ident.unwrap();
+
+    // Step 4: Send ACK with Mode 1 (Programming mode)
+    let (target_baud, baud_char) = io::resolve_target_baud(
+        &connection_type, configured_baud, ident.max_baud_rate, ident.baud_char
+    );
+
+    let ack = iec62056::build_ack_message(ProtocolMode::Programming, baud_char);
+    let ack_formatted = iec62056::format_bytes_for_display(&ack);
+    emit_log("tx", &ack_formatted);
+
+    port.write_all(&ack).map_err(|e| format!("ACK gönderilemedi: {}", e))?;
+    let _ = window.emit("comm-activity", serde_json::json!({"type": "tx"}));
+    let _ = port.flush();
+
+    // Wait and switch baud rate
+    emit_log("info", &format!("Baud hızı değiştiriliyor: {} -> {}", initial_baud, target_baud));
+    std::thread::sleep(Duration::from_millis(300));
+
+    if target_baud != initial_baud {
+        port.set_baud_rate(target_baud).map_err(|e| {
+            emit_log("error", &format!("Baud hızı değiştirilemedi: {}", e));
+            format!("Baud hızı değiştirilemedi: {}", e)
+        })?;
+        emit_log("success", &format!("Baud hızı {} olarak ayarlandı", target_baud));
+    }
+
+    // Wait for meter to be ready
+    std::thread::sleep(Duration::from_millis(500));
+
+    // Read any response from meter (password request or acknowledgment)
+    let mut prog_buf = vec![0u8; 256];
+    let prog_read = port.read(&mut prog_buf).unwrap_or(0);
+    if prog_read > 0 {
+        let prog_formatted = iec62056::format_bytes_for_display(&prog_buf[..prog_read]);
+        emit_log("rx", &prog_formatted);
+    }
+
+    emit_log("info", "Programlama moduna geçildi, şifre gönderiliyor...");
+
+    // Step 5: Send P1 password command
     let cmd = iec62056::build_password_command(&password);
     emit_log("tx", "P1 (********)");
 
@@ -1451,15 +1595,23 @@ pub async fn authenticate(password: String, window: tauri::Window) -> Result<boo
     match port.read(&mut buf) {
         Ok(1) if buf[0] == control::ACK => {
             emit_log("success", "Şifre kabul edildi - Programlama modu aktif");
+            // Store port in CONNECTION_STATE for subsequent write_obis/sync_time calls
+            let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
+            manager.port = Some(port);
+            manager.connected = true;
             manager.in_programming_mode = true;
+            manager.negotiated_baud = target_baud;
             Ok(true)
         }
         Ok(1) if buf[0] == control::NAK => {
             emit_log("error", "Şifre reddedildi!");
+            // Close port — authentication failed
+            drop(port);
             Ok(false)
         }
         _ => {
             emit_log("error", "Geçersiz yanıt");
+            drop(port);
             Err("Invalid response from meter".to_string())
         }
     }
@@ -1534,8 +1686,11 @@ pub async fn end_session(window: tauri::Window) -> Result<(), String> {
         let _ = port.flush();
     }
 
+    // Close port and mark disconnected — meter returns to idle after break
+    manager.port = None;
+    manager.connected = false;
     manager.in_programming_mode = false;
-    emit_log("info", "Programlama oturumu sonlandırıldı");
+    emit_log("info", "Programlama oturumu sonlandırıldı, port kapatıldı");
 
     Ok(())
 }

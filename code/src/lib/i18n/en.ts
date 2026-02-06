@@ -318,7 +318,7 @@ export const en = {
   errorPortBusy: "COM port is in use by another application.",
   errorNoResponse: "No response from meter. Check optical probe.",
   errorHandshakeFailed: "Handshake failed. Check meter connection.",
-  errorWrongPassword: "Wrong password. Remaining attempts: {0} (3 errors = 6 hour lockout!)",
+  errorWrongPassword: "Wrong password. (3 errors = 6 hour lockout!)",
   errorTimeout: "Timeout: No response within {0}ms.",
   errorBccMismatch: "Data validation error (BCC). Retrying...",
   errorWriteFailed: "Write failed. Is the meter in programming mode?",

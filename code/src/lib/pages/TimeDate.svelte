@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, isConnected, meterStore, addLog } from "$lib/stores";
+  import { t, isConnected, meterStore, addLog, errorToast, successToast } from "$lib/stores";
   import { readShort, authenticate, syncTime, endSession } from "$lib/utils/tauri";
 
   let meterTime = $state("--:--:--");
@@ -94,17 +94,20 @@
     try {
       const authOk = await authenticate(password);
       if (!authOk) {
-        addLog("error", $t.errorWrongPassword.replace("{0}", "?"));
+        addLog("error", $t.errorWrongPassword);
+        errorToast($t.errorWrongPassword);
         return;
       }
 
       await syncTime();
       lastSyncTime = new Date().toLocaleString("tr-TR");
       addLog("success", $t.syncComplete);
+      successToast($t.syncComplete);
 
       await endSession();
     } catch (error) {
       addLog("error", `${$t.logError}: ${error}`);
+      errorToast(`${$t.logError}: ${error}`);
     } finally {
       isSyncing = false;
     }
