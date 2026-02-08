@@ -1,7 +1,7 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
   import { t, connectionStore, isConnected, isConnecting, addLog, meterStore, isMeterReading, errorToast, successToast, sessionsStore, navigationStore, type SessionInfo } from "$lib/stores";
-  import { onMount } from "svelte";
+  import { onMount, onDestroy } from "svelte";
   import { listSerialPorts, connect as tauriConnect, disconnect as tauriDisconnect, readFull, setSetting, loadSessionFile, type PortInfo } from "$lib/utils/tauri";
 
   // Connection parameters
@@ -18,13 +18,30 @@
   // Computed state for ports display
   let portsLoading = $derived(loadingPorts);
 
+  // Auto-refresh interval for port detection
+  let portPollInterval: ReturnType<typeof setInterval> | null = null;
+
   // Fetch serial ports and previous sessions on mount
   onMount(async () => {
     // Delay port refresh slightly to let UI render first
     setTimeout(() => refreshPorts(), 500);
 
+    // Poll for port changes every 3 seconds (only when not connected)
+    portPollInterval = setInterval(() => {
+      if (!$isConnected && !$isConnecting && !loadingPorts) {
+        refreshPortsSilent();
+      }
+    }, 3000);
+
     // Load previous sessions from saved files
     sessionsStore.refresh();
+  });
+
+  onDestroy(() => {
+    if (portPollInterval) {
+      clearInterval(portPollInterval);
+      portPollInterval = null;
+    }
   });
 
   async function refreshPorts() {
@@ -54,6 +71,30 @@
       selectedPort = "COM2";
     } finally {
       loadingPorts = false;
+    }
+  }
+
+  // Silent port refresh - updates port list without logging (used by polling)
+  async function refreshPortsSilent() {
+    try {
+      const ports = await listSerialPorts();
+      const newPorts = ports.map((p: PortInfo) => ({
+        name: p.name,
+        description: p.description || p.portType,
+        active: false,
+      }));
+      // Only update if port list actually changed
+      const oldNames = serialPorts.map(p => p.name).sort().join(",");
+      const newNames = newPorts.map(p => p.name).sort().join(",");
+      if (oldNames !== newNames) {
+        serialPorts = newPorts;
+        if (serialPorts.length > 0 && !selectedPort) {
+          selectedPort = serialPorts[0].name;
+        }
+        addLog("info", `Port listesi güncellendi: ${serialPorts.length} port`);
+      }
+    } catch {
+      // Silent fail - don't spam logs on polling errors
     }
   }
 

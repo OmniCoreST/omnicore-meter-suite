@@ -207,6 +207,7 @@
             <h4 class="font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Icon name="report_problem" class="text-primary" />
               {$t.ffBits}
+              <span class="text-xs font-mono font-normal text-slate-400 ml-1">(OBIS: F.F.0)</span>
             </h4>
             <div class="mt-2 p-3 bg-slate-50 dark:bg-[#0f1821] rounded-lg inline-block">
               <span class="text-xs text-slate-500 mr-2">{$t.hexValue}:</span>
@@ -316,6 +317,7 @@
             <h4 class="font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Icon name="location_on" class="text-primary" />
               {$t.gfFields}
+              <span class="text-xs font-mono font-normal text-slate-400 ml-1">(OBIS: F.F.1)</span>
             </h4>
             <div class="mt-2 p-3 bg-slate-50 dark:bg-[#0f1821] rounded-lg inline-block">
               <span class="text-xs text-slate-500 mr-2">{$t.hexValue}:</span>

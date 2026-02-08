@@ -141,7 +141,7 @@
       addRecords("L3", "Uzun", outagesData?.phase3?.long?.records);
       addRecords("L3", "Kisa", outagesData?.phase3?.short?.records);
 
-      if (allRecords.length === 0) { alert("Veri yok - önce okuma yapın"); return; }
+      if (allRecords.length === 0) { alert("Kesinti kaydı bulunamadı"); return; }
 
       await exportToExcel(allRecords, "outages", [
         { key: "phase", label: "Faz" },

@@ -250,39 +250,26 @@
               <span class="text-sm font-bold {hasRelayData ? 'text-slate-700 dark:text-slate-300' : 'text-slate-400'}">{$t.relayState}</span>
             </div>
 
-            <!-- Relay Symbol SVG -->
+            <!-- Circuit Breaker Symbol SVG -->
             <svg viewBox="0 0 120 60" width="120" height="60" class="my-1">
               <!-- Left wire -->
               <line x1="0" y1="30" x2="30" y2="30" stroke={relayColor} stroke-width="3" stroke-linecap="round" />
-              <!-- Left terminal dot -->
-              <circle cx="32" cy="30" r="4" fill={relayColor} />
 
               <!-- Switch arm -->
               {#if hasRelayData && relayActive}
                 <!-- Closed: arm connects both terminals -->
-                <line x1="36" y1="30" x2="84" y2="30" stroke={relayColor} stroke-width="3" stroke-linecap="round" />
-                <!-- Energy sparks -->
-                <circle cx="60" cy="30" r="2" fill="#fff" opacity="0.8" />
-                <line x1="55" y1="22" x2="57" y2="26" stroke="#fde68a" stroke-width="1.5" stroke-linecap="round" />
-                <line x1="65" y1="22" x2="63" y2="26" stroke="#fde68a" stroke-width="1.5" stroke-linecap="round" />
-                <line x1="60" y1="19" x2="60" y2="24" stroke="#fde68a" stroke-width="1.5" stroke-linecap="round" />
+                <line x1="30" y1="30" x2="85" y2="30" stroke={relayColor} stroke-width="3" stroke-linecap="round" />
               {:else}
                 <!-- Open: arm lifted up -->
-                <line x1="36" y1="30" x2="76" y2="12" stroke={relayColor} stroke-width="3" stroke-linecap="round" />
+                <line x1="30" y1="30" x2="75" y2="10" stroke={relayColor} stroke-width="3" stroke-linecap="round" />
               {/if}
 
-              <!-- Right terminal dot -->
-              <circle cx="88" cy="30" r="4" fill={relayColor} />
+              <!-- X mark (circuit breaker symbol) -->
+              <line x1="80" y1="22" x2="90" y2="38" stroke={relayColor} stroke-width="2.5" stroke-linecap="round" />
+              <line x1="80" y1="38" x2="90" y2="22" stroke={relayColor} stroke-width="2.5" stroke-linecap="round" />
+
               <!-- Right wire -->
               <line x1="90" y1="30" x2="120" y2="30" stroke={relayColor} stroke-width="3" stroke-linecap="round" />
-
-              <!-- Coil symbol below -->
-              <path d="M 42 42 Q 48 36, 54 42 Q 60 48, 66 42 Q 72 36, 78 42" fill="none" stroke={relayColor} stroke-width="2" stroke-linecap="round" />
-              <!-- Coil connection lines -->
-              <line x1="42" y1="42" x2="36" y2="42" stroke={relayColor} stroke-width="1.5" />
-              <line x1="36" y1="35" x2="36" y2="42" stroke={relayColor} stroke-width="1.5" />
-              <line x1="78" y1="42" x2="84" y2="42" stroke={relayColor} stroke-width="1.5" />
-              <line x1="84" y1="35" x2="84" y2="42" stroke={relayColor} stroke-width="1.5" />
             </svg>
 
             <span class="flex items-center gap-1 text-sm font-bold {hasRelayData ? (relayActive ? 'text-amber-500' : 'text-slate-400') : 'text-slate-400'}">

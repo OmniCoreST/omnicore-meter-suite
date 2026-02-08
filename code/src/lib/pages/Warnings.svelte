@@ -107,7 +107,7 @@
         allRecords.push({ type: "Manyetik", id: r.id, start: r.start, end: r.end });
       });
 
-      if (allRecords.length === 0) { alert("Veri yok - önce okuma yapın"); return; }
+      if (allRecords.length === 0) { alert("Uyarı kaydı bulunamadı"); return; }
 
       await exportToExcel(allRecords, "warnings", [
         { key: "type", label: $t.type },

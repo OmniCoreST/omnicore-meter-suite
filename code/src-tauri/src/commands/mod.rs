@@ -511,9 +511,11 @@ pub async fn read_full(window: tauri::Window) -> Result<ShortReadResult, String>
     // Step 7: Send Break command and close port
     emit_log("info", "Oturum sonlandırılıyor...", None);
     let break_cmd = iec62056::build_break_command();
+    let break_formatted = iec62056::format_bytes_for_display(&break_cmd);
+    emit_log("tx", &break_formatted, None);
     let _ = port.write_all(&break_cmd);
     let _ = port.flush();
-    std::thread::sleep(Duration::from_millis(100));
+    std::thread::sleep(Duration::from_millis(500));
     drop(port); // Close the port
     emit_log("info", "Port kapatıldı", None);
 
@@ -890,9 +892,11 @@ pub async fn read_short(window: tauri::Window) -> Result<ShortReadResult, String
     // Step 7: Send Break command and close port
     emit_log("info", "Oturum sonlandırılıyor...", None);
     let break_cmd = iec62056::build_break_command();
+    let break_formatted = iec62056::format_bytes_for_display(&break_cmd);
+    emit_log("tx", &break_formatted, None);
     let _ = port.write_all(&break_cmd);
     let _ = port.flush();
-    std::thread::sleep(Duration::from_millis(100));
+    std::thread::sleep(Duration::from_millis(500));
     drop(port); // Close the port
     emit_log("info", "Port kapatıldı", None);
 
@@ -1137,6 +1141,10 @@ pub async fn read_obis_batch(
         }
         manager.disconnect();
     }
+
+    // Wait for meter to fully reset to idle state before reconnecting
+    emit_log("info", "Sayacın sıfırlanması bekleniyor...");
+    std::thread::sleep(Duration::from_millis(1500));
 
     // Step 3: Open port and handshake with baud rate retry
     let baud_rates = io::resolve_initial_bauds(&connection_type, configured_baud);
@@ -1461,6 +1469,10 @@ pub async fn authenticate(password: String, window: tauri::Window) -> Result<boo
         manager.disconnect();
     }
 
+    // Wait for meter to fully reset to idle state before reconnecting
+    emit_log("info", "Sayacın sıfırlanması bekleniyor...");
+    std::thread::sleep(Duration::from_millis(1500));
+
     // Step 3: Open port and handshake with baud rate retry
     let baud_rates = io::resolve_initial_bauds(&connection_type, configured_baud);
     let mut port: Option<Box<dyn SerialPort>> = None;
@@ -1574,19 +1586,89 @@ pub async fn authenticate(password: String, window: tauri::Window) -> Result<boo
     // Wait for meter to be ready
     std::thread::sleep(Duration::from_millis(500));
 
-    // Read any response from meter (password request or acknowledgment)
+    // Read P0 response from meter (programming mode acknowledgment)
     let mut prog_buf = vec![0u8; 256];
-    let prog_read = port.read(&mut prog_buf).unwrap_or(0);
+    let mut prog_read = 0;
+    let prog_start = std::time::Instant::now();
+
+    loop {
+        match port.read(&mut prog_buf[prog_read..]) {
+            Ok(n) if n > 0 => {
+                prog_read += n;
+                let _ = window.emit("comm-activity", serde_json::json!({"type": "rx"}));
+                // Check if we received ETX (complete P0 message)
+                if prog_buf[..prog_read].iter().any(|&b| b == control::ETX) {
+                    // Wait a bit more for the BCC byte
+                    std::thread::sleep(Duration::from_millis(50));
+                    if let Ok(extra) = port.read(&mut prog_buf[prog_read..]) {
+                        prog_read += extra;
+                    }
+                    break;
+                }
+            }
+            Ok(_) => {}
+            Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                if prog_read > 0 { break; }
+            }
+            Err(_) => break,
+        }
+        if prog_start.elapsed() > Duration::from_millis(timeout_ms as u64) {
+            break;
+        }
+    }
+
     if prog_read > 0 {
         let prog_formatted = iec62056::format_bytes_for_display(&prog_buf[..prog_read]);
         emit_log("rx", &prog_formatted);
     }
 
+    // Step 5: Send P1 password with P0 seed encryption (IEC 62056-21 Algorithm 1)
     emit_log("info", "Programlama moduna geçildi, şifre gönderiliyor...");
 
-    // Step 5: Send P1 password command
-    let cmd = iec62056::build_password_command(&password);
-    emit_log("tx", "P1 (********)");
+    // Parse P0 seed for challenge-response authentication
+    let seed_opt = if prog_read > 0 {
+        if let Some(seed) = iec62056::parse_p0_seed(&prog_buf[..prog_read]) {
+            let seed_display: String = seed.iter().map(|b| {
+                if *b >= 0x20 && *b <= 0x7E { (*b as char).to_string() }
+                else { format!("<0x{:02X}>", b) }
+            }).collect();
+            emit_log("info", &format!("P0 seed ({} byte): {}", seed.len(), seed_display));
+            Some(seed)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+
+    // Small delay before sending password to let the meter prepare
+    std::thread::sleep(Duration::from_millis(200));
+
+    // If meter sent P0 seed, Base64-decode it, XOR with password, hex-encode, send as P2
+    // Per IEC 62056-21: P0=challenge, P2=encrypted result, P1=plaintext only
+    let cmd = if let Some(ref seed) = seed_opt {
+        // Log Base64-decoded seed for diagnostics
+        if let Some(decoded) = iec62056::base64_decode(seed) {
+            let dec_hex: Vec<String> = decoded.iter().map(|b| format!("{:02X}", b)).collect();
+            emit_log("info", &format!("Seed Base64 decoded ({} byte): [{}]", decoded.len(), dec_hex.join(" ")));
+        }
+        let encrypted = iec62056::encrypt_password_with_seed(&password, seed);
+        let enc_hex: Vec<String> = encrypted.iter().map(|b| format!("{:02X}", b)).collect();
+        emit_log("info", &format!("XOR sonucu (ham): [{}]", enc_hex.join(" ")));
+        let built_cmd = iec62056::build_encrypted_password_command(&encrypted);
+        // Show the hex-encoded ASCII that will be sent
+        let hex_str: String = encrypted.iter().map(|b| format!("{:02X}", b)).collect();
+        emit_log("info", &format!("P2 ile gönderilecek (hex-encoded): ({})", hex_str));
+        built_cmd
+    } else {
+        emit_log("info", "P0 seed yok, şifre düz metin gönderiliyor (P1)");
+        iec62056::build_password_command(&password)
+    };
+
+    // Log the command bytes (for debugging)
+    let cmd_hex: Vec<String> = cmd.iter().map(|b| format!("{:02X}", b)).collect();
+    emit_log("info", &format!("P2 komutu: {} byte [{}]", cmd.len(), cmd_hex.join(" ")));
+    emit_log("tx", "P2 (********)");
 
     port.write_all(&cmd).map_err(|e| format!("Write failed: {}", e))?;
     port.flush().map_err(|e| format!("Flush failed: {}", e))?;
@@ -1594,28 +1676,59 @@ pub async fn authenticate(password: String, window: tauri::Window) -> Result<boo
     // Wait for response
     std::thread::sleep(Duration::from_millis(500));
 
-    let mut buf = [0u8; 1];
-    match port.read(&mut buf) {
-        Ok(1) if buf[0] == control::ACK => {
-            emit_log("success", "Şifre kabul edildi - Programlama modu aktif");
-            // Store port in CONNECTION_STATE for subsequent write_obis/sync_time calls
-            let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
-            manager.port = Some(port);
-            manager.connected = true;
-            manager.in_programming_mode = true;
-            manager.negotiated_baud = target_baud;
-            Ok(true)
+    // Read response — some meters send multi-byte responses
+    let mut buf = [0u8; 64];
+    let read_result = port.read(&mut buf);
+    match read_result {
+        Ok(n) if n > 0 => {
+            let response_formatted = iec62056::format_bytes_for_display(&buf[..n]);
+            emit_log("rx", &format!("Şifre yanıtı: {}", response_formatted));
+
+            // Check first byte for ACK/NAK
+            if buf[0] == control::ACK {
+                emit_log("success", "Şifre kabul edildi - Programlama modu aktif");
+                // Store port in CONNECTION_STATE for subsequent write_obis/sync_time calls
+                let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
+                manager.port = Some(port);
+                manager.connected = true;
+                manager.in_programming_mode = true;
+                manager.negotiated_baud = target_baud;
+                Ok(true)
+            } else if buf[0] == control::NAK {
+                emit_log("error", "Şifre reddedildi (NAK)!");
+                drop(port);
+                Ok(false)
+            } else if buf[0] == control::SOH {
+                // Meter sent SOH — check if it's a B0 (Break) command meaning password rejected
+                let response_str = String::from_utf8_lossy(&buf[1..n]);
+                if response_str.contains("B0") {
+                    emit_log("error", "Şifre reddedildi - Sayaç oturumu sonlandırdı (B0 Break)");
+                    emit_log("warn", "DİKKAT: 3 hatalı şifre girişinde sayaç 6 saat kilitlenir! Sayaç kilitliyse lütfen bekleyin.");
+                } else {
+                    emit_log("error", &format!("Şifre reddedildi - Sayaç yanıtı: {}", response_str.trim()));
+                }
+                drop(port);
+                Ok(false)
+            } else {
+                emit_log("error", &format!("Beklenmeyen yanıt: 0x{:02X} ({} byte)", buf[0], n));
+                drop(port);
+                Err(format!("Unexpected response from meter: 0x{:02X}", buf[0]))
+            }
         }
-        Ok(1) if buf[0] == control::NAK => {
-            emit_log("error", "Şifre reddedildi!");
-            // Close port — authentication failed
+        Ok(_) => {
+            emit_log("error", "Şifre yanıtı boş");
             drop(port);
-            Ok(false)
+            Err("Empty response from meter".to_string())
         }
-        _ => {
-            emit_log("error", "Geçersiz yanıt");
+        Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+            emit_log("error", "Şifre yanıtı zaman aşımı");
             drop(port);
-            Err("Invalid response from meter".to_string())
+            Err("Timeout waiting for password response".to_string())
+        }
+        Err(e) => {
+            emit_log("error", &format!("Şifre yanıtı okuma hatası: {}", e));
+            drop(port);
+            Err(format!("Read error: {}", e))
         }
     }
 }

@@ -270,6 +270,117 @@ pub fn build_password_command(password: &str) -> Vec<u8> {
     msg
 }
 
+/// Build encrypted password command for programming mode (challenge-response)
+/// Format: SOH P2 STX (HEX_ENCODED_RESULT) ETX BCC
+/// Per IEC 62056-21: P2 = result of secure algorithm (encrypted response)
+/// The encrypted bytes are hex-encoded as uppercase ASCII for 7E1 safe transmission
+pub fn build_encrypted_password_command(encrypted_password: &[u8]) -> Vec<u8> {
+    // Hex-encode the encrypted bytes as uppercase ASCII
+    // e.g. [5E 15 A0] -> "5E15A0"
+    let hex_str: String = encrypted_password.iter()
+        .map(|b| format!("{:02X}", b))
+        .collect();
+
+    let mut msg = Vec::new();
+    msg.push(control::SOH);
+    msg.push(b'P');
+    msg.push(b'2');  // P2 = encrypted/secure algorithm result
+    msg.push(control::STX);
+    msg.push(b'(');
+    msg.extend_from_slice(hex_str.as_bytes());
+    msg.push(b')');
+    msg.push(control::ETX);
+
+    // Calculate BCC: XOR of all bytes after SOH (P2 STX ... ETX)
+    let bcc_data = &msg[1..];
+    let bcc = calculate_bcc(bcc_data);
+    msg.push(bcc);
+
+    msg
+}
+
+/// Parse the P0 challenge/seed from the meter's response
+/// The meter sends: SOH P0 STX (SEED) ETX BCC
+/// Returns the seed bytes if found
+pub fn parse_p0_seed(data: &[u8]) -> Option<Vec<u8>> {
+    // Find SOH
+    let soh_pos = data.iter().position(|&b| b == control::SOH)?;
+
+    // After SOH should be 'P' '0'
+    if data.len() < soh_pos + 3 {
+        return None;
+    }
+    if data[soh_pos + 1] != b'P' || data[soh_pos + 2] != b'0' {
+        return None;
+    }
+
+    // Find STX after P0
+    let stx_pos = data[soh_pos + 3..].iter().position(|&b| b == control::STX)? + soh_pos + 3;
+
+    // Find ETX
+    let etx_pos = data[stx_pos + 1..].iter().position(|&b| b == control::ETX)? + stx_pos + 1;
+
+    // Extract data between STX and ETX: (SEED)
+    let inner = &data[stx_pos + 1..etx_pos];
+
+    // Remove surrounding parentheses if present
+    if inner.len() >= 2 && inner[0] == b'(' && inner[inner.len() - 1] == b')' {
+        Some(inner[1..inner.len() - 1].to_vec())
+    } else {
+        // Return as-is if no parentheses
+        Some(inner.to_vec())
+    }
+}
+
+/// Decode Base64 (standard and URL-safe) to raw bytes
+pub fn base64_decode(input: &[u8]) -> Option<Vec<u8>> {
+    let mut output = Vec::new();
+    let mut buf: u32 = 0;
+    let mut bits: u32 = 0;
+
+    for &byte in input {
+        let val = match byte {
+            b'A'..=b'Z' => (byte - b'A') as u32,
+            b'a'..=b'z' => (byte - b'a' + 26) as u32,
+            b'0'..=b'9' => (byte - b'0' + 52) as u32,
+            b'+' | b'-' => 62,  // '+' standard, '-' URL-safe
+            b'/' | b'_' => 63,  // '/' standard, '_' URL-safe
+            b'=' => break,      // padding — stop
+            b'\r' | b'\n' | b' ' => continue, // skip whitespace
+            _ => return None,   // invalid character
+        };
+        buf = (buf << 6) | val;
+        bits += 6;
+        if bits >= 8 {
+            bits -= 8;
+            output.push((buf >> bits) as u8);
+            buf &= (1 << bits) - 1;
+        }
+    }
+
+    Some(output)
+}
+
+/// Encrypt password with P0 challenge seed per IEC 62056-21 Algorithm 1
+/// The seed from P0 is Base64-encoded; decode it first, then XOR.
+/// encrypted[i] = password[i] XOR decoded_seed[i], for i = 0..password_length-1
+pub fn encrypt_password_with_seed(password: &str, seed: &[u8]) -> Vec<u8> {
+    // Try to Base64-decode the seed first (MAS/TEDAS meters send Base64-encoded seeds)
+    let effective_seed = base64_decode(seed).unwrap_or_else(|| seed.to_vec());
+
+    let pw_bytes = password.as_bytes();
+    pw_bytes.iter()
+        .enumerate()
+        .map(|(i, &p)| {
+            if i < effective_seed.len() {
+                p ^ effective_seed[i]
+            } else {
+                p // If seed is shorter than password, don't encrypt remaining bytes
+            }
+        })
+        .collect()
+}
+
 /// Build OBIS read command
 /// Format: SOH R2 STX OBIS() ETX BCC
 pub fn build_read_command(obis: &str) -> Vec<u8> {
