@@ -301,3 +301,4 @@ NOT: BCC = ETX XOR tüm STX..ETX arası byte'ların XOR'u
 DOĞRULAMA
 ----------
 cargo check → temiz (yeni hata yok)
+

@@ -3,6 +3,7 @@
   import { t, isConnected, addLog, errorToast, successToast } from "$lib/stores";
   import { changePassword } from "$lib/utils/tauri";
 
+  let selectedLevel = $state<1 | 2 | 3>(3);
   let currentPassword = $state("");
   let newPassword = $state("");
   let confirmPassword = $state("");
@@ -12,21 +13,28 @@
   let isValidLength = $derived(newPassword.length === 8 && /^\d{8}$/.test(newPassword));
   let isCurrentValid = $derived(currentPassword.length === 8 && /^\d{8}$/.test(currentPassword));
 
-  // Only allow digits in password inputs
-  function digitsOnly(e: Event) {
-    const t = e.currentTarget as HTMLInputElement;
-    t.value = t.value.replace(/\D/g, '');
+  const levels = [
+    { level: 1 as const, label: "P1", sublabel: "Okuyucu", color: "emerald", obis: "96.96.1" },
+    { level: 2 as const, label: "P2", sublabel: "Operatör", color: "amber",   obis: "96.96.2" },
+    { level: 3 as const, label: "P3", sublabel: "Master",   color: "red",     obis: "96.96.3" },
+  ];
+
+  let activeLevel = $derived(levels.find(l => l.level === selectedLevel)!);
+
+  function selectLevel(level: 1 | 2 | 3) {
+    selectedLevel = level;
+    currentPassword = "";
+    newPassword = "";
+    confirmPassword = "";
   }
 
   async function handleChangePassword() {
     isChanging = true;
     try {
-      addLog("info", "Şifre değiştirme başlatılıyor (P3 auth → W1 96.96.3)...");
-
-      const result = await changePassword(currentPassword, newPassword);
+      addLog("info", `P${selectedLevel} şifre değiştirme başlatılıyor (OBIS: ${activeLevel.obis})...`);
+      const result = await changePassword(currentPassword, newPassword, selectedLevel);
       addLog("success", result);
-      successToast("Şifre başarıyla değiştirildi");
-
+      successToast(`P${selectedLevel} şifresi başarıyla değiştirildi`);
       currentPassword = "";
       newPassword = "";
       confirmPassword = "";
@@ -40,22 +48,13 @@
 </script>
 
 <div class="space-y-6">
-  <div
-    class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-6 shadow-sm"
-  >
+  <!-- Header -->
+  <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-6 shadow-sm">
     <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">{$t.passwordChange}</h3>
-    <div class="flex items-center gap-2 mb-2">
-      <span class="px-2 py-0.5 bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-bold rounded">P3 - Seviye 3</span>
-      <span class="text-xs text-slate-400">Auth: P3 | Hedef: 96.96.3</span>
-    </div>
-    <p class="text-sm text-slate-500 dark:text-slate-400">
-      Sayaç P3 (Master) programlama şifresini değiştirin.
-    </p>
+    <p class="text-sm text-slate-500 dark:text-slate-400">Sayaç şifrelerini değiştirin. Tüm işlemler P3 (Master) kimlik doğrulaması gerektirir.</p>
 
     {#if !$isConnected}
-      <div
-        class="mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-600 dark:text-amber-500 text-sm"
-      >
+      <div class="mt-4 p-4 bg-amber-500/10 border border-amber-500/20 rounded-xl text-amber-600 dark:text-amber-500 text-sm">
         <div class="flex items-center gap-2">
           <Icon name="warning" />
           <span>Lütfen önce Ana Sayfa'dan sayaca bağlanın.</span>
@@ -65,9 +64,7 @@
   </div>
 
   <!-- Warning -->
-  <div
-    class="bg-red-500/10 border border-red-500/20 rounded-xl p-6 text-red-600 dark:text-red-400"
-  >
+  <div class="bg-red-500/10 border border-red-500/20 rounded-xl p-6 text-red-600 dark:text-red-400">
     <div class="flex items-start gap-3">
       <Icon name="warning" class="text-2xl flex-shrink-0" />
       <div>
@@ -77,14 +74,42 @@
     </div>
   </div>
 
+  <!-- Level Tabs -->
+  <div class="grid grid-cols-3 gap-3">
+    {#each levels as lvl}
+      {@const active = selectedLevel === lvl.level}
+      <button
+        onclick={() => selectLevel(lvl.level)}
+        class="p-4 rounded-xl border-2 text-left transition-all
+          {active
+            ? `border-${lvl.color}-500 bg-${lvl.color}-500/10`
+            : 'border-slate-200 dark:border-[#334a5e] bg-white dark:bg-surface-dark hover:border-slate-300 dark:hover:border-slate-500'}"
+      >
+        <div class="flex items-center gap-2 mb-1">
+          <span class="text-lg font-mono font-bold {active ? `text-${lvl.color}-500` : 'text-slate-700 dark:text-slate-300'}">{lvl.label}</span>
+          {#if active}
+            <Icon name="check_circle" class="text-{lvl.color}-500 text-sm" size="sm" />
+          {/if}
+        </div>
+        <div class="text-xs text-slate-500 dark:text-slate-400">{lvl.sublabel}</div>
+        <div class="text-xs font-mono text-slate-400 mt-1">{lvl.obis}</div>
+      </button>
+    {/each}
+  </div>
+
   <!-- Password Form -->
-  <div
-    class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-6 shadow-sm"
-  >
+  <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-6 shadow-sm">
+    <div class="flex items-center gap-2 mb-6">
+      <span class="px-2 py-0.5 bg-{activeLevel.color}-500/10 text-{activeLevel.color}-600 dark:text-{activeLevel.color}-400 text-xs font-bold rounded">
+        {activeLevel.label} - {activeLevel.sublabel}
+      </span>
+      <span class="text-xs text-slate-400">Auth: P3 | Hedef: {activeLevel.obis}</span>
+    </div>
+
     <div class="max-w-md space-y-4">
       <div class="flex flex-col gap-1.5">
         <label class="text-sm font-bold text-slate-700 dark:text-slate-300">
-          {$t.currentPassword} (P3)
+          Mevcut P3 Şifresi (Master)
         </label>
         <input
           type="password"
@@ -103,7 +128,7 @@
 
       <div class="flex flex-col gap-1.5">
         <label class="text-sm font-bold text-slate-700 dark:text-slate-300">
-          {$t.newPassword}
+          Yeni {activeLevel.label} Şifresi
         </label>
         <input
           type="password"
@@ -149,7 +174,7 @@
           {$t.saving}
         {:else}
           <Icon name="lock_reset" />
-          Şifre Değiştir
+          {activeLevel.label} Şifresini Değiştir
         {/if}
       </button>
     </div>

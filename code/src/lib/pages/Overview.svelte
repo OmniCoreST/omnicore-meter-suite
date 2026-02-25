@@ -1,13 +1,14 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
   import { t, isConnected, connectionStore, meterStore } from "$lib/stores";
+  import { readObisBatch } from "$lib/utils/tauri";
 
   // Parse FF code to determine health status
   function parseFFHealth(ffCode: string | undefined) {
     if (!ffCode) return { systemBattery: true, clockBattery: true, topCover: false, terminalCover: false, magnetic: false, relay: true };
 
     try {
-      const ffValue = BigInt("0x" + ffCode);
+      const ffValue = BigInt("0b" + ffCode);
       return {
         systemBattery: (ffValue & (1n << 37n)) === 0n, // Bit 37: System Battery
         clockBattery: (ffValue & (1n << 38n)) === 0n,  // Bit 38: Clock Battery
@@ -21,7 +22,27 @@
     }
   }
 
-  let health = $derived(parseFFHealth($meterStore.shortReadData?.ffCode));
+  // Local override for health refresh (2-read latch clear)
+  let refreshedFfCode = $state<string | undefined>(undefined);
+  let isRefreshing = $state(false);
+
+  async function refreshHealth() {
+    if (isRefreshing) return;
+    isRefreshing = true;
+    try {
+      // F.F.0 is a read-and-clear latch: first read clears it, second read shows true state
+      await readObisBatch(["F.F.0"]);
+      const second = await readObisBatch(["F.F.0"]);
+      const ffCode = second["F.F.0"];
+      if (ffCode && /^[01]+$/.test(ffCode)) refreshedFfCode = ffCode;
+    } catch {
+      // silently ignore, keep showing previous value
+    } finally {
+      isRefreshing = false;
+    }
+  }
+
+  let health = $derived(parseFFHealth(refreshedFfCode ?? $meterStore.shortReadData?.ffCode));
   let relayStatus = $derived($meterStore.shortReadData?.relayStatus);
   let hasRelayData = $derived(relayStatus !== undefined && relayStatus !== null && relayStatus !== "");
   let relayActive = $derived(relayStatus === "active");
@@ -204,10 +225,20 @@
 
       <!-- Right Column: Health Status -->
       <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-6 shadow-sm">
-        <h4 class="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-          <Icon name="health_and_safety" class="text-primary" />
-          {$t.meterHealth}
-        </h4>
+        <div class="flex items-center justify-between mb-4">
+          <h4 class="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+            <Icon name="health_and_safety" class="text-primary" />
+            {$t.meterHealth}
+          </h4>
+          <button
+            onclick={refreshHealth}
+            disabled={isRefreshing || !$isConnected}
+            class="flex items-center gap-1 px-2 py-1 text-xs font-bold text-primary border border-primary/30 rounded-lg hover:bg-primary/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+          >
+            <Icon name="sync" size="sm" class={isRefreshing ? "animate-spin" : ""} />
+            {isRefreshing ? "..." : $t.refresh || "Yenile"}
+          </button>
+        </div>
 
         <div class="space-y-3">
           <!-- System Battery -->
@@ -233,23 +264,23 @@
           </div>
 
           <!-- Top Cover -->
-          <div class="flex items-center justify-between p-3 rounded-lg {!health.topCover ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-amber-500/10 border border-amber-500/20'}">
+          <div class="flex items-center justify-between p-3 rounded-lg {!health.topCover ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-red-500/10 border border-red-500/20'}">
             <div class="flex items-center gap-2">
-              <Icon name="door_open" class="{!health.topCover ? 'text-emerald-500' : 'text-amber-500'}" size="sm" />
+              <Icon name="door_open" class="{!health.topCover ? 'text-emerald-500' : 'text-red-500'}" size="sm" />
               <span class="text-sm text-slate-700 dark:text-slate-300">{$t.topCover}</span>
             </div>
-            <span class="text-sm font-bold {!health.topCover ? 'text-emerald-500' : 'text-amber-500'}">
+            <span class="text-sm font-bold {!health.topCover ? 'text-emerald-500' : 'text-red-500'}">
               {health.topCover ? $t.open : $t.closed}
             </span>
           </div>
 
           <!-- Terminal Cover -->
-          <div class="flex items-center justify-between p-3 rounded-lg {!health.terminalCover ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-amber-500/10 border border-amber-500/20'}">
+          <div class="flex items-center justify-between p-3 rounded-lg {!health.terminalCover ? 'bg-emerald-500/10 border border-emerald-500/20' : 'bg-red-500/10 border border-red-500/20'}">
             <div class="flex items-center gap-2">
-              <Icon name="sensor_door" class="{!health.terminalCover ? 'text-emerald-500' : 'text-amber-500'}" size="sm" />
+              <Icon name="sensor_door" class="{!health.terminalCover ? 'text-emerald-500' : 'text-red-500'}" size="sm" />
               <span class="text-sm text-slate-700 dark:text-slate-300">{$t.terminalCoverStatus}</span>
             </div>
-            <span class="text-sm font-bold {!health.terminalCover ? 'text-emerald-500' : 'text-amber-500'}">
+            <span class="text-sm font-bold {!health.terminalCover ? 'text-emerald-500' : 'text-red-500'}">
               {health.terminalCover ? $t.open : $t.closed}
             </span>
           </div>

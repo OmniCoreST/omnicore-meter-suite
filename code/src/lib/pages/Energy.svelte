@@ -328,7 +328,7 @@
       </div>
 
       {#if activeTab === "import"}
-        {#if monthlyData.length > 0 && monthlyData.some(m => m.total > 0)}
+        {#if historyRawData !== null || monthlyData.some(m => m.total > 0)}
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead class="bg-slate-50 dark:bg-[#0f1821]">
@@ -367,7 +367,7 @@
           </div>
         {/if}
       {:else if activeTab === "export"}
-        {#if monthlyExportData.length > 0 && monthlyExportData.some(m => m.total > 0)}
+        {#if historyRawData !== null || monthlyExportData.some(m => m.total > 0)}
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead class="bg-slate-50 dark:bg-[#0f1821]">
@@ -406,7 +406,7 @@
           </div>
         {/if}
       {:else}
-        {#if monthlyReactiveData.length > 0 && monthlyReactiveData.some(m => m.inductiveImport > 0 || m.capacitiveImport > 0)}
+        {#if historyRawData !== null || monthlyReactiveData.some(m => m.inductiveImport > 0 || m.capacitiveImport > 0)}
           <div class="overflow-x-auto">
             <table class="w-full text-sm">
               <thead class="bg-slate-50 dark:bg-[#0f1821]">

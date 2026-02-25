@@ -1294,8 +1294,14 @@ fn atomic_mode_read(
 
     // Validate
     if read_result.bytes_read == 0 {
-        emit_log("error", "Veri alınamadı", None);
-        return Err("Sayaçtan veri alınamadı".to_string());
+        emit_log("warn", &format!("Mod {} için veri gelmedi (sayaç bu modu desteklemiyor olabilir)", mode_num), None);
+        return Ok(PacketReadResult {
+            mode: mode_num,
+            raw_data: String::new(),
+            bytes_read: 0,
+            read_duration_ms: 0,
+            bcc_valid: false,
+        });
     }
 
     if !read_result.found_etx {
@@ -2260,13 +2266,15 @@ pub async fn change_password(current_password: String, new_password: String, lev
     // OBIS code for target password level: 96.96.1 (P1), 96.96.2 (P2), 96.96.3 (P3)
     let obis_code = format!("96.96.{}", password_level);
 
-    emit_log("info", &format!("P{} kimlik doğrulama → W2 {} ile şifre değiştirme başlatılıyor", auth_level, obis_code));
-    emit_log("info", "ACK baud '5' (9600) ile tek session — baud geçişi yok");
+    // P1/P2 use W1, P3 uses W2 (per MASS spec and MMS reference logs)
+    let w_type = if password_level == 3 { b'2' } else { b'1' };
+    let w_label = if password_level == 3 { "W2" } else { "W1" };
 
-    // No baud negotiation — stay at 9600 throughout (same as MMS behavior for MAS5 meters).
-    // MMS uses ACK '5' (no baud change), gets P0 at 9600, sends P3 at 9600, then W2.
-    // Baud switching to 19200 caused the meter's RX to stay at 19200 while we switched back,
-    // resulting in P3 frame being garbled and no response (timeout).
+    emit_log("info", &format!("P{} kimlik doğrulama → {} {} ile şifre değiştirme başlatılıyor", auth_level, w_label, obis_code));
+
+    // Authenticate at normal baud (no forced 19200 for auth step).
+    // AUTH_FORCE_19200 caused slow P0 response (~5s) and P3 timeout due to garbled B0 pre-break at 19200.
+    // W1/W2 write is attempted at the session baud; if W2 NAKs at 9600 we may need a different approach.
     let auth_ok = authenticate(current_password.clone(), Some(auth_level), window.clone()).await;
     let auth_ok = auth_ok.map_err(|e| format!("Kimlik doğrulama hatası: {}", e))?;
 
@@ -2276,17 +2284,16 @@ pub async fn change_password(current_password: String, new_password: String, lev
         return Err("Kimlik doğrulama başarısız - şifre yanlış veya sayaç kilitli".to_string());
     }
 
-    // Write new password via W2
     let result: Result<String, String> = {
         let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
         let port = manager.port.as_mut().ok_or("Port mevcut değil")?;
         let _ = port.clear(serialport::ClearBuffer::Input);
 
-        let cmd = iec62056::build_write_command_with_type(&obis_code, &new_password, b'2');
+        let cmd = iec62056::build_write_command_with_type(&obis_code, &new_password, w_type);
         let cmd_hex: Vec<String> = cmd.iter().map(|b| format!("{:02X}", b)).collect();
         let cmd_display = iec62056::format_bytes_for_display(&cmd);
-        emit_log("tx", &format!("W2 {} [{}]", cmd_display, cmd_hex.join(" ")));
-        port.write_all(&cmd).map_err(|e| format!("W2 gönderme hatası: {}", e))?;
+        emit_log("tx", &format!("{} {} [{}]", w_label, cmd_display, cmd_hex.join(" ")));
+        port.write_all(&cmd).map_err(|e| format!("{} gönderme hatası: {}", w_label, e))?;
         let _ = port.flush();
         std::thread::sleep(Duration::from_millis(500));
 
@@ -2295,14 +2302,14 @@ pub async fn change_password(current_password: String, new_password: String, lev
             Ok(n) if n > 0 => {
                 let hex: Vec<String> = buf[..n].iter().map(|b| format!("{:02X}", b)).collect();
                 let formatted = iec62056::format_bytes_for_display(&buf[..n]);
-                emit_log("rx", &format!("W2 yanıt ({} byte): {} [{}]", n, formatted, hex.join(" ")));
+                emit_log("rx", &format!("{} yanıt ({} byte): {} [{}]", w_label, n, formatted, hex.join(" ")));
                 match buf[0] {
                     b if b == control::ACK => {
                         emit_log("success", &format!("Şifre başarıyla değiştirildi! (OBIS: {})", obis_code));
                         Ok(format!("Şifre {} ile başarıyla değiştirildi", obis_code))
                     }
                     b if b == control::NAK => {
-                        emit_log("error", "W2 reddedildi (NAK) — P3 şifresi yanlış veya sayaç kilitli (3 hatalı giriş = 6 saat kilit)");
+                        emit_log("error", &format!("{} reddedildi (NAK) — P3 şifresi yanlış veya sayaç kilitli (3 hatalı giriş = 6 saat kilit)", w_label));
                         Err("Şifre değiştirilemedi - P3 şifresi yanlış".to_string())
                     }
                     b if b == control::SOH => {
@@ -2311,12 +2318,12 @@ pub async fn change_password(current_password: String, new_password: String, lev
                         manager.connected = false;
                         Err("Sayaç oturumu sonlandırdı (B0)".to_string())
                     }
-                    b => Err(format!("W2 beklenmeyen yanıt: 0x{:02X}", b)),
+                    b => Err(format!("{} beklenmeyen yanıt: 0x{:02X}", w_label, b)),
                 }
             }
-            Ok(_) => { emit_log("warn", "W2 boş yanıt"); Err("empty".to_string()) }
+            Ok(_) => { emit_log("warn", &format!("{} boş yanıt", w_label)); Err("empty".to_string()) }
             Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
-                emit_log("warn", "W2 96.96 zaman aşımı"); Err("timeout".to_string())
+                emit_log("warn", &format!("{} 96.96 zaman aşımı", w_label)); Err("timeout".to_string())
             }
             Err(e) => Err(e.to_string()),
         }

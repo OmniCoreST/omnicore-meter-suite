@@ -200,11 +200,11 @@ export async function authenticate(password: string, level: number = 1): Promise
   return invoke<boolean>("authenticate", { password, level });
 }
 
-export async function changePassword(currentPassword: string, newPassword: string): Promise<string> {
+export async function changePassword(currentPassword: string, newPassword: string, level: number = 3): Promise<string> {
   if (!isTauri()) {
     throw new Error("Tauri bağlamı bulunamadı - uygulamayı yeniden başlatın");
   }
-  return invoke<string>("change_password", { currentPassword, newPassword });
+  return invoke<string>("change_password", { currentPassword, newPassword, level });
 }
 
 export async function writeObis(obisCode: string, value: string): Promise<void> {

@@ -22,7 +22,11 @@
       addLog("info", "Mod 5 (Teknik Kalite) paketi okunuyor...");
       const result = await readPacket(5);
       techQualityRawData = result.rawData;
-      addLog("success", `Mod 5 okuma tamamlandı: ${result.bytesRead} byte, ${(result.readDurationMs / 1000).toFixed(1)}s`);
+      if (result.bytesRead === 0) {
+        addLog("warn", "Mod 5: Bu sayaç Teknik Kalite modunu desteklemiyor");
+      } else {
+        addLog("success", `Mod 5 okuma tamamlandı: ${result.bytesRead} byte, ${(result.readDurationMs / 1000).toFixed(1)}s`);
+      }
     } catch (e) {
       addLog("error", `Mod 5 okuma hatası: ${e}`);
     } finally {
