@@ -1,0 +1,303 @@
+HEX DUMP LOG DEĞİŞİKLİKLERİ
+==============================
+Tarih: 2026-02-24
+
+authenticate() ve change_password() fonksiyonlarındaki tüm seri haberleşme
+için hex dump eklendi.
+
+────────────────────────────────────────────────────────────────────────────
+Yön     : TX
+Ne      : Handshake isteği /?!
+Önce    : /<CR><LF>
+Sonra   : /<CR><LF> [2F 3F 21 0D 0A]
+────────────────────────────────────────────────────────────────────────────
+Yön     : RX
+Ne      : Tanımlama yanıtı (identification response)
+Önce    : /MAS5...
+Sonra   : /MAS5... [2F 4D 41 53 35...]
+────────────────────────────────────────────────────────────────────────────
+Yön     : TX
+Ne      : ACK (programlama modu)
+Önce    : <ACK>060<CR><LF>
+Sonra   : <ACK>060<CR><LF> [06 30 36 30 0D 0A]
+────────────────────────────────────────────────────────────────────────────
+Yön     : RX
+Ne      : P0 challenge (seed)
+Önce    : <SOH>P0<STX>(seed)<ETX><BCC>
+Sonra   : <SOH>P0<STX>(seed)<ETX><BCC> [01 50 30 02...]
+────────────────────────────────────────────────────────────────────────────
+Yön     : TX
+Ne      : Şifre komutu (P3 HMAC)
+Önce    : zaten maskelenmiş (HMAC ayrı info logda gösteriliyordu)
+Sonra   : değişmedi
+────────────────────────────────────────────────────────────────────────────
+Yön     : RX
+Ne      : Şifre yanıtı (ACK/NAK/B0)
+Önce    : zaten hex vardı
+Sonra   : değişmedi
+────────────────────────────────────────────────────────────────────────────
+Yön     : TX
+Ne      : W2 yazma komutu
+Önce    : zaten hex vardı
+Sonra   : değişmedi
+────────────────────────────────────────────────────────────────────────────
+Yön     : RX
+Ne      : W2 yanıtı
+Önce    : zaten hex vardı
+Sonra   : değişmedi
+────────────────────────────────────────────────────────────────────────────
+
+DEĞİŞTİRİLEN DOSYA
+-------------------
+code/src-tauri/src/commands/mod.rs
+
+DEĞİŞTİRİLEN SATIRLAR (yaklaşık)
+----------------------------------
+- ~1834: request TX log → hex eklendi   (2 yerde, replace_all ile)
+- ~1874: ident RX log  → hex eklendi   (2 yerde, replace_all ile)
+- ~1905: ACK TX log    → hex eklendi   (1 yerde)
+- ~1959: P0 RX log     → hex eklendi   (1 yerde)
+
+LOG FORMAT ÖRNEĞİ
+------------------
+[TX]  /?!\r\n [2F 3F 21 0D 0A]
+[RX]  /MAS5VANM1.R1\r\n [2F 4D 41 53 35 56 41 4E 4D 31 2E 52 31 0D 0A]
+[TX]  <ACK>060<CR><LF> [06 30 36 30 0D 0A]
+[RX]  <SOH>P0<STX>(4-vBPa5Ybgm3...)<ETX><BCC> [01 50 30 02 28 34 2D 76...]
+
+════════════════════════════════════════════════════════════════════════════
+GERÇEK OTURUM KAYDI — 2026-02-24 10:45:27
+change_password() — P3 auth → W2 96.96.3(09876543) — SONUÇ: NAK
+════════════════════════════════════════════════════════════════════════════
+
+[10:45:29] TX  /?!<CR><LF>   (Handshake isteği — 5 byte)
+─────────────────────────────────────────────────────
+Offset   00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F   ASCII
+0000     2F 3F 21 0D 0A                                     /?!..
+
+[10:45:35] RX  /MAS5<3>VAN(M1.R1)<CR><LF>   (Tanımlama yanıtı — 20 byte)
+─────────────────────────────────────────────────────
+Offset   00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F   ASCII
+0000     2F 4D 41 53 35 3C 33 3E 56 41 4E 28 4D 31 2E 52   /MAS5<3>VAN(M1.R
+0010     31 29 0D 0A                                        1)..
+
+[10:45:35] TX  <ACK>051<CR><LF>   (Programlama modu ACK — 6 byte)
+─────────────────────────────────────────────────────
+Offset   00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F   ASCII
+0000     06 30 35 31 0D 0A                                  .051..
+
+[10:45:40] RX  <SOH>P0<STX>(T9t4CNektA5fnzEG5w==)<ETX>|   (P0 Challenge seed — 28 byte)
+─────────────────────────────────────────────────────
+Offset   00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F   ASCII
+0000     01 50 30 02 28 54 39 74 34 43 4E 65 6B 74 41 35   .P0.(T9t4CNektA5
+0010     66 6E 7A 45 47 35 77 3D 3D 29 03 7C               fnzEG5w==).|
+
+  HMAC-SHA256(key=şifre_utf8, msg="T9t4CNektA5fnzEG5w==")
+  → 1AA2894D55681AA839313B9E98B438F620AE2F401B5D65C3FC6A85520CBC4889
+
+[10:45:40] TX  P3(<HMAC>)   (Şifre komutu — 72 byte)
+─────────────────────────────────────────────────────
+Offset   00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F   ASCII
+0000     01 50 33 02 28 31 41 41 32 38 39 34 44 35 35 36   .P3.(1AA2894D556
+0010     38 31 41 41 38 33 39 33 31 33 42 39 45 39 38 42   81AA839313B9E98B
+0020     34 33 38 46 36 32 30 41 45 32 46 34 30 31 42 35   438F620AE2F401B5
+0030     44 36 35 43 33 46 43 36 41 38 35 35 32 30 43 42   D65C3FC6A85520CB
+0040     43 34 38 38 39 29 03 1F                           C4889)..
+
+[10:45:41] RX  <ACK>   (P3 onayı — 1 byte)
+─────────────────────────────────────────────────────
+Offset   00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F   ASCII
+0000     06                                                .
+
+[10:45:41] TX  W2 96.96.3(09876543)   (Şifre yazma komutu — 23 byte)
+─────────────────────────────────────────────────────
+Offset   00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F   ASCII
+0000     01 57 32 02 39 36 2E 39 36 2E 33 28 30 39 38 37   .W2.96.96.3(0987
+0010     36 35 34 33 29 03 54                              6543).T
+
+[10:45:41] RX  <NAK>   (W2 reddedildi — 1 byte)   ← HATA NOKTASI
+─────────────────────────────────────────────────────
+Offset   00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E 0F   ASCII
+0000     15                                                .
+
+[10:45:41] TX  B0 (Break)
+─────────────────────────────────────────────────────
+
+SONUÇ ÖZETI
+-----------
+Handshake  : 9600 baud'da yanıt alındı (MAS5 = 9600 baud)
+P3 ACK     : Sayaç şifre komutunu kabul etti (06)
+W2 NAK     : Sayaç yazma komutunu reddetti (15)
+SEBEP      : W2 96.96.3 yalnızca 19200 baud'da (MAS6) çalışıyor
+             Sayaç şu an 9600 baud'da (MAS5) — önce baud artırılmalı
+
+
+════════════════════════════════════════════════════════════════════════════
+OTURUM LOG DOSYASINA KAYIT — 2026-02-24
+Comm log file saving + tüm fonksiyonlara hex dump
+════════════════════════════════════════════════════════════════════════════
+
+SEBEP
+-----
+Tüm seri port haberleşmesi UI'daki CommLog panelinde anlık gösteriliyordu
+ancak uygulama kapanınca kayboluyordu. Hex dump da sadece authenticate() ve
+change_password()'da vardı; connect(), read_short(), read_full() gibi
+fonksiyonlarda yoktu.
+
+DEĞİŞTİRİLEN / OLUŞTURULAN DOSYALAR
+--------------------------------------
+
+1. src/commands/logger.rs  [YENİ DOSYA]
+   ├── static LOG_FILE_PATH: Mutex<Option<PathBuf>>
+   ├── init_session_log(app_data_dir)  — uygulama başlangıcında çağrılır
+   │     AppData\Roaming\<app>\comm_logs\comm_{YYYYMMDD_HHMMSS}.txt açar
+   ├── write_log(timestamp, log_type, message)  — her log satırını append eder
+   └── log_file_path()  — mevcut log dosya yolunu döner
+
+2. src/lib.rs
+   └── setup() içine eklendi:
+         storage::init_database(&app_data_dir)...;
+         commands::logger::init_session_log(app_data_dir);  ← YENİ
+
+3. src/commands/mod.rs
+   ├── pub mod logger;  eklendi (satır 8)
+   │
+   ├── 3-arg emit_log closure'ları güncellendi (5 adet):
+   │     connect(), read_full(), read_short(), atomic_mode_read(), read_packet()
+   │
+   │     ÖNCE:
+   │       let emit_log = |log_type: &str, message: &str, data: Option<&str>| {
+   │           let _ = window.emit("comm-log", LogEvent {
+   │               timestamp: chrono::Local::now()...to_string(),
+   │               ...
+   │           });
+   │       };
+   │
+   │     SONRA:
+   │       let emit_log = |log_type: &str, message: &str, data: Option<&str>| {
+   │           let timestamp = chrono::Local::now()...to_string();
+   │           let _ = window.emit("comm-log", LogEvent {
+   │               timestamp: timestamp.clone(), ...
+   │           });
+   │           let full_msg = match data {
+   │               Some(d) => format!("{} | {}", message, d),
+   │               None => message.to_string(),
+   │           };
+   │           logger::write_log(&timestamp, log_type, &full_msg);
+   │       };
+   │
+   └── 2-arg emit_log closure'ları güncellendi (7 adet, replace_all):
+         read_obis(), read_obis_batch(), write_obis(), authenticate(),
+         change_password(), sync_time(), end_session()
+
+         ÖNCE:
+           let emit_log = |log_type: &str, message: &str| {
+               let _ = window.emit("comm-log", LogEvent {
+                   timestamp: chrono::Local::now()...to_string(),
+                   ...data: None,
+               });
+           };
+
+         SONRA:
+           let emit_log = |log_type: &str, message: &str| {
+               let timestamp = chrono::Local::now()...to_string();
+               let _ = window.emit("comm-log", LogEvent {
+                   timestamp: timestamp.clone(), ...data: None,
+               });
+               logger::write_log(&timestamp, log_type, message);
+           };
+
+4. src/commands/events.rs
+   └── EventEmitter::log() güncellendi:
+
+       ÖNCE:
+         pub fn log(&self, log_type: &str, message: &str, data: Option<&str>) {
+             let _ = self.window.emit("comm-log", LogEvent {
+                 timestamp: chrono::Local::now()...to_string(),
+                 ...
+             });
+         }
+
+       SONRA:
+         pub fn log(&self, log_type: &str, message: &str, data: Option<&str>) {
+             let timestamp = chrono::Local::now()...to_string();
+             let _ = self.window.emit("comm-log", LogEvent {
+                 timestamp: timestamp.clone(), ...
+             });
+             let full_msg = match data {
+                 Some(d) => format!("{} | {}", message, d),
+                 None => message.to_string(),
+             };
+             super::logger::write_log(&timestamp, log_type, &full_msg);
+         }
+
+LOG DOSYASI KONUMU (Windows)
+------------------------------
+C:\Users\{user}\AppData\Roaming\com.omnicore.meter-suite\comm_logs\comm_20260224_HHMMSS.txt
+
+LOG FORMAT ÖRNEĞİ
+------------------
+[10:13:21.045] [TX] /?!<CR><LF> | 2F 3F 21 0D 0A
+[10:13:27.112] [RX] /MAS5<3>VAN(M1.R1)<CR><LF> | 2F 4D 41 53 35...
+[10:13:27.203] [TX] <ACK>051<CR><LF> | 06 30 35 31 0D 0A
+[10:13:32.441] [RX] <SOH>P0<STX>(T9t4...)<ETX>| | 01 50 30 02...
+[10:13:32.602] [INFO] HMAC sonucu: 1AA2894D...
+[10:13:32.701] [TX] P3 HMAC (********)
+[10:13:32.850] [RX] Şifre yanıtı (1 byte): <ACK> | 06
+
+DOĞRULAMA
+----------
+cargo check → temiz (7 önceden var olan uyarı, yeni hata yok)
+Gerçek oturum log dosyası: comm_20260224_104204.txt (1034 satır)
+Şifre değiştirme oturumu başarıyla kaydedildi (satır 1005-1034)
+
+
+════════════════════════════════════════════════════════════════════════════
+OTOMATIK BAUD YÜKSELTMESİ — 2026-02-24
+change_password() — W2 96.96.x için 9600→19200 otomatik geçiş
+════════════════════════════════════════════════════════════════════════════
+
+SEBEP
+-----
+W2 96.96.3 (şifre değiştirme) yalnızca 19200 baud'da (MAS6) çalışıyor.
+Sayaç şu an 9600 baud'da (MAS5). RS485 bağlantısında W2 20.0.0(6) ile
+baud otomatik yükseltilebilir (optik porttaki donma riski RS485'te yok).
+
+DEĞİŞTİRİLEN DOSYA
+-------------------
+src/commands/mod.rs  —  change_password() fonksiyonu
+
+DEĞİŞİKLİK
+-----------
+authenticate() başarılı döndükten sonra, W2 96.96.x gönderilmeden önce
+negotiated_baud kontrol ediliyor. 19200'den düşükse:
+
+  ÖNCE (tek adım):
+    auth_ok = authenticate(...)
+    → W2 96.96.3(yeni_şifre)  ← 9600'da NAK alıyordu
+
+  SONRA (baud yükseltme akışı):
+    auth_ok = authenticate(...)          [9600'da başarılı]
+    negotiated_baud < 19200?  → EVET
+    │
+    ├─ W2 20.0.0(6) gönder               [baud register'ı değiştir]
+    │    TX: 01 57 32 02 32 30 2E 30 2E 30 28 36 29 03 <BCC>
+    │         .  W  2  .  2  0  .  0  .  0  (  6  )  ETX BCC
+    ├─ ACK/NAK/timeout → her durumda devam
+    ├─ port.disconnect()
+    ├─ 500ms bekle                        [sayaç 19200'e geçiyor]
+    ├─ params.baud_rate = 19200           [authenticate() bunu okuyacak]
+    ├─ authenticate() tekrar              [19200'de]
+    └─ W2 96.96.3(yeni_şifre)            [19200'de → ACK bekleniyor]
+
+W2 20.0.0(6) KOMUTU HEX DUMP
+------------------------------
+Offset   00 01 02 03 04 05 06 07 08 09 0A 0B 0C 0D 0E   ASCII
+0000     01 57 32 02 32 30 2E 30 2E 30 28 36 29 03 XX   .W2.20.0.0(6).X
+         SOH W  2  STX 2  0  .  0  .  0  (  6  )  ETX BCC
+
+NOT: BCC = ETX XOR tüm STX..ETX arası byte'ların XOR'u
+
+DOĞRULAMA
+----------
+cargo check → temiz (yeni hata yok)

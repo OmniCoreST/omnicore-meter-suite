@@ -5,6 +5,7 @@ pub mod state;
 pub mod events;
 pub mod io;
 pub mod sessions;
+pub mod logger;
 
 pub use types::*;
 pub use state::CONNECTION_STATE;
@@ -19,6 +20,9 @@ use std::io::{Read, Write};
 use std::time::Duration;
 use tauri::Emitter;
 
+/// Authenticate at 19200 baud flag — set by change_password() before calling authenticate()
+static AUTH_FORCE_19200: std::sync::atomic::AtomicBool = std::sync::atomic::AtomicBool::new(false);
+
 /// List all available serial ports
 #[tauri::command]
 pub fn list_serial_ports() -> Result<Vec<PortInfo>, String> {
@@ -32,12 +36,21 @@ pub async fn connect(params: ConnectionParams, window: tauri::Window) -> Result<
     log::info!("Connecting to meter on port: {} at {} baud", params.port, params.baud_rate);
 
     let emit_log = |log_type: &str, message: &str, data: Option<&str>| {
+        let timestamp = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
         let _ = window.emit("comm-log", LogEvent {
-            timestamp: chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
+            timestamp: timestamp.clone(),
             log_type: log_type.to_string(),
             message: message.to_string(),
             data: data.map(|s| s.to_string()),
         });
+        let full_msg = match data {
+            Some(d) => format!("{} | {}", message, d),
+            None => message.to_string(),
+        };
+        logger::write_log(&timestamp, log_type, &full_msg);
+        if let Some(d) = data {
+            logger::write_hex_dump(d);
+        }
     };
 
     // Disconnect any existing connection first
@@ -59,6 +72,8 @@ pub async fn connect(params: ConnectionParams, window: tauri::Window) -> Result<
     let meter_address = params.meter_address.clone();
 
     // Determine initial baud rates based on connection type (Turkish MASS standard)
+    // Try 19200 first: if the meter is at MAS6 we connect immediately without sending
+    // garbage bytes at wrong baud rates (which confuses RS485 meters).
     let baud_rates_to_try = io::resolve_initial_bauds(&params.connection_type, params.baud_rate);
 
     let mut port: Option<Box<dyn SerialPort>> = None;
@@ -67,6 +82,18 @@ pub async fn connect(params: ConnectionParams, window: tauri::Window) -> Result<
     let mut response_buf = vec![0u8; 256];
 
     for (attempt, &try_baud) in baud_rates_to_try.iter().enumerate() {
+        // Send B0 at this baud first to clear any stuck session at this baud rate.
+        // This avoids sending garbage bytes at wrong baud rates which confuse the meter.
+        if let Ok(mut bp) = iec62056::open_port(&port_name, try_baud, 200) {
+            let break_cmd = iec62056::build_break_command();
+            let break_str = iec62056::format_bytes_for_display(&break_cmd);
+            emit_log("info", &format!("Önceki oturum temizleniyor (Break @ {} baud)...", try_baud), None);
+            emit_log("tx", &format!("[{}bd] {}", try_baud, break_str), None);
+            let _ = bp.write_all(&break_cmd);
+            let _ = bp.flush();
+            std::thread::sleep(Duration::from_millis(200));
+        }
+
         emit_log("info", &format!("Seri port açılıyor: {} @ {} baud (7E1) [Deneme {}/{}]",
             port_name, try_baud, attempt + 1, baud_rates_to_try.len()), None);
 
@@ -260,12 +287,21 @@ pub async fn read_full(window: tauri::Window) -> Result<ShortReadResult, String>
     };
 
     let emit_log = |log_type: &str, message: &str, data: Option<&str>| {
+        let timestamp = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
         let _ = window.emit("comm-log", LogEvent {
-            timestamp: chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
+            timestamp: timestamp.clone(),
             log_type: log_type.to_string(),
             message: message.to_string(),
             data: data.map(|s| s.to_string()),
         });
+        let full_msg = match data {
+            Some(d) => format!("{} | {}", message, d),
+            None => message.to_string(),
+        };
+        logger::write_log(&timestamp, log_type, &full_msg);
+        if let Some(d) = data {
+            logger::write_hex_dump(d);
+        }
     };
 
     let total_steps = 6;
@@ -590,8 +626,29 @@ pub async fn read_full(window: tauri::Window) -> Result<ShortReadResult, String>
         active_energy_import_t2: get_float("1.8.2"),
         active_energy_import_t3: get_float("1.8.3"),
         active_energy_import_t4: get_float("1.8.4"),
+        active_energy_export_total: get_float("2.8.0"),
+        active_energy_export_t1: get_float("2.8.1"),
+        active_energy_export_t2: get_float("2.8.2"),
+        active_energy_export_t3: get_float("2.8.3"),
+        active_energy_export_t4: get_float("2.8.4"),
+        reactive_energy_inductive_import: get_float("5.8.0"),
+        reactive_energy_capacitive_import: get_float("6.8.0"),
+        reactive_energy_inductive_export: get_float("7.8.0"),
+        reactive_energy_capacitive_export: get_float("8.8.0"),
         max_demand_import: get_float("1.6.0"),
         max_demand_import_timestamp: get_value("1.6.0"),
+        max_demand_export: get_float("2.6.0"),
+        max_demand_export_timestamp: get_value("2.6.0"),
+        total_active_power: get_float("15.7.0"),
+        active_power_l1: get_float("35.7.0"),
+        active_power_l2: get_float("55.7.0"),
+        active_power_l3: get_float("75.7.0"),
+        total_reactive_power: get_float("131.7.0"),
+        neutral_current: get_float("91.7.0"),
+        demand_period: get_value("0.8.0"),
+        lp_period: get_value("0.8.4"),
+        load_limit_threshold: get_value("96.3.12"),
+        load_limit_period: get_value("96.3.13"),
         voltage_l1: get_float("32.7.0"),
         voltage_l2: get_float("52.7.0"),
         voltage_l3: get_float("72.7.0"),
@@ -655,12 +712,21 @@ pub async fn read_short(window: tauri::Window) -> Result<ShortReadResult, String
     };
 
     let emit_log = |log_type: &str, message: &str, data: Option<&str>| {
+        let timestamp = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
         let _ = window.emit("comm-log", LogEvent {
-            timestamp: chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
+            timestamp: timestamp.clone(),
             log_type: log_type.to_string(),
             message: message.to_string(),
             data: data.map(|s| s.to_string()),
         });
+        let full_msg = match data {
+            Some(d) => format!("{} | {}", message, d),
+            None => message.to_string(),
+        };
+        logger::write_log(&timestamp, log_type, &full_msg);
+        if let Some(d) = data {
+            logger::write_hex_dump(d);
+        }
     };
 
     let total_steps = 6;
@@ -971,8 +1037,29 @@ pub async fn read_short(window: tauri::Window) -> Result<ShortReadResult, String
         active_energy_import_t2: get_float("1.8.2"),
         active_energy_import_t3: get_float("1.8.3"),
         active_energy_import_t4: get_float("1.8.4"),
+        active_energy_export_total: get_float("2.8.0"),
+        active_energy_export_t1: get_float("2.8.1"),
+        active_energy_export_t2: get_float("2.8.2"),
+        active_energy_export_t3: get_float("2.8.3"),
+        active_energy_export_t4: get_float("2.8.4"),
+        reactive_energy_inductive_import: get_float("5.8.0"),
+        reactive_energy_capacitive_import: get_float("6.8.0"),
+        reactive_energy_inductive_export: get_float("7.8.0"),
+        reactive_energy_capacitive_export: get_float("8.8.0"),
         max_demand_import: get_float("1.6.0"),
         max_demand_import_timestamp: get_value("1.6.0"),
+        max_demand_export: get_float("2.6.0"),
+        max_demand_export_timestamp: get_value("2.6.0"),
+        total_active_power: get_float("15.7.0"),
+        active_power_l1: get_float("35.7.0"),
+        active_power_l2: get_float("55.7.0"),
+        active_power_l3: get_float("75.7.0"),
+        total_reactive_power: get_float("131.7.0"),
+        neutral_current: get_float("91.7.0"),
+        demand_period: get_value("0.8.0"),
+        lp_period: get_value("0.8.4"),
+        load_limit_threshold: get_value("96.3.12"),
+        load_limit_period: get_value("96.3.13"),
         voltage_l1: get_float("32.7.0"),
         voltage_l2: get_float("52.7.0"),
         voltage_l3: get_float("72.7.0"),
@@ -1020,18 +1107,292 @@ pub async fn read_short(window: tauri::Window) -> Result<ShortReadResult, String
     Ok(result)
 }
 
+/// Perform an atomic mode-specific read (Modes 5, 7, 8, 9).
+///
+/// Opens port, handshakes, sends ACK with the requested mode, reads data, closes port.
+/// Returns the raw data string and metadata.
+fn atomic_mode_read(
+    mode: ProtocolMode,
+    read_config: &io::ReadConfig,
+    window: &tauri::Window,
+) -> Result<PacketReadResult, String> {
+    let emit_log = |log_type: &str, message: &str, data: Option<&str>| {
+        let timestamp = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
+        let _ = window.emit("comm-log", LogEvent {
+            timestamp: timestamp.clone(),
+            log_type: log_type.to_string(),
+            message: message.to_string(),
+            data: data.map(|s| s.to_string()),
+        });
+        let full_msg = match data {
+            Some(d) => format!("{} | {}", message, d),
+            None => message.to_string(),
+        };
+        logger::write_log(&timestamp, log_type, &full_msg);
+        if let Some(d) = data {
+            logger::write_hex_dump(d);
+        }
+    };
+
+    let mode_num = mode.as_char().to_digit(10).unwrap_or(0) as u8;
+
+    // Step 1: Get connection parameters from stored state
+    let (timeout_ms, port_name, meter_address, connection_type, configured_baud) = {
+        let manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
+        if manager.params.is_none() {
+            return Err("Bağlantı parametresi yok. Önce 'Bağlan' butonuna tıklayın.".to_string());
+        }
+        let params = manager.params.as_ref().unwrap();
+        (
+            if params.timeout_ms == 0 { 2000 } else { params.timeout_ms },
+            params.port.clone(),
+            params.meter_address.clone(),
+            params.connection_type.clone(),
+            params.baud_rate,
+        )
+    };
+
+    // Step 2: Close any existing connection
+    {
+        let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
+        if let Some(ref mut port) = manager.port {
+            emit_log("info", "Mevcut bağlantı kapatılıyor...", None);
+            let break_cmd = iec62056::build_break_command();
+            let _ = port.write_all(&break_cmd);
+            let _ = port.flush();
+            std::thread::sleep(Duration::from_millis(300));
+        }
+        manager.disconnect();
+    }
+
+    // Step 3: Open port and handshake with baud rate retry
+    let baud_rates = io::resolve_initial_bauds(&connection_type, configured_baud);
+    let mut port: Option<Box<dyn SerialPort>> = None;
+    let mut ident: Option<iec62056::MeterIdent> = None;
+    let mut initial_baud: u32 = 0;
+
+    for (attempt, &try_baud) in baud_rates.iter().enumerate() {
+        emit_log("info", &format!("Port açılıyor: {} @ {} baud (7E1) [Deneme {}/{}]",
+            port_name, try_baud, attempt + 1, baud_rates.len()), None);
+
+        let mut current_port = match iec62056::open_port(&port_name, try_baud, timeout_ms as u64) {
+            Ok(p) => p,
+            Err(e) => {
+                emit_log("warn", &format!("Port açılamadı @ {} baud: {}", try_baud, e), None);
+                continue;
+            }
+        };
+
+        emit_log("success", &format!("Port açıldı @ {} baud", try_baud), None);
+
+        let request = iec62056::build_request_message(meter_address.as_deref());
+        let request_str = iec62056::format_bytes_for_display(&request);
+        emit_log("tx", &request_str, None);
+
+        if let Err(e) = current_port.write_all(&request) {
+            emit_log("warn", &format!("Handshake gönderilemedi: {}", e), None);
+            continue;
+        }
+        let _ = window.emit("comm-activity", serde_json::json!({"type": "tx"}));
+        let _ = current_port.flush();
+
+        emit_log("info", "Yanıt bekleniyor...", None);
+        std::thread::sleep(Duration::from_millis(500));
+
+        let mut response_buf = vec![0u8; 256];
+        let mut ident_read = 0;
+        let handshake_start = std::time::Instant::now();
+
+        loop {
+            match current_port.read(&mut response_buf[ident_read..]) {
+                Ok(n) if n > 0 => {
+                    ident_read += n;
+                    let _ = window.emit("comm-activity", serde_json::json!({"type": "rx"}));
+                    if ident_read >= 2 &&
+                       response_buf[ident_read - 2] == control::CR &&
+                       response_buf[ident_read - 1] == control::LF {
+                        break;
+                    }
+                }
+                Ok(_) => {}
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                    if ident_read > 0 { break; }
+                }
+                Err(_) => break,
+            }
+            if handshake_start.elapsed() > Duration::from_millis(timeout_ms as u64) {
+                break;
+            }
+        }
+
+        if ident_read > 0 {
+            let response_formatted = iec62056::format_bytes_for_display(&response_buf[..ident_read]);
+            emit_log("rx", &response_formatted, None);
+
+            let response = String::from_utf8_lossy(&response_buf[..ident_read]);
+            if let Some(parsed) = iec62056::parse_identification(&response) {
+                emit_log("success", &format!("Sayaç tanımlandı: {} — {} ({})",
+                    parsed.manufacturer, parsed.edas_id, parsed.model), None);
+                initial_baud = try_baud;
+                ident = Some(parsed);
+                port = Some(current_port);
+                break;
+            } else {
+                emit_log("warn", "Sayaç tanımlama yanıtı ayrıştırılamadı", None);
+            }
+        } else {
+            emit_log("warn", &format!("{} baud'da yanıt alınamadı", try_baud), None);
+        }
+    }
+
+    let mut port = port.ok_or_else(|| {
+        emit_log("error", "Hiçbir baud hızında yanıt alınamadı", None);
+        "Hiçbir baud hızında yanıt alınamadı".to_string()
+    })?;
+    let ident = ident.unwrap();
+
+    // Step 4: Send ACK with requested mode
+    let (target_baud, baud_char) = io::resolve_target_baud(
+        &connection_type, configured_baud, ident.max_baud_rate, ident.baud_char
+    );
+
+    let ack = iec62056::build_ack_message(mode, baud_char);
+    let ack_formatted = iec62056::format_bytes_for_display(&ack);
+    emit_log("tx", &ack_formatted, None);
+
+    port.write_all(&ack).map_err(|e| format!("ACK gönderilemedi: {}", e))?;
+    let _ = window.emit("comm-activity", serde_json::json!({"type": "tx"}));
+    let _ = port.flush();
+
+    // Step 5: Switch baud rate
+    emit_log("info", &format!("Baud hızı değiştiriliyor: {} -> {}", initial_baud, target_baud), None);
+    std::thread::sleep(Duration::from_millis(300));
+
+    if target_baud != initial_baud {
+        port.set_baud_rate(target_baud).map_err(|e| {
+            emit_log("error", &format!("Baud hızı değiştirilemedi: {}", e), None);
+            format!("Baud hızı değiştirilemedi: {}", e)
+        })?;
+        emit_log("success", &format!("Baud hızı {} olarak ayarlandı", target_baud), None);
+    }
+
+    emit_log("info", &format!("Mod {} paketi bekleniyor...", mode_num), None);
+
+    // Step 6: Read data using read_until_etx
+    let read_result = io::read_until_etx(&mut port, Some(window), read_config)?;
+
+    // Step 7: Send break and close port
+    emit_log("info", "Oturum sonlandırılıyor...", None);
+    let break_cmd = iec62056::build_break_command();
+    let break_formatted = iec62056::format_bytes_for_display(&break_cmd);
+    emit_log("tx", &break_formatted, None);
+    let _ = port.write_all(&break_cmd);
+    let _ = port.flush();
+    std::thread::sleep(Duration::from_millis(500));
+    drop(port);
+    emit_log("info", "Port kapatıldı", None);
+
+    // Validate
+    if read_result.bytes_read == 0 {
+        emit_log("error", "Veri alınamadı", None);
+        return Err("Sayaçtan veri alınamadı".to_string());
+    }
+
+    if !read_result.found_etx {
+        emit_log("warn", &format!("ETX bulunamadı ({} byte alındı)", read_result.bytes_read), None);
+    }
+
+    // Step 8: Verify BCC
+    let bcc_valid = if read_result.found_etx {
+        match io::verify_bcc(&read_result.data) {
+            Ok(true) => {
+                emit_log("success", &format!("BCC doğrulaması başarılı ({} byte)", read_result.bytes_read), None);
+                true
+            }
+            Ok(false) => {
+                emit_log("warn", "BCC uyuşmazlığı", None);
+                false
+            }
+            Err(e) => {
+                emit_log("warn", &format!("BCC doğrulanamadı: {}", e), None);
+                false
+            }
+        }
+    } else {
+        false
+    };
+
+    // Convert to string
+    let raw_data = String::from_utf8_lossy(&read_result.data).to_string();
+    let data_formatted = iec62056::format_bytes_for_display(&read_result.data);
+    emit_log("rx", &data_formatted, None);
+
+    let duration_ms = read_result.duration.as_millis() as u64;
+    emit_log("success", &format!("Mod {} okuma tamamlandı: {} byte, {:.1}s",
+        mode_num, read_result.bytes_read, duration_ms as f64 / 1000.0), None);
+
+    // Mark as not connected since we closed the port
+    {
+        let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
+        manager.connected = false;
+        manager.port = None;
+    }
+
+    Ok(PacketReadResult {
+        mode: mode_num,
+        raw_data,
+        bytes_read: read_result.bytes_read,
+        read_duration_ms: duration_ms,
+        bcc_valid,
+    })
+}
+
+/// Read a mode-specific packet from the meter (Modes 5, 7, 8, 9)
+/// This is an ATOMIC operation: opens port, handshakes, reads, closes port
+#[tauri::command]
+pub async fn read_packet(mode: u8, window: tauri::Window) -> Result<PacketReadResult, String> {
+    let protocol_mode = match mode {
+        5 => ProtocolMode::TechQuality,
+        7 => ProtocolMode::Historical,
+        8 => ProtocolMode::Warnings,
+        9 => ProtocolMode::Outages,
+        _ => return Err(format!("Desteklenmeyen mod: {}. Geçerli modlar: 5, 7, 8, 9", mode)),
+    };
+
+    log::info!("Starting mode {} read operation (atomic)", mode);
+    let read_config = io::ReadConfig::mode_read(mode);
+
+    let _ = window.emit("read-progress", ProgressEvent {
+        step: 1,
+        total: 3,
+        message: format!("Mod {} paketi okunuyor...", mode),
+    });
+
+    let result = atomic_mode_read(protocol_mode, &read_config, &window)?;
+
+    let _ = window.emit("read-progress", ProgressEvent {
+        step: 3,
+        total: 3,
+        message: "Tamamlandı!".to_string(),
+    });
+
+    Ok(result)
+}
+
 /// Read a specific OBIS code
 #[tauri::command]
 pub async fn read_obis(obis_code: String, window: tauri::Window) -> Result<String, String> {
     log::info!("Reading OBIS code: {}", obis_code);
 
     let emit_log = |log_type: &str, message: &str| {
+        let timestamp = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
         let _ = window.emit("comm-log", LogEvent {
-            timestamp: chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
+            timestamp: timestamp.clone(),
             log_type: log_type.to_string(),
             message: message.to_string(),
             data: None,
         });
+        logger::write_log(&timestamp, log_type, message);
     };
 
     let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
@@ -1095,18 +1456,20 @@ pub async fn read_obis(obis_code: String, window: tauri::Window) -> Result<Strin
 #[tauri::command]
 pub async fn read_obis_batch(
     obis_codes: Vec<String>,
-    password: Option<String>,
+    _password: Option<String>,
     window: tauri::Window,
 ) -> Result<std::collections::HashMap<String, String>, String> {
     log::info!("Batch OBIS read: {:?} (atomic, Mode 0)", obis_codes);
 
     let emit_log = |log_type: &str, message: &str| {
+        let timestamp = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
         let _ = window.emit("comm-log", LogEvent {
-            timestamp: chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
+            timestamp: timestamp.clone(),
             log_type: log_type.to_string(),
             message: message.to_string(),
             data: None,
         });
+        logger::write_log(&timestamp, log_type, message);
     };
 
     if obis_codes.is_empty() {
@@ -1168,7 +1531,8 @@ pub async fn read_obis_batch(
 
         let request = iec62056::build_request_message(meter_address.as_deref());
         let request_str = iec62056::format_bytes_for_display(&request);
-        emit_log("tx", &request_str);
+        let request_hex: Vec<String> = request.iter().map(|b| format!("{:02X}", b)).collect();
+        emit_log("tx", &format!("{} [{}]", request_str, request_hex.join(" ")));
 
         if let Err(e) = current_port.write_all(&request) {
             emit_log("warn", &format!("Handshake gönderilemedi: {}", e));
@@ -1207,7 +1571,8 @@ pub async fn read_obis_batch(
 
         if ident_read > 0 {
             let response_formatted = iec62056::format_bytes_for_display(&response_buf[..ident_read]);
-            emit_log("rx", &response_formatted);
+            let ident_hex: Vec<String> = response_buf[..ident_read].iter().map(|b| format!("{:02X}", b)).collect();
+            emit_log("rx", &format!("{} [{}]", response_formatted, ident_hex.join(" ")));
 
             let response = String::from_utf8_lossy(&response_buf[..ident_read]);
             if let Some(parsed) = iec62056::parse_identification(&response) {
@@ -1373,12 +1738,14 @@ pub async fn write_obis(obis_code: String, value: String, window: tauri::Window)
     log::info!("Writing OBIS code: {} = {}", obis_code, value);
 
     let emit_log = |log_type: &str, message: &str| {
+        let timestamp = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
         let _ = window.emit("comm-log", LogEvent {
-            timestamp: chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
+            timestamp: timestamp.clone(),
             log_type: log_type.to_string(),
             message: message.to_string(),
             data: None,
         });
+        logger::write_log(&timestamp, log_type, message);
     };
 
     let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
@@ -1391,29 +1758,44 @@ pub async fn write_obis(obis_code: String, value: String, window: tauri::Window)
 
     let port = manager.port.as_mut().ok_or("Port not available")?;
 
+    // Clear any leftover data in serial buffer before writing
+    let _ = port.clear(serialport::ClearBuffer::Input);
+
     // Build and send write command
     let cmd = iec62056::build_write_command(&obis_code, &value);
-    emit_log("tx", &format!("W2 {}({})", obis_code, value));
+    let cmd_hex: Vec<String> = cmd.iter().map(|b| format!("{:02X}", b)).collect();
+    let w_type = if obis_code.starts_with("96.96.") { "W1" } else { "W2" };
+    emit_log("tx", &format!("{} {}({}) [{}]", w_type, obis_code, value, cmd_hex.join(" ")));
+
+    // Delay before sending write command
+    std::thread::sleep(Duration::from_millis(500));
 
     port.write_all(&cmd).map_err(|e| format!("Write failed: {}", e))?;
     port.flush().map_err(|e| format!("Flush failed: {}", e))?;
 
-    // Wait for ACK
-    std::thread::sleep(Duration::from_millis(200));
+    // Wait for response
+    std::thread::sleep(Duration::from_millis(500));
 
-    let mut buf = [0u8; 1];
+    let mut buf = [0u8; 32];
     match port.read(&mut buf) {
-        Ok(1) if buf[0] == control::ACK => {
-            emit_log("rx", "ACK");
-            Ok(())
-        }
-        Ok(1) if buf[0] == control::NAK => {
-            emit_log("error", "NAK - Yazma reddedildi");
-            Err("Write rejected by meter (NAK)".to_string())
+        Ok(n) if n > 0 => {
+            let hex: Vec<String> = buf[..n].iter().map(|b| format!("{:02X}", b)).collect();
+            emit_log("rx", &format!("Yanıt ({} byte): [{}]", n, hex.join(" ")));
+            if buf[0] == control::ACK {
+                emit_log("rx", "ACK");
+                Ok(())
+            } else if buf[0] == control::NAK {
+                emit_log("error", "NAK - Yazma reddedildi. Şifre yanlış olabilir veya sayaç fabrika modunda değil.");
+                Err("NAK - Şifre yanlış veya sayaç bu işleme izin vermiyor".to_string())
+            } else {
+                let formatted = iec62056::format_bytes_for_display(&buf[..n]);
+                emit_log("error", &format!("Beklenmeyen yanıt: {}", formatted));
+                Err(format!("Unexpected response: 0x{:02X}", buf[0]))
+            }
         }
         _ => {
-            emit_log("error", "Geçersiz yanıt");
-            Err("Invalid response from meter".to_string())
+            emit_log("error", "Yanıt alınamadı");
+            Err("No response from meter".to_string())
         }
     }
 }
@@ -1422,22 +1804,27 @@ pub async fn write_obis(obis_code: String, value: String, window: tauri::Window)
 /// This is an ATOMIC operation: opens port, handshakes, enters Mode 1 (Programming),
 /// switches baud, sends password. Does NOT require a prior active connection —
 /// only needs stored params from a previous connect() call.
+/// Authentication always uses P1 command (IEC 62056-21). The meter determines
+/// the access level based on which stored password matches.
 #[tauri::command]
-pub async fn authenticate(password: String, window: tauri::Window) -> Result<bool, String> {
-    log::info!("Authenticating with meter (atomic)");
+pub async fn authenticate(password: String, level: Option<u8>, window: tauri::Window) -> Result<bool, String> {
+    let password_level = level.unwrap_or(1);
+    log::info!("Authenticating with meter (atomic) - P{} command", password_level);
 
     let emit_log = |log_type: &str, message: &str| {
+        let timestamp = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
         let _ = window.emit("comm-log", LogEvent {
-            timestamp: chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
+            timestamp: timestamp.clone(),
             log_type: log_type.to_string(),
             message: message.to_string(),
             data: None,
         });
+        logger::write_log(&timestamp, log_type, message);
     };
 
-    // Validate password format (8 digits)
+    // Validate password format (8 digits per TEDAS/MASS spec)
     if password.len() != 8 || !password.chars().all(|c| c.is_ascii_digit()) {
-        return Err("Password must be exactly 8 digits".to_string());
+        return Err("Şifre tam olarak 8 rakam olmalıdır".to_string());
     }
 
     // Step 1: Get connection parameters from stored state
@@ -1469,17 +1856,36 @@ pub async fn authenticate(password: String, window: tauri::Window) -> Result<boo
         manager.disconnect();
     }
 
-    // Wait for meter to fully reset to idle state before reconnecting
+    // Wait for meter to reset to idle state
     emit_log("info", "Sayacın sıfırlanması bekleniyor...");
     std::thread::sleep(Duration::from_millis(1500));
 
     // Step 3: Open port and handshake with baud rate retry
-    let baud_rates = io::resolve_initial_bauds(&connection_type, configured_baud);
+    // B0 is sent per-baud inside the loop (not upfront) to avoid sending garbage at wrong bauds.
+    // If AUTH_FORCE_19200: try 19200 first. This avoids a mid-session baud switch which can
+    // leave the meter's RX at the original baud. MMS connects directly at 19200 for MAS6 meters.
+    let baud_rates = if AUTH_FORCE_19200.load(std::sync::atomic::Ordering::Relaxed) {
+        let mut bauds = vec![19200u32];
+        for b in io::resolve_initial_bauds(&connection_type, configured_baud) {
+            if !bauds.contains(&b) { bauds.push(b); }
+        }
+        bauds
+    } else {
+        io::resolve_initial_bauds(&connection_type, configured_baud)
+    };
     let mut port: Option<Box<dyn SerialPort>> = None;
     let mut ident: Option<iec62056::MeterIdent> = None;
     let mut initial_baud: u32 = 0;
 
     for (attempt, &try_baud) in baud_rates.iter().enumerate() {
+        // Send B0 at this baud first to clear any stuck session at this specific baud rate
+        if let Ok(mut bp) = iec62056::open_port(&port_name, try_baud, 200) {
+            let break_cmd = iec62056::build_break_command();
+            let _ = bp.write_all(&break_cmd);
+            let _ = bp.flush();
+            std::thread::sleep(Duration::from_millis(200));
+        }
+
         emit_log("info", &format!("Port açılıyor: {} @ {} baud (7E1) [Deneme {}/{}]",
             port_name, try_baud, attempt + 1, baud_rates.len()));
 
@@ -1495,7 +1901,8 @@ pub async fn authenticate(password: String, window: tauri::Window) -> Result<boo
 
         let request = iec62056::build_request_message(meter_address.as_deref());
         let request_str = iec62056::format_bytes_for_display(&request);
-        emit_log("tx", &request_str);
+        let request_hex: Vec<String> = request.iter().map(|b| format!("{:02X}", b)).collect();
+        emit_log("tx", &format!("{} [{}]", request_str, request_hex.join(" ")));
 
         if let Err(e) = current_port.write_all(&request) {
             emit_log("warn", &format!("Handshake gönderilemedi: {}", e));
@@ -1534,7 +1941,8 @@ pub async fn authenticate(password: String, window: tauri::Window) -> Result<boo
 
         if ident_read > 0 {
             let response_formatted = iec62056::format_bytes_for_display(&response_buf[..ident_read]);
-            emit_log("rx", &response_formatted);
+            let ident_hex: Vec<String> = response_buf[..ident_read].iter().map(|b| format!("{:02X}", b)).collect();
+            emit_log("rx", &format!("{} [{}]", response_formatted, ident_hex.join(" ")));
 
             let response = String::from_utf8_lossy(&response_buf[..ident_read]);
             if let Some(parsed) = iec62056::parse_identification(&response) {
@@ -1559,32 +1967,39 @@ pub async fn authenticate(password: String, window: tauri::Window) -> Result<boo
     let ident = ident.unwrap();
 
     // Step 4: Send ACK with Mode 1 (Programming mode)
-    let (target_baud, baud_char) = io::resolve_target_baud(
-        &connection_type, configured_baud, ident.max_baud_rate, ident.baud_char
-    );
+    // If AUTH_FORCE_19200 is set: request baud '6' (19200) regardless of meter's reported max.
+    // This negotiates a 19200 session even if the meter reports MAS5 (stored baud 9600).
+    let (target_baud, baud_char) = if AUTH_FORCE_19200.load(std::sync::atomic::Ordering::Relaxed) {
+        (19200u32, '6')
+    } else {
+        io::resolve_target_baud(&connection_type, configured_baud, ident.max_baud_rate, ident.baud_char)
+    };
 
     let ack = iec62056::build_ack_message(ProtocolMode::Programming, baud_char);
     let ack_formatted = iec62056::format_bytes_for_display(&ack);
-    emit_log("tx", &ack_formatted);
+    let ack_hex: Vec<String> = ack.iter().map(|b| format!("{:02X}", b)).collect();
+    emit_log("tx", &format!("{} [{}]", ack_formatted, ack_hex.join(" ")));
 
     port.write_all(&ack).map_err(|e| format!("ACK gönderilemedi: {}", e))?;
     let _ = window.emit("comm-activity", serde_json::json!({"type": "tx"}));
     let _ = port.flush();
 
-    // Wait and switch baud rate
     emit_log("info", &format!("Baud hızı değiştiriliyor: {} -> {}", initial_baud, target_baud));
-    std::thread::sleep(Duration::from_millis(300));
 
     if target_baud != initial_baud {
+        // Clear any remaining bytes at old baud BEFORE switching
+        let _ = port.clear(serialport::ClearBuffer::Input);
+        // Switch baud immediately — meter sends P0 right after ACK at the new baud
         port.set_baud_rate(target_baud).map_err(|e| {
             emit_log("error", &format!("Baud hızı değiştirilemedi: {}", e));
             format!("Baud hızı değiştirilemedi: {}", e)
         })?;
-        emit_log("success", &format!("Baud hızı {} olarak ayarlandı", target_baud));
+        emit_log("success", &format!("Baud hızı {} olarak ayarlandı, P0 bekleniyor...", target_baud));
+        // Do NOT sleep here — start reading P0 immediately.
+        // The meter sends P0 at the new baud shortly after receiving ACK.
+    } else {
+        std::thread::sleep(Duration::from_millis(150));
     }
-
-    // Wait for meter to be ready
-    std::thread::sleep(Duration::from_millis(500));
 
     // Read P0 response from meter (programming mode acknowledgment)
     let mut prog_buf = vec![0u8; 256];
@@ -1619,10 +2034,11 @@ pub async fn authenticate(password: String, window: tauri::Window) -> Result<boo
 
     if prog_read > 0 {
         let prog_formatted = iec62056::format_bytes_for_display(&prog_buf[..prog_read]);
-        emit_log("rx", &prog_formatted);
+        let prog_hex: Vec<String> = prog_buf[..prog_read].iter().map(|b| format!("{:02X}", b)).collect();
+        emit_log("rx", &format!("{} [{}]", prog_formatted, prog_hex.join(" ")));
     }
 
-    // Step 5: Send P1 password with P0 seed encryption (IEC 62056-21 Algorithm 1)
+    // Step 5: Send P{level} password command
     emit_log("info", "Programlama moduna geçildi, şifre gönderiliyor...");
 
     // Parse P0 seed for challenge-response authentication
@@ -1641,96 +2057,273 @@ pub async fn authenticate(password: String, window: tauri::Window) -> Result<boo
         None
     };
 
-    // Small delay before sending password to let the meter prepare
-    std::thread::sleep(Duration::from_millis(200));
+    // CRITICAL: Clear serial input buffer before sending password command.
+    // The P0 response or baud rate change may leave stale bytes (including ACK)
+    // that could be falsely interpreted as password acceptance.
+    {
+        // Step A: OS-level input buffer clear
+        let _ = port.clear(serialport::ClearBuffer::Input);
 
-    // If meter sent P0 seed, Base64-decode it, XOR with password, hex-encode, send as P2
-    // Per IEC 62056-21: P0=challenge, P2=encrypted result, P1=plaintext only
-    let cmd = if let Some(ref seed) = seed_opt {
-        // Log Base64-decoded seed for diagnostics
-        if let Some(decoded) = iec62056::base64_decode(seed) {
-            let dec_hex: Vec<String> = decoded.iter().map(|b| format!("{:02X}", b)).collect();
-            emit_log("info", &format!("Seed Base64 decoded ({} byte): [{}]", decoded.len(), dec_hex.join(" ")));
+        // Step B: Wait for any in-flight data to arrive from the meter
+        std::thread::sleep(Duration::from_millis(50));
+
+        // Step C: Manual drain to catch anything that arrived after clear
+        let mut drain_buf = [0u8; 256];
+        let old_timeout = port.timeout();
+        let _ = port.set_timeout(Duration::from_millis(50));
+        let mut drained = 0;
+        loop {
+            match port.read(&mut drain_buf[drained..]) {
+                Ok(n) if n > 0 => {
+                    drained += n;
+                    if drained >= drain_buf.len() { break; }
+                }
+                _ => break,
+            }
         }
-        let encrypted = iec62056::encrypt_password_with_seed(&password, seed);
-        let enc_hex: Vec<String> = encrypted.iter().map(|b| format!("{:02X}", b)).collect();
-        emit_log("info", &format!("XOR sonucu (ham): [{}]", enc_hex.join(" ")));
-        let built_cmd = iec62056::build_encrypted_password_command(&encrypted);
-        // Show the hex-encoded ASCII that will be sent
-        let hex_str: String = encrypted.iter().map(|b| format!("{:02X}", b)).collect();
-        emit_log("info", &format!("P2 ile gönderilecek (hex-encoded): ({})", hex_str));
-        built_cmd
+        let _ = port.set_timeout(old_timeout);
+        if drained > 0 {
+            let stale_hex: Vec<String> = drain_buf[..drained].iter().map(|b| format!("{:02X}", b)).collect();
+            emit_log("warn", &format!("UYARI: Buffer'dan {} byte eski veri temizlendi: [{}]", drained, stale_hex.join(" ")));
+        } else {
+            emit_log("info", "Buffer temiz, şifre gönderiliyor...");
+        }
+    }
+
+    // Use P{level} command for authentication (IEC 62056-21).
+    // P1 = Reader (96.96.1), P2 = Operator (96.96.2), P3 = Master (96.96.3)
+    // The meter checks the HMAC against the password stored at the given level.
+    // Sending P1 for a P3 password causes B0 rejection — the level in the frame must match.
+    let cmd = if let Some(ref seed) = seed_opt {
+        let seed_str = String::from_utf8_lossy(seed).to_string();
+        emit_log("info", &format!("HMAC-SHA256 hesaplanıyor (seed: {}, seviye: P{})", seed_str, password_level));
+        // Seed is used as-is (raw base64 ASCII string), NOT decoded to binary.
+        // MASS meters compute: HMAC-SHA256(key=password_utf8, msg=seed_string_utf8)
+        let hmac_result = iec62056::encrypt_password_hmac_sha256(&password, seed);
+        let hmac_hex: String = hmac_result.iter().map(|b| format!("{:02X}", b)).collect();
+        emit_log("info", &format!("HMAC sonucu: {}", hmac_hex));
+        iec62056::build_hmac_password_command(&hmac_result, password_level)
     } else {
-        emit_log("info", "P0 seed yok, şifre düz metin gönderiliyor (P1)");
-        iec62056::build_password_command(&password)
+        emit_log("info", &format!("P0 seed yok, şifre düz metin gönderiliyor (P{})", password_level));
+        iec62056::build_password_command_with_level(&password, password_level)
     };
 
     // Log the command bytes (for debugging)
     let cmd_hex: Vec<String> = cmd.iter().map(|b| format!("{:02X}", b)).collect();
-    emit_log("info", &format!("P2 komutu: {} byte [{}]", cmd.len(), cmd_hex.join(" ")));
-    emit_log("tx", "P2 (********)");
+    emit_log("info", &format!("Şifre komutu: {} byte [{}]", cmd.len(), cmd_hex.join(" ")));
+    emit_log("tx", &format!("{} (********)", if seed_opt.is_some() { format!("P{} HMAC", password_level) } else { format!("P{}", password_level) }));
 
     port.write_all(&cmd).map_err(|e| format!("Write failed: {}", e))?;
     port.flush().map_err(|e| format!("Flush failed: {}", e))?;
 
-    // Wait for response
-    std::thread::sleep(Duration::from_millis(500));
+    // Wait for meter to process the password command
+    std::thread::sleep(Duration::from_millis(150));
 
-    // Read response — some meters send multi-byte responses
-    let mut buf = [0u8; 64];
-    let read_result = port.read(&mut buf);
-    match read_result {
-        Ok(n) if n > 0 => {
-            let response_formatted = iec62056::format_bytes_for_display(&buf[..n]);
-            emit_log("rx", &format!("Şifre yanıtı: {}", response_formatted));
+    // Read response — collect ALL available bytes to detect stale data
+    let mut buf = [0u8; 128];
+    let mut total_resp = 0;
+    let resp_start = std::time::Instant::now();
 
-            // Check first byte for ACK/NAK
-            if buf[0] == control::ACK {
-                emit_log("success", "Şifre kabul edildi - Programlama modu aktif");
-                // Store port in CONNECTION_STATE for subsequent write_obis/sync_time calls
-                let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
-                manager.port = Some(port);
-                manager.connected = true;
-                manager.in_programming_mode = true;
-                manager.negotiated_baud = target_baud;
-                Ok(true)
-            } else if buf[0] == control::NAK {
-                emit_log("error", "Şifre reddedildi (NAK)!");
-                drop(port);
-                Ok(false)
-            } else if buf[0] == control::SOH {
-                // Meter sent SOH — check if it's a B0 (Break) command meaning password rejected
-                let response_str = String::from_utf8_lossy(&buf[1..n]);
-                if response_str.contains("B0") {
-                    emit_log("error", "Şifre reddedildi - Sayaç oturumu sonlandırdı (B0 Break)");
-                    emit_log("warn", "DİKKAT: 3 hatalı şifre girişinde sayaç 6 saat kilitlenir! Sayaç kilitliyse lütfen bekleyin.");
-                } else {
-                    emit_log("error", &format!("Şifre reddedildi - Sayaç yanıtı: {}", response_str.trim()));
-                }
-                drop(port);
-                Ok(false)
-            } else {
-                emit_log("error", &format!("Beklenmeyen yanıt: 0x{:02X} ({} byte)", buf[0], n));
-                drop(port);
-                Err(format!("Unexpected response from meter: 0x{:02X}", buf[0]))
+    // Phase 1: Wait for first byte(s) to arrive
+    loop {
+        match port.read(&mut buf[total_resp..]) {
+            Ok(n) if n > 0 => {
+                total_resp += n;
+                break;
             }
-        }
-        Ok(_) => {
-            emit_log("error", "Şifre yanıtı boş");
-            drop(port);
-            Err("Empty response from meter".to_string())
-        }
-        Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
-            emit_log("error", "Şifre yanıtı zaman aşımı");
-            drop(port);
-            Err("Timeout waiting for password response".to_string())
-        }
-        Err(e) => {
-            emit_log("error", &format!("Şifre yanıtı okuma hatası: {}", e));
-            drop(port);
-            Err(format!("Read error: {}", e))
+            Ok(_) => {}
+            Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                if resp_start.elapsed() > Duration::from_millis(timeout_ms as u64) {
+                    break;
+                }
+            }
+            Err(_) => break,
         }
     }
+
+    // Phase 2: After first byte(s), keep reading briefly to get complete response
+    if total_resp > 0 {
+        let old_timeout = port.timeout();
+        let _ = port.set_timeout(Duration::from_millis(200));
+        loop {
+            match port.read(&mut buf[total_resp..]) {
+                Ok(n) if n > 0 => {
+                    total_resp += n;
+                    if total_resp >= buf.len() { break; }
+                }
+                _ => break,
+            }
+        }
+        let _ = port.set_timeout(old_timeout);
+    }
+
+    if total_resp > 0 {
+        let n = total_resp;
+        let response_hex: Vec<String> = buf[..n].iter().map(|b| format!("{:02X}", b)).collect();
+        let response_formatted = iec62056::format_bytes_for_display(&buf[..n]);
+        emit_log("rx", &format!("Şifre yanıtı ({} byte): {} [{}]", n, response_formatted, response_hex.join(" ")));
+
+        // CRITICAL: If we received more than 1 byte and the first byte is ACK,
+        // the ACK might be stale data. Check for NAK or B0 in the remaining bytes.
+        if n > 1 && buf[0] == control::ACK {
+            emit_log("warn", &format!("UYARI: {} byte alındı, ilk byte ACK ama ek veri var - ek veriler kontrol ediliyor", n));
+            // Look for NAK or SOH (B0 Break) in the remaining bytes
+            let has_nak = buf[1..n].iter().any(|&b| b == control::NAK);
+            let has_soh = buf[1..n].iter().any(|&b| b == control::SOH);
+            let remaining_str = String::from_utf8_lossy(&buf[1..n]);
+            if has_nak {
+                emit_log("error", &format!("P{} şifre reddedildi - ACK'den sonra NAK bulundu (eski buffer verisi ACK olabilir)", password_level));
+                drop(port);
+                return Ok(false);
+            }
+            if has_soh && remaining_str.contains("B0") {
+                emit_log("error", &format!("P{} şifre reddedildi - ACK'den sonra B0 Break bulundu", password_level));
+                drop(port);
+                return Ok(false);
+            }
+        }
+
+        // Check first byte for ACK/NAK
+        if buf[0] == control::ACK {
+            // NOTE: MASS meters ACK the P command regardless of password correctness.
+            // ACK = "command received". Actual password verification happens on first write/read.
+            // We cannot use an R2 probe here because it also fails in normal (non-factory) mode.
+            emit_log("success", &format!("P{} komutu onaylandı (ACK) - Programlama modu aktif", password_level));
+
+            // Store port and password in CONNECTION_STATE for subsequent operations
+            let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
+            manager.port = Some(port);
+            manager.connected = true;
+            manager.in_programming_mode = true;
+            manager.negotiated_baud = target_baud;
+            manager.last_password = Some(password.clone());
+            Ok(true)
+        } else if buf[0] == control::NAK {
+            emit_log("error", &format!("P{} şifre reddedildi (NAK)!", password_level));
+            drop(port);
+            Ok(false)
+        } else if buf[0] == control::SOH {
+            // Meter sent SOH — check if it's a B0 (Break) command meaning password rejected
+            let response_str = String::from_utf8_lossy(&buf[1..n]);
+            if response_str.contains("B0") {
+                emit_log("error", &format!("P{} şifre reddedildi - Sayaç oturumu sonlandırdı (B0 Break)", password_level));
+                emit_log("warn", "DİKKAT: 3 hatalı şifre girişinde sayaç 6 saat kilitlenir! Sayaç kilitliyse lütfen bekleyin.");
+            } else {
+                emit_log("error", &format!("P{} şifre reddedildi - Sayaç yanıtı: {}", password_level, response_str.trim()));
+            }
+            drop(port);
+            Ok(false)
+        } else {
+            emit_log("error", &format!("Beklenmeyen yanıt: 0x{:02X} ({} byte)", buf[0], n));
+            drop(port);
+            Err(format!("Unexpected response from meter: 0x{:02X}", buf[0]))
+        }
+    } else if resp_start.elapsed() > Duration::from_millis(timeout_ms as u64) {
+        emit_log("error", "Şifre yanıtı zaman aşımı");
+        drop(port);
+        Err("Timeout waiting for password response".to_string())
+    } else {
+        emit_log("error", "Şifre yanıtı boş");
+        drop(port);
+        Err("Empty response from meter".to_string())
+    }
+}
+
+/// Change meter password (atomic: authenticate + W2 write)
+/// Per MASS/TEDAS spec: password changes use W2 96.96.{level}(new_password)
+/// level: target password level to change (1=96.96.1, 2=96.96.2, 3=96.96.3). Default 3.
+#[tauri::command]
+pub async fn change_password(current_password: String, new_password: String, level: Option<u8>, window: tauri::Window) -> Result<String, String> {
+    let password_level = level.unwrap_or(3);
+    let auth_level: u8 = 3; // Always authenticate with P3 (highest level) for password changes
+    log::info!("Changing meter password at level {} (auth: P{})", password_level, auth_level);
+
+    let emit_log = |log_type: &str, message: &str| {
+        let timestamp = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
+        let _ = window.emit("comm-log", LogEvent {
+            timestamp: timestamp.clone(),
+            log_type: log_type.to_string(),
+            message: message.to_string(),
+            data: None,
+        });
+        logger::write_log(&timestamp, log_type, message);
+    };
+
+    // Validate passwords (8 digits per TEDAS/MASS spec, e.g. "12345678")
+    if current_password.len() != 8 || !current_password.chars().all(|c| c.is_ascii_digit()) {
+        return Err("Mevcut şifre tam olarak 8 rakam olmalıdır".to_string());
+    }
+    if new_password.len() != 8 || !new_password.chars().all(|c| c.is_ascii_digit()) {
+        return Err("Yeni şifre tam olarak 8 rakam olmalıdır".to_string());
+    }
+
+    // OBIS code for target password level: 96.96.1 (P1), 96.96.2 (P2), 96.96.3 (P3)
+    let obis_code = format!("96.96.{}", password_level);
+
+    emit_log("info", &format!("P{} kimlik doğrulama → W2 {} ile şifre değiştirme başlatılıyor", auth_level, obis_code));
+    emit_log("info", "ACK baud '5' (9600) ile tek session — baud geçişi yok");
+
+    // No baud negotiation — stay at 9600 throughout (same as MMS behavior for MAS5 meters).
+    // MMS uses ACK '5' (no baud change), gets P0 at 9600, sends P3 at 9600, then W2.
+    // Baud switching to 19200 caused the meter's RX to stay at 19200 while we switched back,
+    // resulting in P3 frame being garbled and no response (timeout).
+    let auth_ok = authenticate(current_password.clone(), Some(auth_level), window.clone()).await;
+    let auth_ok = auth_ok.map_err(|e| format!("Kimlik doğrulama hatası: {}", e))?;
+
+    if !auth_ok {
+        emit_log("error", &format!("P{} kimlik doğrulama başarısız", auth_level));
+        let _ = end_session(window.clone()).await;
+        return Err("Kimlik doğrulama başarısız - şifre yanlış veya sayaç kilitli".to_string());
+    }
+
+    // Write new password via W2
+    let result: Result<String, String> = {
+        let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
+        let port = manager.port.as_mut().ok_or("Port mevcut değil")?;
+        let _ = port.clear(serialport::ClearBuffer::Input);
+
+        let cmd = iec62056::build_write_command_with_type(&obis_code, &new_password, b'2');
+        let cmd_hex: Vec<String> = cmd.iter().map(|b| format!("{:02X}", b)).collect();
+        let cmd_display = iec62056::format_bytes_for_display(&cmd);
+        emit_log("tx", &format!("W2 {} [{}]", cmd_display, cmd_hex.join(" ")));
+        port.write_all(&cmd).map_err(|e| format!("W2 gönderme hatası: {}", e))?;
+        let _ = port.flush();
+        std::thread::sleep(Duration::from_millis(500));
+
+        let mut buf = [0u8; 64];
+        match port.read(&mut buf) {
+            Ok(n) if n > 0 => {
+                let hex: Vec<String> = buf[..n].iter().map(|b| format!("{:02X}", b)).collect();
+                let formatted = iec62056::format_bytes_for_display(&buf[..n]);
+                emit_log("rx", &format!("W2 yanıt ({} byte): {} [{}]", n, formatted, hex.join(" ")));
+                match buf[0] {
+                    b if b == control::ACK => {
+                        emit_log("success", &format!("Şifre başarıyla değiştirildi! (OBIS: {})", obis_code));
+                        Ok(format!("Şifre {} ile başarıyla değiştirildi", obis_code))
+                    }
+                    b if b == control::NAK => {
+                        emit_log("error", "W2 reddedildi (NAK) — P3 şifresi yanlış veya sayaç kilitli (3 hatalı giriş = 6 saat kilit)");
+                        Err("Şifre değiştirilemedi - P3 şifresi yanlış".to_string())
+                    }
+                    b if b == control::SOH => {
+                        emit_log("error", "Sayaç B0 ile oturumu kapattı");
+                        manager.in_programming_mode = false;
+                        manager.connected = false;
+                        Err("Sayaç oturumu sonlandırdı (B0)".to_string())
+                    }
+                    b => Err(format!("W2 beklenmeyen yanıt: 0x{:02X}", b)),
+                }
+            }
+            Ok(_) => { emit_log("warn", "W2 boş yanıt"); Err("empty".to_string()) }
+            Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                emit_log("warn", "W2 96.96 zaman aşımı"); Err("timeout".to_string())
+            }
+            Err(e) => Err(e.to_string()),
+        }
+    };
+
+    let _ = end_session(window.clone()).await;
+    result
 }
 
 /// Sync meter time to computer time
@@ -1739,12 +2332,14 @@ pub async fn sync_time(window: tauri::Window) -> Result<(), String> {
     log::info!("Syncing meter time");
 
     let emit_log = |log_type: &str, message: &str| {
+        let timestamp = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
         let _ = window.emit("comm-log", LogEvent {
-            timestamp: chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
+            timestamp: timestamp.clone(),
             log_type: log_type.to_string(),
             message: message.to_string(),
             data: None,
         });
+        logger::write_log(&timestamp, log_type, message);
     };
 
     {
@@ -1780,12 +2375,14 @@ pub async fn end_session(window: tauri::Window) -> Result<(), String> {
     log::info!("Ending programming session");
 
     let emit_log = |log_type: &str, message: &str| {
+        let timestamp = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
         let _ = window.emit("comm-log", LogEvent {
-            timestamp: chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
+            timestamp: timestamp.clone(),
             log_type: log_type.to_string(),
             message: message.to_string(),
             data: None,
         });
+        logger::write_log(&timestamp, log_type, message);
     };
 
     let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
@@ -1811,17 +2408,17 @@ pub async fn end_session(window: tauri::Window) -> Result<(), String> {
     Ok(())
 }
 
-/// Read load profile data from meter (Mode 1 - Programming mode)
-/// This is an ATOMIC operation: opens port, handshakes, enters programming mode, reads, closes port
-/// Uses R2 command with P.01/P.02/P.03
+/// Read load profile data from meter (Mode 1 - Programming mode, with P3 authentication)
+/// Atomic operation: opens port → handshake → Mode 1 → P3 auth → R1 P.01/P.02/P.03
 #[tauri::command]
 pub async fn read_load_profile(
     profile_number: u8,
     start_time: Option<String>,
     end_time: Option<String>,
+    password: Option<String>,
     window: tauri::Window,
 ) -> Result<LoadProfileResult, String> {
-    log::info!("Reading load profile {} with range: {:?} - {:?} (atomic)", profile_number, start_time, end_time);
+    log::info!("Reading load profile {} with range: {:?} - {:?}", profile_number, start_time, end_time);
 
     let emit_progress = |step: u32, total: u32, message: &str| {
         let _ = window.emit("read-progress", ProgressEvent {
@@ -1832,19 +2429,27 @@ pub async fn read_load_profile(
     };
 
     let emit_log = |log_type: &str, message: &str, data: Option<&str>| {
+        let timestamp = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
         let _ = window.emit("comm-log", LogEvent {
-            timestamp: chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
+            timestamp: timestamp.clone(),
             log_type: log_type.to_string(),
             message: message.to_string(),
             data: data.map(|s| s.to_string()),
         });
+        let full_msg = match data {
+            Some(d) => format!("{} | {}", message, d),
+            None => message.to_string(),
+        };
+        logger::write_log(&timestamp, log_type, &full_msg);
+        if let Some(d) = data {
+            logger::write_hex_dump(d);
+        }
     };
 
     let total_steps = 7;
 
     // Step 1: Get connection parameters from stored state
-    emit_progress(1, total_steps, "Bağlantı parametreleri alınıyor...");
-
+    emit_progress(1, total_steps, "Bağlantı hazırlanıyor...");
     let (timeout_ms, port_name, meter_address, connection_type, configured_baud) = {
         let manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
         if manager.params.is_none() {
@@ -1860,7 +2465,7 @@ pub async fn read_load_profile(
         )
     };
 
-    // Step 2: Close any existing connection - we'll do a fresh atomic read
+    // Step 2: Close any existing connection
     {
         let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
         if let Some(ref mut port) = manager.port {
@@ -1873,15 +2478,23 @@ pub async fn read_load_profile(
         manager.disconnect();
     }
 
-    emit_progress(2, total_steps, "Seri port açılıyor...");
-
-    // Step 3-4: Open port and handshake with baud rate retry
+    // Step 3: Open port and handshake
+    // B0 is sent per-baud inside the loop to avoid sending garbage at wrong baud rates.
+    emit_progress(2, total_steps, "Sayaç ile iletişim kuruluyor...");
     let baud_rates = io::resolve_initial_bauds(&connection_type, configured_baud);
     let mut port: Option<Box<dyn SerialPort>> = None;
     let mut ident: Option<iec62056::MeterIdent> = None;
     let mut initial_baud: u32 = 0;
 
     for (attempt, &try_baud) in baud_rates.iter().enumerate() {
+        // Send B0 at this baud to clear any stuck session at this specific baud rate
+        if let Ok(mut bp) = iec62056::open_port(&port_name, try_baud, 200) {
+            let break_cmd = iec62056::build_break_command();
+            let _ = bp.write_all(&break_cmd);
+            let _ = bp.flush();
+            std::thread::sleep(Duration::from_millis(200));
+        }
+
         emit_log("info", &format!("Port açılıyor: {} @ {} baud (7E1) [Deneme {}/{}]",
             port_name, try_baud, attempt + 1, baud_rates.len()), None);
 
@@ -1903,7 +2516,6 @@ pub async fn read_load_profile(
             emit_log("warn", &format!("Handshake gönderilemedi: {}", e), None);
             continue;
         }
-        let _ = window.emit("comm-activity", serde_json::json!({"type": "tx"}));
         let _ = current_port.flush();
 
         emit_log("info", "Yanıt bekleniyor...", None);
@@ -1947,8 +2559,6 @@ pub async fn read_load_profile(
                 ident = Some(parsed);
                 port = Some(current_port);
                 break;
-            } else {
-                emit_log("warn", "Sayaç tanımlama yanıtı ayrıştırılamadı", None);
             }
         } else {
             emit_log("warn", &format!("{} baud'da yanıt alınamadı", try_baud), None);
@@ -1961,168 +2571,374 @@ pub async fn read_load_profile(
     })?;
     let ident = ident.unwrap();
 
-    emit_progress(3, total_steps, "Programlama moduna geçiliyor...");
+    // Decide mode based on password: Mode 0 (Readout, no auth) vs Mode 1 (Programming, with auth)
+    let password_str = password.unwrap_or_default();
+    let has_password = !password_str.is_empty() && password_str.len() == 8;
 
-    // Step 5: Send ACK with Mode 1 (Programming mode)
     let (target_baud, baud_char) = io::resolve_target_baud(
         &connection_type, configured_baud, ident.max_baud_rate, ident.baud_char
     );
 
-    let ack = iec62056::build_ack_message(ProtocolMode::Programming, baud_char);
-    let ack_formatted = iec62056::format_bytes_for_display(&ack);
-    emit_log("tx", &ack_formatted, None);
+    if has_password {
+        // === MODE 1: Programming mode with P3 HMAC auth + R1 selective read ===
+        emit_progress(3, total_steps, "Programlama moduna geçiliyor...");
+        let ack = iec62056::build_ack_message(ProtocolMode::Programming, baud_char);
+        let ack_formatted = iec62056::format_bytes_for_display(&ack);
+        emit_log("tx", &ack_formatted, None);
 
-    port.write_all(&ack).map_err(|e| format!("ACK gönderilemedi: {}", e))?;
-    let _ = window.emit("comm-activity", serde_json::json!({"type": "tx"}));
-    let _ = port.flush();
+        port.write_all(&ack).map_err(|e| format!("ACK gönderilemedi: {}", e))?;
+        let _ = window.emit("comm-activity", serde_json::json!({"type": "tx"}));
+        let _ = port.flush();
 
-    // Wait and switch baud rate
-    emit_log("info", &format!("Baud hızı değiştiriliyor: {} -> {}", initial_baud, target_baud), None);
-    std::thread::sleep(Duration::from_millis(300));
+        emit_log("info", &format!("Baud hızı değiştiriliyor: {} -> {}", initial_baud, target_baud), None);
+        std::thread::sleep(Duration::from_millis(300));
 
-    if target_baud != initial_baud {
-        port.set_baud_rate(target_baud).map_err(|e| {
-            emit_log("error", &format!("Baud hızı değiştirilemedi: {}", e), None);
-            format!("Baud hızı değiştirilemedi: {}", e)
-        })?;
-        emit_log("success", &format!("Baud hızı {} olarak ayarlandı", target_baud), None);
-    }
-
-    // Wait for meter to be ready (it may send password request)
-    std::thread::sleep(Duration::from_millis(500));
-
-    // Read any response from meter (password request or acknowledgment)
-    let mut prog_buf = vec![0u8; 256];
-    let prog_read = port.read(&mut prog_buf).unwrap_or(0);
-    if prog_read > 0 {
-        let prog_formatted = iec62056::format_bytes_for_display(&prog_buf[..prog_read]);
-        emit_log("rx", &prog_formatted, None);
-
-        // Check if meter is requesting password
-        if prog_read >= 7 && prog_buf[0] == control::SOH && prog_buf[1] == b'P' {
-            emit_log("warn", "Sayaç şifre gerektiriyor - yük profili okumak için önce giriş yapın", None);
+        if target_baud != initial_baud {
+            port.set_baud_rate(target_baud).map_err(|e| {
+                emit_log("error", &format!("Baud hızı değiştirilemedi: {}", e), None);
+                format!("Baud hızı değiştirilemedi: {}", e)
+            })?;
         }
-    }
 
-    emit_log("success", "Programlama moduna geçildi", None);
+        std::thread::sleep(Duration::from_millis(500));
 
-    emit_progress(4, total_steps, &format!("P.{:02} yük profili sorgulanıyor...", profile_number));
+        // Read P0 seed
+        let mut prog_buf = vec![0u8; 256];
+        let mut prog_read = 0;
+        let prog_start = std::time::Instant::now();
 
-    // Step 6: Build and send load profile command
-    let cmd = iec62056::build_load_profile_command(
-        profile_number,
-        start_time.as_deref(),
-        end_time.as_deref(),
-    );
-    let cmd_formatted = iec62056::format_bytes_for_display(&cmd);
-    emit_log("tx", &cmd_formatted, None);
-
-    port.write_all(&cmd).map_err(|e| format!("Komut gönderilemedi: {}", e))?;
-    let _ = window.emit("comm-activity", serde_json::json!({"type": "tx"}));
-    let _ = port.flush();
-
-    emit_progress(5, total_steps, "Veri blokları alınıyor...");
-    emit_log("info", "Yük profili verisi bekleniyor (bu işlem uzun sürebilir)...", None);
-
-    // Step 7: Read response - load profile can be very large
-    // Use growable buffer — profile 2 (10 columns) can exceed 1MB
-    let mut data_buf: Vec<u8> = Vec::with_capacity(1048576); // Start with 1MB capacity
-    let mut chunk_buf = [0u8; 8192]; // Read in 8KB chunks
-    let mut found_etx = false;
-    let read_start = std::time::Instant::now();
-    let mut last_read_time = std::time::Instant::now();
-    let mut block_count = 0;
-
-    std::thread::sleep(Duration::from_millis(500));
-
-    loop {
-        match port.read(&mut chunk_buf) {
-            Ok(n) if n > 0 => {
-                let old_len = data_buf.len();
-                data_buf.extend_from_slice(&chunk_buf[..n]);
-                last_read_time = std::time::Instant::now();
-                let _ = window.emit("comm-activity", serde_json::json!({"type": "rx"}));
-
-                // Count data blocks for progress indication
-                let new_blocks = data_buf[old_len..]
-                    .iter()
-                    .filter(|&&b| b == control::CR)
-                    .count();
-                if new_blocks > 0 {
-                    block_count += new_blocks;
-                    if block_count % 50 == 0 {
-                        emit_log("info", &format!("{} satır alındı ({} byte, {:.1}s)...",
-                            block_count, data_buf.len(), read_start.elapsed().as_secs_f32()), None);
-                    }
-                }
-
-                // Check for ETX in newly received bytes
-                for i in (old_len..data_buf.len()).rev() {
-                    if data_buf[i] == control::ETX {
-                        found_etx = true;
+        loop {
+            match port.read(&mut prog_buf[prog_read..]) {
+                Ok(n) if n > 0 => {
+                    prog_read += n;
+                    let _ = window.emit("comm-activity", serde_json::json!({"type": "rx"}));
+                    if prog_buf[..prog_read].iter().any(|&b| b == control::ETX) {
+                        std::thread::sleep(Duration::from_millis(50));
+                        if let Ok(extra) = port.read(&mut prog_buf[prog_read..]) {
+                            prog_read += extra;
+                        }
                         break;
                     }
                 }
-                if found_etx {
-                    emit_log("info", &format!("Veri alımı tamamlandı: {} byte, {} satır, süre: {:.1}s",
-                        data_buf.len(), block_count, read_start.elapsed().as_secs_f32()), None);
+                Ok(_) => {}
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                    if prog_read > 0 { break; }
+                }
+                Err(_) => break,
+            }
+            if prog_start.elapsed() > Duration::from_millis(timeout_ms as u64) {
+                break;
+            }
+        }
+
+        if prog_read > 0 {
+            let prog_formatted = iec62056::format_bytes_for_display(&prog_buf[..prog_read]);
+            emit_log("rx", &prog_formatted, None);
+        }
+
+        emit_log("success", "Programlama moduna geçildi", None);
+
+        // P3 HMAC authentication
+        emit_progress(4, total_steps, "Kimlik doğrulama yapılıyor...");
+
+        let seed_opt = if prog_read > 0 {
+            iec62056::parse_p0_seed(&prog_buf[..prog_read])
+        } else {
+            None
+        };
+
+        let auth_cmd = if let Some(ref seed) = seed_opt {
+            let seed_str = String::from_utf8_lossy(seed).to_string();
+            emit_log("info", &format!("P0 seed: {}", seed_str), None);
+            // Seed used as raw base64 string, not decoded
+            let hmac_result = iec62056::encrypt_password_hmac_sha256(&password_str, seed);
+            let hmac_hex: String = hmac_result.iter().map(|b| format!("{:02X}", b)).collect();
+            emit_log("info", &format!("P3 HMAC: {}", hmac_hex), None);
+            iec62056::build_hmac_password_command(&hmac_result, 3)
+        } else {
+            emit_log("warn", "P0 seed alınamadı, düz metin şifre gönderiliyor", None);
+            iec62056::build_password_command_with_level(&password_str, 3)
+        };
+
+        emit_log("tx", "P3 HMAC (********)", None);
+        port.write_all(&auth_cmd).map_err(|e| format!("Şifre gönderilemedi: {}", e))?;
+        let _ = port.flush();
+
+        std::thread::sleep(Duration::from_millis(500));
+
+        let mut auth_buf = [0u8; 64];
+        let mut auth_read = 0;
+        let auth_start = std::time::Instant::now();
+
+        loop {
+            match port.read(&mut auth_buf[auth_read..]) {
+                Ok(n) if n > 0 => {
+                    auth_read += n;
+                    let _ = window.emit("comm-activity", serde_json::json!({"type": "rx"}));
                     break;
                 }
+                Ok(_) => {}
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                    if auth_start.elapsed() > Duration::from_millis(timeout_ms as u64) {
+                        break;
+                    }
+                }
+                Err(_) => break,
             }
-            Ok(_) => {
-                std::thread::sleep(Duration::from_millis(100));
+        }
+
+        if auth_read > 0 {
+            let auth_formatted = iec62056::format_bytes_for_display(&auth_buf[..auth_read]);
+            emit_log("rx", &auth_formatted, None);
+            if auth_buf[0] == control::ACK {
+                emit_log("success", "P3 komutu kabul edildi", None);
             }
+        }
+
+        let _ = port.clear(serialport::ClearBuffer::Input);
+        std::thread::sleep(Duration::from_millis(200));
+
+        // Send R1 command for selective load profile read
+        emit_progress(5, total_steps, &format!("P.{:02} yük profili sorgulanıyor...", profile_number));
+
+        let cmd = iec62056::build_load_profile_command(
+            profile_number,
+            start_time.as_deref(),
+            end_time.as_deref(),
+        );
+        let cmd_formatted = iec62056::format_bytes_for_display(&cmd);
+        emit_log("tx", &cmd_formatted, None);
+
+        port.write_all(&cmd).map_err(|e| format!("Komut gönderilemedi: {}", e))?;
+        let _ = window.emit("comm-activity", serde_json::json!({"type": "tx"}));
+        let _ = port.flush();
+    } else {
+        // === MODE 1: Programming mode with P1 HMAC auto-auth + R1 selective read ===
+        // LP data (P.01/P.02/P.03) is only accessible via R1/R2 in programming mode.
+        // P1 (Reader) level is sufficient for reading load profiles.
+        let auto_password = "12345678";
+
+        emit_progress(3, total_steps, "Programlama moduna geçiliyor...");
+        let ack = iec62056::build_ack_message(ProtocolMode::Programming, baud_char);
+        let ack_formatted = iec62056::format_bytes_for_display(&ack);
+        emit_log("tx", &ack_formatted, None);
+
+        port.write_all(&ack).map_err(|e| format!("ACK gönderilemedi: {}", e))?;
+        let _ = window.emit("comm-activity", serde_json::json!({"type": "tx"}));
+        let _ = port.flush();
+
+        emit_log("info", &format!("Baud hızı değiştiriliyor: {} -> {}", initial_baud, target_baud), None);
+        std::thread::sleep(Duration::from_millis(300));
+
+        if target_baud != initial_baud {
+            port.set_baud_rate(target_baud).map_err(|e| {
+                emit_log("error", &format!("Baud hızı değiştirilemedi: {}", e), None);
+                format!("Baud hızı değiştirilemedi: {}", e)
+            })?;
+        }
+
+        std::thread::sleep(Duration::from_millis(500));
+
+        // Read P0 seed
+        let mut prog_buf = vec![0u8; 256];
+        let mut prog_read = 0;
+        let prog_start = std::time::Instant::now();
+
+        loop {
+            match port.read(&mut prog_buf[prog_read..]) {
+                Ok(n) if n > 0 => {
+                    prog_read += n;
+                    let _ = window.emit("comm-activity", serde_json::json!({"type": "rx"}));
+                    if prog_buf[..prog_read].iter().any(|&b| b == control::ETX) {
+                        std::thread::sleep(Duration::from_millis(50));
+                        if let Ok(extra) = port.read(&mut prog_buf[prog_read..]) {
+                            prog_read += extra;
+                        }
+                        break;
+                    }
+                }
+                Ok(_) => {}
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                    if prog_read > 0 { break; }
+                }
+                Err(_) => break,
+            }
+            if prog_start.elapsed() > Duration::from_millis(timeout_ms as u64) {
+                break;
+            }
+        }
+
+        if prog_read > 0 {
+            let prog_formatted = iec62056::format_bytes_for_display(&prog_buf[..prog_read]);
+            emit_log("rx", &prog_formatted, None);
+        }
+
+        emit_log("success", "Programlama moduna geçildi", None);
+
+        // P1 HMAC authentication (automatic)
+        emit_progress(4, total_steps, "P1 kimlik doğrulama yapılıyor...");
+
+        let seed_opt = if prog_read > 0 {
+            iec62056::parse_p0_seed(&prog_buf[..prog_read])
+        } else {
+            None
+        };
+
+        let auth_cmd = if let Some(ref seed) = seed_opt {
+            let seed_str = String::from_utf8_lossy(seed).to_string();
+            emit_log("info", &format!("P0 seed: {}", seed_str), None);
+            // Seed used as raw base64 string, not decoded
+            let hmac_result = iec62056::encrypt_password_hmac_sha256(auto_password, seed);
+            let hmac_hex: String = hmac_result.iter().map(|b| format!("{:02X}", b)).collect();
+            emit_log("info", &format!("P1 HMAC: {}", hmac_hex), None);
+            iec62056::build_hmac_password_command(&hmac_result, 1)
+        } else {
+            emit_log("warn", "P0 seed alınamadı, düz metin şifre gönderiliyor", None);
+            iec62056::build_password_command_with_level(auto_password, 1)
+        };
+
+        emit_log("tx", "P1 HMAC (otomatik)", None);
+        port.write_all(&auth_cmd).map_err(|e| format!("Şifre gönderilemedi: {}", e))?;
+        let _ = port.flush();
+
+        std::thread::sleep(Duration::from_millis(500));
+
+        let mut auth_buf = [0u8; 64];
+        let mut auth_read = 0;
+        let auth_start = std::time::Instant::now();
+
+        loop {
+            match port.read(&mut auth_buf[auth_read..]) {
+                Ok(n) if n > 0 => {
+                    auth_read += n;
+                    let _ = window.emit("comm-activity", serde_json::json!({"type": "rx"}));
+                    break;
+                }
+                Ok(_) => {}
+                Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
+                    if auth_start.elapsed() > Duration::from_millis(timeout_ms as u64) {
+                        break;
+                    }
+                }
+                Err(_) => break,
+            }
+        }
+
+        if auth_read > 0 {
+            let auth_formatted = iec62056::format_bytes_for_display(&auth_buf[..auth_read]);
+            emit_log("rx", &auth_formatted, None);
+            if auth_buf[0] == control::ACK {
+                emit_log("success", "P1 kimlik doğrulama kabul edildi", None);
+            } else {
+                emit_log("error", "P1 kimlik doğrulama reddedildi", None);
+                return Err("P1 kimlik doğrulama başarısız — yük profili okunamıyor".to_string());
+            }
+        }
+
+        let _ = port.clear(serialport::ClearBuffer::Input);
+        std::thread::sleep(Duration::from_millis(200));
+
+        // Send R1 command for selective load profile read
+        emit_progress(5, total_steps, &format!("P.{:02} yük profili sorgulanıyor...", profile_number));
+
+        let cmd = iec62056::build_load_profile_command(
+            profile_number,
+            start_time.as_deref(),
+            end_time.as_deref(),
+        );
+        let cmd_formatted = iec62056::format_bytes_for_display(&cmd);
+        emit_log("tx", &cmd_formatted, None);
+
+        port.write_all(&cmd).map_err(|e| format!("Komut gönderilemedi: {}", e))?;
+        let _ = window.emit("comm-activity", serde_json::json!({"type": "tx"}));
+        let _ = port.flush();
+    }
+
+    // Read data from meter (Mode 1 R1 response)
+    emit_progress(5, total_steps, &format!("P.{:02} yük profili verisi bekleniyor...", profile_number));
+    emit_log("info", "Yük profili verisi bekleniyor (bu işlem uzun sürebilir)...", None);
+    std::thread::sleep(Duration::from_millis(500));
+
+    let mut data_buf: Vec<u8> = Vec::with_capacity(1048576);
+    let mut total_read = 0;
+    let read_start = std::time::Instant::now();
+    let mut last_read_time = std::time::Instant::now();
+    let mut block_count: usize = 0;
+
+    loop {
+        let mut chunk = [0u8; 8192];
+        match port.read(&mut chunk) {
+            Ok(n) if n > 0 => {
+                data_buf.extend_from_slice(&chunk[..n]);
+                total_read += n;
+                last_read_time = std::time::Instant::now();
+                let _ = window.emit("comm-activity", serde_json::json!({"type": "rx"}));
+
+                // Check for ETX (last block)
+                if chunk[..n].contains(&control::ETX) {
+                    block_count += 1;
+                    emit_log("info", &format!("Veri alımı tamamlandı: {} byte, süre: {:.1}s",
+                        total_read, read_start.elapsed().as_secs_f32()), None);
+                    break;
+                }
+
+                // Check for EOT (more blocks) - send ACK to continue
+                if chunk[..n].contains(&control::EOT) {
+                    block_count += 1;
+                    let _ = port.write_all(&[control::ACK]);
+                    let _ = port.flush();
+                    if block_count % 50 == 0 {
+                        emit_log("info", &format!("{} blok alındı ({} byte, {:.1}s)...",
+                            block_count, total_read, read_start.elapsed().as_secs_f32()), None);
+                    }
+                    std::thread::sleep(Duration::from_millis(50));
+                }
+            }
+            Ok(_) => { std::thread::sleep(Duration::from_millis(100)); }
             Err(ref e) if e.kind() == std::io::ErrorKind::TimedOut => {
                 std::thread::sleep(Duration::from_millis(100));
             }
             Err(e) => {
                 emit_log("error", &format!("Okuma hatası: {}", e), None);
-                let break_cmd = iec62056::build_break_command();
-                let _ = port.write_all(&break_cmd);
-                let _ = port.flush();
-                return Err(format!("Okuma hatası: {}", e));
+                break;
             }
         }
 
-        // Sliding idle timeout only — resets with every data arrival
-        // No global timeout: we don't know the data size
+        // Idle timeout: 15 seconds
         if last_read_time.elapsed() > Duration::from_millis(15000) {
-            if data_buf.is_empty() {
-                emit_log("error", "Zaman aşımı: Hiç veri alınamadı (15s). Sayaç bu profili desteklemiyor olabilir.", None);
-                let break_cmd = iec62056::build_break_command();
-                let _ = port.write_all(&break_cmd);
-                let _ = port.flush();
-                return Err("15 saniye zaman aşımı. Sayaç bu profili desteklemiyor olabilir.".to_string());
+            if total_read == 0 {
+                emit_log("error", "Zaman aşımı: Hiç veri alınamadı (15s)", None);
             } else {
-                emit_log("warn", &format!("Boşta kalma zaman aşımı: {} byte alındı, {} satır, süre: {:.1}s",
-                    data_buf.len(), block_count, read_start.elapsed().as_secs_f32()), None);
+                emit_log("warn", &format!("Boşta kalma zaman aşımı: {} byte alındı", total_read), None);
             }
             break;
         }
     }
 
-    // Step 8: Send Break command and close port
+    emit_log("success", &format!("Veri alımı tamamlandı: {} blok, {} byte, süre: {:.1}s",
+        block_count, total_read, read_start.elapsed().as_secs_f32()), None);
+
+    // Cleanup: close port
     emit_log("info", "Oturum sonlandırılıyor...", None);
     let break_cmd = iec62056::build_break_command();
     let _ = port.write_all(&break_cmd);
     let _ = port.flush();
     std::thread::sleep(Duration::from_millis(100));
-    drop(port); // Close the port
-    emit_log("info", "Port kapatıldı", None);
+    drop(port);
 
-    // Mark as not connected since we closed the port
-    {
-        let mut manager = CONNECTION_STATE.lock().map_err(|e| e.to_string())?;
-        manager.connected = false;
-        manager.port = None;
-        manager.in_programming_mode = false;
+    if total_read == 0 {
+        return Err("Sayaçtan yük profili verisi alınamadı".to_string());
     }
 
     emit_progress(6, total_steps, "Yük profili verileri ayrıştırılıyor...");
 
-    // Convert to string
-    let total_read = data_buf.len();
-    let raw_data = String::from_utf8_lossy(&data_buf).to_string();
+    // Extract data content: strip STX/ETX/EOT/BCC framing bytes
+    let raw_data = {
+        let text = String::from_utf8_lossy(&data_buf).to_string();
+        text.chars().filter(|c| {
+            *c != '\x01' && *c != '\x02' && *c != '\x03' && *c != '\x04'
+        }).collect::<String>()
+    };
     let data_formatted = iec62056::format_bytes_for_display(&data_buf[..total_read.min(2000)]);
     let truncation_note = if total_read > 2000 {
         Some(format!("... ({} byte toplam)", total_read))
@@ -2223,7 +3039,7 @@ pub async fn read_load_profile(
         }
     }
 
-    emit_progress(7, total_steps, "Tamamlandı!");
+    emit_progress(4, total_steps, "Tamamlandı!");
 
     if entries.is_empty() && total_read > 0 {
         emit_log("warn", &format!("Uyarı: {} byte veri alındı ama hiç kayıt ayrıştırılamadı. Veri formatı beklenenden farklı olabilir.", total_read), None);

@@ -11,23 +11,18 @@
 
     const demandMatch = raw.match(/0\.8\.0\((\d+)\*min\)/);
     const loadProfileMatch = raw.match(/0\.8\.4\((\d+)\*min\)/);
-    // 0.9.9 is not in standard readout packets
-    const outageMatch = raw.match(/0\.9\.9\((\d+)\)/);
-
-    const hasAny = demandMatch || loadProfileMatch || outageMatch;
+    const hasAny = demandMatch || loadProfileMatch;
     if (!hasAny) return null;
 
     return {
       demandPeriod: demandMatch ? parseInt(demandMatch[1]) : null,
       loadProfilePeriod: loadProfileMatch ? parseInt(loadProfileMatch[1]) : null,
-      outageThreshold: outageMatch ? parseInt(outageMatch[1]) : null,
     };
   });
 
   // Editable state
   let editDemandPeriod = $state(15);
   let editLoadProfilePeriod = $state(15);
-  let editOutageThreshold = $state(180);
   let initialized = $state(false);
 
   // Initialize from meter data
@@ -35,7 +30,6 @@
     if (periodData && !initialized) {
       if (periodData.demandPeriod !== null) editDemandPeriod = periodData.demandPeriod;
       if (periodData.loadProfilePeriod !== null) editLoadProfilePeriod = periodData.loadProfilePeriod;
-      if (periodData.outageThreshold !== null) editOutageThreshold = periodData.outageThreshold;
       initialized = true;
     }
   });
@@ -71,7 +65,7 @@
 
   async function handlePasswordSubmit() {
     if (password.length !== 8 || !/^\d{8}$/.test(password)) {
-      passwordError = $t.passwordMustBe8Digits;
+      passwordError = "Şifre tam olarak 8 rakam olmalıdır";
       return;
     }
 
@@ -91,7 +85,7 @@
     addLog("info", $t.savingPeriodSettings);
 
     try {
-      const authOk = await authenticate(password);
+      const authOk = await authenticate(password, 2); // P2 - Operator
       if (!authOk) {
         addLog("error", $t.errorWrongPassword);
         errorToast($t.errorWrongPassword);
@@ -103,9 +97,6 @@
 
       await writeObis("0.8.4", `${editLoadProfilePeriod}*min`);
       addLog("info", `0.8.4 = ${editLoadProfilePeriod}*min`);
-
-      await writeObis("0.9.9", `${editOutageThreshold}*sec`);
-      addLog("info", `0.9.9 = ${editOutageThreshold}*sec`);
 
       await endSession();
       addLog("success", $t.periodSaveSuccess);
@@ -120,7 +111,7 @@
     addLog("info", $t.demandResetExecuting);
 
     try {
-      const authOk = await authenticate(password);
+      const authOk = await authenticate(password, 2); // P2 - Operator
       if (!authOk) {
         addLog("error", $t.errorWrongPassword);
         errorToast($t.errorWrongPassword);
@@ -180,7 +171,7 @@
   </div>
 
   <!-- Period Settings -->
-  <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+  <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
     <!-- Demand Period -->
     <div
       class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-6 shadow-sm"
@@ -238,29 +229,6 @@
       </div>
     </div>
 
-    <!-- Outage Threshold -->
-    <div
-      class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-6 shadow-sm"
-    >
-      <h4 class="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
-        <Icon name="power_off" class="text-primary" />
-        {$t.outageThreshold}
-      </h4>
-      <div class="space-y-4">
-        <div class="flex items-center gap-2">
-          <input
-            type="number"
-            min={0}
-            max={3600}
-            bind:value={editOutageThreshold}
-            disabled={!$isConnected}
-            class="flex-1 bg-white dark:bg-[#1a2632] text-slate-700 dark:text-white border border-slate-300 dark:border-[#334a5e] rounded-lg px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none disabled:opacity-50 disabled:cursor-not-allowed"
-          />
-          <span class="text-sm text-slate-500">{$t.seconds}</span>
-        </div>
-        <p class="text-xs text-slate-400 font-mono">OBIS: 0.9.9</p>
-      </div>
-    </div>
   </div>
 
   <!-- Manual Demand Reset -->
@@ -330,17 +298,22 @@
       <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-1">
         {pendingAction === "save" ? $t.periodSettings : $t.manualDemandReset}
       </h3>
+      <div class="flex items-center gap-2 mb-3">
+        <span class="px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-bold rounded">P2 - Operator</span>
+        <span class="text-xs text-slate-400">OBIS: {pendingAction === "save" ? "0.8.0 / 0.8.4" : "1.6.0"}</span>
+      </div>
       <p class="text-sm text-slate-500 mb-4">{$t.passwordWarning}</p>
 
       <div class="mb-4">
         <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2" for="period-password">
-          {$t.password}
+          P2 {$t.password}
         </label>
         <input
           id="period-password"
           type="password"
           maxlength={8}
           bind:value={password}
+          oninput={(e) => { const t = e.currentTarget; t.value = t.value.replace(/\D/g, ''); password = t.value; }}
           onkeydown={(e) => { if (e.key === "Enter") handlePasswordSubmit(); }}
           placeholder="00000000"
           class="w-full px-4 py-3 bg-white dark:bg-[#1a2632] border border-slate-200 dark:border-[#334a5e] rounded-xl text-center font-mono text-lg tracking-[0.3em] focus:border-primary focus:ring-1 focus:ring-primary outline-none"

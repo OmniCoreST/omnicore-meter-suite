@@ -42,6 +42,37 @@ pub struct ShortReadResult {
     pub power_factor_l2: f64,
     pub power_factor_l3: f64,
 
+    // Active Energy Export
+    pub active_energy_export_total: f64,
+    pub active_energy_export_t1: f64,
+    pub active_energy_export_t2: f64,
+    pub active_energy_export_t3: f64,
+    pub active_energy_export_t4: f64,
+
+    // Reactive Energy
+    pub reactive_energy_inductive_import: f64,
+    pub reactive_energy_capacitive_import: f64,
+    pub reactive_energy_inductive_export: f64,
+    pub reactive_energy_capacitive_export: f64,
+
+    // Export Maximum Demand
+    pub max_demand_export: f64,
+    pub max_demand_export_timestamp: String,
+
+    // Instantaneous Power Values
+    pub total_active_power: f64,
+    pub active_power_l1: f64,
+    pub active_power_l2: f64,
+    pub active_power_l3: f64,
+    pub total_reactive_power: f64,
+    pub neutral_current: f64,
+
+    // Configuration
+    pub demand_period: String,
+    pub lp_period: String,
+    pub load_limit_threshold: String,
+    pub load_limit_period: String,
+
     // Status Codes
     pub ff_code: String,
     pub gf_code: String,
@@ -53,6 +84,17 @@ pub struct ShortReadResult {
 
     // Timestamp (epoch ms) captured when 0.9.1 and 0.9.2 were received from meter
     pub time_of_09x_read: Option<u64>,
+}
+
+/// Mode-specific packet read result (Modes 5, 7, 8, 9)
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub struct PacketReadResult {
+    pub mode: u8,
+    pub raw_data: String,
+    pub bytes_read: usize,
+    pub read_duration_ms: u64,
+    pub bcc_valid: bool,
 }
 
 /// Progress event for reading operations

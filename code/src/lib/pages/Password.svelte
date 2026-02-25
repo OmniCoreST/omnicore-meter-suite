@@ -1,13 +1,42 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, isConnected } from "$lib/stores";
+  import { t, isConnected, addLog, errorToast, successToast } from "$lib/stores";
+  import { changePassword } from "$lib/utils/tauri";
 
   let currentPassword = $state("");
   let newPassword = $state("");
   let confirmPassword = $state("");
+  let isChanging = $state(false);
 
   let passwordsMatch = $derived(newPassword === confirmPassword);
-  let isValidLength = $derived(newPassword.length === 8 && /^\d+$/.test(newPassword));
+  let isValidLength = $derived(newPassword.length === 8 && /^\d{8}$/.test(newPassword));
+  let isCurrentValid = $derived(currentPassword.length === 8 && /^\d{8}$/.test(currentPassword));
+
+  // Only allow digits in password inputs
+  function digitsOnly(e: Event) {
+    const t = e.currentTarget as HTMLInputElement;
+    t.value = t.value.replace(/\D/g, '');
+  }
+
+  async function handleChangePassword() {
+    isChanging = true;
+    try {
+      addLog("info", "Şifre değiştirme başlatılıyor (P3 auth → W1 96.96.3)...");
+
+      const result = await changePassword(currentPassword, newPassword);
+      addLog("success", result);
+      successToast("Şifre başarıyla değiştirildi");
+
+      currentPassword = "";
+      newPassword = "";
+      confirmPassword = "";
+    } catch (error) {
+      addLog("error", `Şifre değiştirme hatası: ${error}`);
+      errorToast(`Şifre değiştirme hatası: ${error}`);
+    } finally {
+      isChanging = false;
+    }
+  }
 </script>
 
 <div class="space-y-6">
@@ -15,8 +44,12 @@
     class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-6 shadow-sm"
   >
     <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">{$t.passwordChange}</h3>
+    <div class="flex items-center gap-2 mb-2">
+      <span class="px-2 py-0.5 bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-bold rounded">P3 - Seviye 3</span>
+      <span class="text-xs text-slate-400">Auth: P3 | Hedef: 96.96.3</span>
+    </div>
     <p class="text-sm text-slate-500 dark:text-slate-400">
-      Change the meter programming password.
+      Sayaç P3 (Master) programlama şifresini değiştirin.
     </p>
 
     {#if !$isConnected}
@@ -25,7 +58,7 @@
       >
         <div class="flex items-center gap-2">
           <Icon name="warning" />
-          <span>Please connect to a meter first from the Dashboard.</span>
+          <span>Lütfen önce Ana Sayfa'dan sayaca bağlanın.</span>
         </div>
       </div>
     {/if}
@@ -51,7 +84,7 @@
     <div class="max-w-md space-y-4">
       <div class="flex flex-col gap-1.5">
         <label class="text-sm font-bold text-slate-700 dark:text-slate-300">
-          {$t.currentPassword}
+          {$t.currentPassword} (P3)
         </label>
         <input
           type="password"
@@ -59,8 +92,13 @@
           maxlength="8"
           placeholder="••••••••"
           disabled={!$isConnected}
-          class="w-full bg-white dark:bg-[#1a2632] text-slate-700 dark:text-white border border-slate-300 dark:border-[#334a5e] rounded-lg px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none text-lg font-mono tracking-widest disabled:opacity-50 disabled:cursor-not-allowed"
+          oninput={(e) => { const t = e.currentTarget; t.value = t.value.replace(/\D/g, ''); currentPassword = t.value; }}
+          class="w-full bg-white dark:bg-[#1a2632] text-slate-700 dark:text-white border border-slate-300 dark:border-[#334a5e] rounded-lg px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none text-lg font-mono tracking-widest disabled:opacity-50 disabled:cursor-not-allowed
+            {currentPassword && !isCurrentValid ? 'border-red-500' : ''}"
         />
+        {#if currentPassword && !isCurrentValid}
+          <span class="text-xs text-red-500">Şifre tam olarak 8 rakam olmalıdır</span>
+        {/if}
       </div>
 
       <div class="flex flex-col gap-1.5">
@@ -73,11 +111,12 @@
           maxlength="8"
           placeholder="••••••••"
           disabled={!$isConnected}
+          oninput={(e) => { const t = e.currentTarget; t.value = t.value.replace(/\D/g, ''); newPassword = t.value; }}
           class="w-full bg-white dark:bg-[#1a2632] text-slate-700 dark:text-white border border-slate-300 dark:border-[#334a5e] rounded-lg px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none text-lg font-mono tracking-widest disabled:opacity-50 disabled:cursor-not-allowed
             {newPassword && !isValidLength ? 'border-red-500' : ''}"
         />
         {#if newPassword && !isValidLength}
-          <span class="text-xs text-red-500">{$t.passwordMustBe8Digits}</span>
+          <span class="text-xs text-red-500">Şifre tam olarak 8 rakam olmalıdır</span>
         {/if}
       </div>
 
@@ -91,6 +130,7 @@
           maxlength="8"
           placeholder="••••••••"
           disabled={!$isConnected}
+          oninput={(e) => { const t = e.currentTarget; t.value = t.value.replace(/\D/g, ''); confirmPassword = t.value; }}
           class="w-full bg-white dark:bg-[#1a2632] text-slate-700 dark:text-white border border-slate-300 dark:border-[#334a5e] rounded-lg px-4 py-3 focus:border-primary focus:ring-1 focus:ring-primary outline-none text-lg font-mono tracking-widest disabled:opacity-50 disabled:cursor-not-allowed
             {confirmPassword && !passwordsMatch ? 'border-red-500' : ''}"
         />
@@ -100,11 +140,17 @@
       </div>
 
       <button
-        disabled={!$isConnected || !isValidLength || !passwordsMatch || !currentPassword}
+        onclick={handleChangePassword}
+        disabled={!$isConnected || !isValidLength || !passwordsMatch || !isCurrentValid || isChanging}
         class="w-full flex items-center justify-center gap-2 px-6 py-4 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-6"
       >
-        <Icon name="lock_reset" />
-        {$t.changePassword}
+        {#if isChanging}
+          <Icon name="sync" class="animate-spin" />
+          {$t.saving}
+        {:else}
+          <Icon name="lock_reset" />
+          Şifre Değiştir
+        {/if}
       </button>
     </div>
   </div>

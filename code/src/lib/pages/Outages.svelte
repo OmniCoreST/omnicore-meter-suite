@@ -1,7 +1,28 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, isConnected, meterStore } from "$lib/stores";
+  import { t, isConnected, meterStore, isMeterReading, addLog } from "$lib/stores";
   import { exportToExcel } from "$lib/utils/export";
+  import { readPacket } from "$lib/utils/tauri";
+
+  let modeRawData = $state<string | null>(null);
+  let isReadingMode = $state(false);
+
+  async function readModePacket() {
+    if (isReadingMode || $isMeterReading) return;
+    isReadingMode = true;
+    meterStore.setReading(true);
+    try {
+      addLog("info", "Mod 9 (Kesintiler) paketi okunuyor...");
+      const result = await readPacket(9);
+      modeRawData = result.rawData;
+      addLog("success", `Mod 9 okuma tamamlandı: ${result.bytesRead} byte, ${(result.readDurationMs / 1000).toFixed(1)}s`);
+    } catch (e) {
+      addLog("error", `Mod 9 okuma hatası: ${e}`);
+    } finally {
+      isReadingMode = false;
+      meterStore.setReading(false);
+    }
+  }
 
   let activePhase = $state<"three" | "l1" | "l2" | "l3">("three");
 
@@ -33,7 +54,8 @@
   let outagesData = $derived.by(() => {
     const data = $meterStore.shortReadData;
     // @ts-ignore
-    if (!data || !data.rawData) {
+    const raw: string | null = modeRawData || (data && data.rawData) || null;
+    if (!raw) {
       return {
         threePhase: { long: { count: 0, records: [] }, short: { count: 0, records: [] } },
         phase1: { long: { count: 0, records: [] }, short: { count: 0, records: [] } },
@@ -41,9 +63,6 @@
         phase3: { long: { count: 0, records: [] }, short: { count: 0, records: [] } },
       };
     }
-
-    // @ts-ignore
-    const raw = data.rawData;
 
     const parseOutageRecords = (baseCode: string, maxCount: number) => {
       const records = [];
@@ -76,29 +95,29 @@
       return records;
     };
 
-    // Three-phase outage count: 96.7.0, records: 96.7.10*N
+    // Three-phase outage count: 96.7.0, records: 96.7.10*1-200 per TEDAŞ spec
     const threePhaseCount = raw.match(/96\.7\.0\((\d+)\)/);
 
-    // Per-phase outage counts: 96.77.X, records: 96.77.X0*N
-    const phase1Count = raw.match(/96\.77\.1\((\d+)\)/);
-    const phase2Count = raw.match(/96\.77\.2\((\d+)\)/);
-    const phase3Count = raw.match(/96\.77\.3\((\d+)\)/);
+    // Per-phase outage counts: 96.7.X, records: 96.7.1X*1-200 per TEDAŞ spec
+    const phase1Count = raw.match(/96\.7\.1\((\d+)\)/);
+    const phase2Count = raw.match(/96\.7\.2\((\d+)\)/);
+    const phase3Count = raw.match(/96\.7\.3\((\d+)\)/);
 
     return {
       threePhase: {
-        long: { count: threePhaseCount ? parseInt(threePhaseCount[1]) : 0, records: parseOutageRecords('96.7.10', 99) },
+        long: { count: threePhaseCount ? parseInt(threePhaseCount[1]) : 0, records: parseOutageRecords('96.7.10', 200) },
         short: { count: 0, records: [] },
       },
       phase1: {
-        long: { count: phase1Count ? parseInt(phase1Count[1]) : 0, records: parseOutageRecords('96.77.10', 99) },
+        long: { count: phase1Count ? parseInt(phase1Count[1]) : 0, records: parseOutageRecords('96.7.11', 200) },
         short: { count: 0, records: [] },
       },
       phase2: {
-        long: { count: phase2Count ? parseInt(phase2Count[1]) : 0, records: parseOutageRecords('96.77.20', 10) },
+        long: { count: phase2Count ? parseInt(phase2Count[1]) : 0, records: parseOutageRecords('96.7.12', 200) },
         short: { count: 0, records: [] },
       },
       phase3: {
-        long: { count: phase3Count ? parseInt(phase3Count[1]) : 0, records: parseOutageRecords('96.77.30', 10) },
+        long: { count: phase3Count ? parseInt(phase3Count[1]) : 0, records: parseOutageRecords('96.7.13', 200) },
         short: { count: 0, records: [] },
       },
     };
@@ -163,16 +182,31 @@
         <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">{$t.outages}</h3>
         <p class="text-sm text-slate-500 dark:text-slate-400">{$t.outagesDescription}</p>
       </div>
-      {#if $meterStore.shortReadData}
-        <button
-          onclick={handleExport}
-          class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors"
-        >
-          <Icon name="download" size="sm" />
-          {$t.exportToExcel}
-        </button>
-      {/if}
+      <div class="flex items-center gap-2">
+        {#if $isConnected}
+          <button
+            onclick={readModePacket}
+            disabled={isReadingMode}
+            class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-colors"
+          >
+            <Icon name="sync" size="sm" class={isReadingMode ? "animate-spin" : ""} />
+            {isReadingMode ? $t.readingPacket : $t.readOutages}
+          </button>
+        {/if}
+        {#if $meterStore.shortReadData || modeRawData}
+          <button
+            onclick={handleExport}
+            class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors"
+          >
+            <Icon name="download" size="sm" />
+            {$t.exportToExcel}
+          </button>
+        {/if}
+      </div>
     </div>
+    {#if modeRawData}
+      <div class="text-xs text-primary font-medium mt-2">{$t.dataSourceMode9}</div>
+    {/if}
   </div>
 
   {#if !$isConnected}

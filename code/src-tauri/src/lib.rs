@@ -144,6 +144,7 @@ pub fn run() {
                 .expect("Failed to get app data directory");
             storage::init_database(&app_data_dir)
                 .expect("Failed to initialize database");
+            commands::logger::init_session_log(app_data_dir);
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -159,9 +160,11 @@ pub fn run() {
             commands::read_obis,
             commands::read_obis_batch,
             commands::read_load_profile,
+            commands::read_packet,
             // Programming commands
             commands::authenticate,
             commands::write_obis,
+            commands::change_password,
             commands::sync_time,
             commands::end_session,
             // Session file commands

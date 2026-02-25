@@ -10,6 +10,10 @@ use std::io::{Read, Write};
 use std::time::Duration;
 use serialport::{DataBits, Parity, StopBits, SerialPort};
 use serde::{Deserialize, Serialize};
+use hmac::{Hmac, Mac};
+use sha2::Sha256;
+
+type HmacSha256 = Hmac<Sha256>;
 
 /// Control characters used in IEC 62056-21 protocol
 pub mod control {
@@ -250,12 +254,19 @@ pub fn build_ack_message(mode: ProtocolMode, baud_char: char) -> Vec<u8> {
 }
 
 /// Build password command for programming mode
-/// Format: SOH P1 STX (PASSWORD) ETX BCC
-pub fn build_password_command(password: &str) -> Vec<u8> {
+/// Format: SOH P{level} STX (PASSWORD) ETX BCC
+/// level: 1 = P1 (Level 1), 2 = P2 (Level 2), 3 = P3 (Level 3)
+pub fn build_password_command_with_level(password: &str, level: u8) -> Vec<u8> {
+    let level_char = match level {
+        1 => b'1',
+        2 => b'2',
+        3 => b'3',
+        _ => b'1', // default to P1
+    };
     let mut msg = Vec::new();
     msg.push(control::SOH);
     msg.push(b'P');
-    msg.push(b'1');
+    msg.push(level_char);
     msg.push(control::STX);
     msg.push(b'(');
     msg.extend_from_slice(password.as_bytes());
@@ -268,6 +279,11 @@ pub fn build_password_command(password: &str) -> Vec<u8> {
     msg.push(bcc);
 
     msg
+}
+
+/// Build P1 password command (backward compatible wrapper)
+pub fn build_password_command(password: &str) -> Vec<u8> {
+    build_password_command_with_level(password, 1)
 }
 
 /// Build encrypted password command for programming mode (challenge-response)
@@ -381,6 +397,58 @@ pub fn encrypt_password_with_seed(password: &str, seed: &[u8]) -> Vec<u8> {
         .collect()
 }
 
+/// Compute authentication response using HMAC-SHA256
+/// Per MASS meter implementation (IEC 62056-21 Algorithm 3):
+///   HMAC-SHA256(key = UTF-8(password), data = raw_seed_bytes_as_received)
+/// IMPORTANT: seed_bytes must be the raw P0 seed exactly as received from the meter
+/// (the Base64-encoded ASCII string itself), NOT decoded to binary.
+/// Returns 32 bytes (the HMAC-SHA256 digest).
+pub fn encrypt_password_hmac_sha256(password: &str, seed_bytes: &[u8]) -> Vec<u8> {
+    let mut mac = HmacSha256::new_from_slice(password.as_bytes())
+        .expect("HMAC can take key of any size");
+    mac.update(seed_bytes);
+    mac.finalize().into_bytes().to_vec()
+}
+
+/// Build HMAC password command for programming mode
+/// Format: SOH P{level} STX (HEX_ENCODED_HMAC) ETX BCC
+/// MASS meters use HMAC-SHA256 (Algorithm 3).
+/// level: 1 = P1, 2 = P2, 3 = P3
+/// The HMAC result (32 bytes) is hex-encoded as uppercase ASCII (64 chars).
+pub fn build_hmac_password_command(hmac_result: &[u8], level: u8) -> Vec<u8> {
+    let level_char = match level {
+        1 => b'1',
+        2 => b'2',
+        3 => b'3',
+        _ => b'1',
+    };
+    let hex_str: String = hmac_result.iter()
+        .map(|b| format!("{:02X}", b))
+        .collect();
+
+    let mut msg = Vec::new();
+    msg.push(control::SOH);
+    msg.push(b'P');
+    msg.push(level_char);
+    msg.push(control::STX);
+    msg.push(b'(');
+    msg.extend_from_slice(hex_str.as_bytes());
+    msg.push(b')');
+    msg.push(control::ETX);
+
+    // Calculate BCC: XOR of all bytes after SOH (P{level} STX ... ETX)
+    let bcc_data = &msg[1..];
+    let bcc = calculate_bcc(bcc_data);
+    msg.push(bcc);
+
+    msg
+}
+
+/// Build HMAC P3 password command (master level authentication)
+pub fn build_p3_password_command(hmac_result: &[u8]) -> Vec<u8> {
+    build_hmac_password_command(hmac_result, 3)
+}
+
 /// Build OBIS read command
 /// Format: SOH R2 STX OBIS() ETX BCC
 pub fn build_read_command(obis: &str) -> Vec<u8> {
@@ -403,11 +471,18 @@ pub fn build_read_command(obis: &str) -> Vec<u8> {
 
 /// Build OBIS write command
 /// Format: SOH W2 STX OBIS(value) ETX BCC
+/// Both MASS and TEDAS specs require W2 for all writes including password (96.96.x)
 pub fn build_write_command(obis: &str, value: &str) -> Vec<u8> {
+    build_write_command_with_type(obis, value, b'2')
+}
+
+/// Build OBIS write command with explicit W1/W2 type
+/// cmd_type: b'1' for W1, b'2' for W2
+pub fn build_write_command_with_type(obis: &str, value: &str, cmd_type: u8) -> Vec<u8> {
     let mut msg = Vec::new();
     msg.push(control::SOH);
     msg.push(b'W');
-    msg.push(b'2');
+    msg.push(cmd_type);
     msg.push(control::STX);
     msg.extend_from_slice(obis.as_bytes());
     msg.push(b'(');
@@ -439,16 +514,18 @@ pub fn build_break_command() -> Vec<u8> {
 }
 
 /// Build load profile read command
-/// Format: SOH R2 STX P.XX(param) ETX BCC
+/// Format: SOH R1 STX P.XX(param) ETX BCC
 /// param can be:
-/// - "*" for all entries
 /// - ";" for all data (empty range)
 /// - "yy-mm-dd,hh:mm;yy-mm-dd,hh:mm" for date range
+/// - "yy-mm-dd,hh:mm;" for start-only range
+/// - ";yy-mm-dd,hh:mm" for end-only range
+/// Note: R1 per MMS manufacturer program (ReadLP uses ExeCmd="R1")
 pub fn build_load_profile_command(profile_number: u8, start_time: Option<&str>, end_time: Option<&str>) -> Vec<u8> {
     let mut msg = Vec::new();
     msg.push(control::SOH);
     msg.push(b'R');
-    msg.push(b'2');
+    msg.push(b'1');
     msg.push(control::STX);
 
     // Profile identifier: P.01, P.02, P.03

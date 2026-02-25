@@ -50,6 +50,20 @@ export interface ShortReadData {
   powerFactorL2?: number;
   powerFactorL3?: number;
 
+  // Instantaneous Power
+  totalActivePower?: number;
+  activePowerL1?: number;
+  activePowerL2?: number;
+  activePowerL3?: number;
+  totalReactivePower?: number;
+  neutralCurrent?: number;
+
+  // Configuration
+  demandPeriod?: string;
+  lpPeriod?: string;
+  loadLimitThreshold?: string;
+  loadLimitPeriod?: string;
+
   // Status Codes
   ffCode: string;
   gfCode: string;

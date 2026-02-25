@@ -67,6 +67,29 @@
   }
 
   let relayColor = $derived(hasRelayData ? (relayActive ? '#f59e0b' : '#94a3b8') : '#94a3b8');
+
+  // Parse configuration values from raw data
+  let configData = $derived.by(() => {
+    const data = $meterStore.shortReadData;
+    // @ts-ignore
+    const raw: string | null = data?.rawData || null;
+    if (!raw) return null;
+
+    const getVal = (code: string) => {
+      const m = raw.match(new RegExp(`${code.replace(/\./g, '\\.')}\\(([^)]+)\\)`));
+      return m ? m[1] : "";
+    };
+
+    const resetCountMatch = raw.match(/96\.11\.0\((\d+)\)/);
+
+    return {
+      demandPeriod: data?.demandPeriod || getVal("0.8.0"),
+      lpPeriod: data?.lpPeriod || getVal("0.8.4"),
+      loadLimitThreshold: data?.loadLimitThreshold || getVal("96.3.12"),
+      loadLimitPeriod: data?.loadLimitPeriod || getVal("96.3.13"),
+      resetCount: resetCountMatch ? parseInt(resetCountMatch[1]) : 0,
+    };
+  });
 </script>
 
 <div class="space-y-6">
@@ -284,6 +307,52 @@
         </div>
       </div>
     </div>
+
+    <!-- Configuration Card -->
+    {#if configData && (configData.demandPeriod || configData.lpPeriod || configData.loadLimitThreshold)}
+      <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-6 shadow-sm">
+        <h4 class="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+          <Icon name="settings" class="text-primary" />
+          {$t.configuration || "Konfigürasyon"}
+        </h4>
+
+        <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4">
+          {#if configData.demandPeriod}
+            <div class="p-4 bg-slate-50 dark:bg-[#0f1821] rounded-xl border border-slate-200 dark:border-[#334a5e]">
+              <div class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">{$t.demandPeriod || "Demant Süresi"}</div>
+              <div class="text-lg font-mono font-bold text-slate-900 dark:text-white">{configData.demandPeriod}</div>
+              <div class="text-[10px] text-slate-400 mt-1">OBIS 0.8.0</div>
+            </div>
+          {/if}
+          {#if configData.lpPeriod}
+            <div class="p-4 bg-slate-50 dark:bg-[#0f1821] rounded-xl border border-slate-200 dark:border-[#334a5e]">
+              <div class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">{$t.lpPeriod || "Yük Profili Süresi"}</div>
+              <div class="text-lg font-mono font-bold text-slate-900 dark:text-white">{configData.lpPeriod}</div>
+              <div class="text-[10px] text-slate-400 mt-1">OBIS 0.8.4</div>
+            </div>
+          {/if}
+          {#if configData.loadLimitThreshold}
+            <div class="p-4 bg-slate-50 dark:bg-[#0f1821] rounded-xl border border-slate-200 dark:border-[#334a5e]">
+              <div class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">{$t.loadLimitThreshold || "Yük Sınırı Eşik"}</div>
+              <div class="text-lg font-mono font-bold text-slate-900 dark:text-white">{configData.loadLimitThreshold}</div>
+              <div class="text-[10px] text-slate-400 mt-1">OBIS 96.3.12</div>
+            </div>
+          {/if}
+          {#if configData.loadLimitPeriod}
+            <div class="p-4 bg-slate-50 dark:bg-[#0f1821] rounded-xl border border-slate-200 dark:border-[#334a5e]">
+              <div class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">{$t.loadLimitPeriod || "Yük Sınırı Periyot"}</div>
+              <div class="text-lg font-mono font-bold text-slate-900 dark:text-white">{configData.loadLimitPeriod}</div>
+              <div class="text-[10px] text-slate-400 mt-1">OBIS 96.3.13</div>
+            </div>
+          {/if}
+          <div class="p-4 bg-slate-50 dark:bg-[#0f1821] rounded-xl border border-slate-200 dark:border-[#334a5e]">
+            <div class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">{$t.resetCount || "Reset Sayısı"}</div>
+            <div class="text-lg font-mono font-bold text-slate-900 dark:text-white">{configData.resetCount}</div>
+            <div class="text-[10px] text-slate-400 mt-1">OBIS 96.11.0</div>
+          </div>
+        </div>
+      </div>
+    {/if}
 
   {/if}
 </div>

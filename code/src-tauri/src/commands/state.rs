@@ -20,6 +20,8 @@ pub struct ConnectionManager {
     pub connected: bool,
     pub in_programming_mode: bool,
     pub negotiated_baud: u32,
+    /// Last successfully used password (stored for reuse in load profile etc.)
+    pub last_password: Option<String>,
 }
 
 impl ConnectionManager {
@@ -31,6 +33,7 @@ impl ConnectionManager {
             connected: false,
             in_programming_mode: false,
             negotiated_baud: 300,
+            last_password: None,
         }
     }
 

@@ -1,9 +1,35 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
   import { t, isConnected, meterStore, isMeterReading, addLog } from "$lib/stores";
-  import { readShort } from "$lib/utils/tauri";
+  import { readShort, readPacket } from "$lib/utils/tauri";
+
+  // Parse a float value from raw OBIS data: "CODE(VALUE*UNIT)"
+  function parseObisValue(raw: string, code: string): number {
+    const escaped = code.replace(/\./g, '\\.');
+    const m = raw.match(new RegExp(`${escaped}\\(([\\d.]+)`));
+    return m ? parseFloat(m[1]) : 0;
+  }
 
   let isRefreshing = $state(false);
+  let isReadingTechQuality = $state(false);
+  let techQualityRawData = $state<string | null>(null);
+
+  async function readTechQuality() {
+    if (isReadingTechQuality || $isMeterReading) return;
+    isReadingTechQuality = true;
+    meterStore.setReading(true);
+    try {
+      addLog("info", "Mod 5 (Teknik Kalite) paketi okunuyor...");
+      const result = await readPacket(5);
+      techQualityRawData = result.rawData;
+      addLog("success", `Mod 5 okuma tamamlandı: ${result.bytesRead} byte, ${(result.readDurationMs / 1000).toFixed(1)}s`);
+    } catch (e) {
+      addLog("error", `Mod 5 okuma hatası: ${e}`);
+    } finally {
+      isReadingTechQuality = false;
+      meterStore.setReading(false);
+    }
+  }
 
   async function refreshMeasurements() {
     if (isRefreshing || $isMeterReading) return;
@@ -109,6 +135,24 @@
       ticks: [{ v: 0, label: "0" }, { v: 30, label: "30" }, { v: 60, label: "60" }, { v: 90, label: "90" }, { v: 120, label: "120" }],
     };
   }
+
+  // Mode 5 tech quality overrides (V/I/Hz/PF only)
+  let tqOverrides = $derived.by(() => {
+    const raw = techQualityRawData;
+    if (!raw) return null;
+    return {
+      voltageL1: parseObisValue(raw, "32.7.0"),
+      voltageL2: parseObisValue(raw, "52.7.0"),
+      voltageL3: parseObisValue(raw, "72.7.0"),
+      currentL1: parseObisValue(raw, "31.7.0"),
+      currentL2: parseObisValue(raw, "51.7.0"),
+      currentL3: parseObisValue(raw, "71.7.0"),
+      frequency: parseObisValue(raw, "14.7.0"),
+      powerFactorL1: parseObisValue(raw, "33.7.0"),
+      powerFactorL2: parseObisValue(raw, "53.7.0"),
+      powerFactorL3: parseObisValue(raw, "73.7.0"),
+    };
+  });
 </script>
 
 <div class="space-y-6">
@@ -128,6 +172,14 @@
         {/if}
         {#if $isConnected}
           <button
+            onclick={readTechQuality}
+            disabled={isReadingTechQuality}
+            class="flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
+          >
+            <Icon name="speed" size="sm" class={isReadingTechQuality ? "animate-spin" : ""} />
+            {isReadingTechQuality ? $t.readingPacket : $t.readTechQuality}
+          </button>
+          <button
             onclick={refreshMeasurements}
             disabled={isRefreshing}
             class="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
@@ -138,6 +190,9 @@
         {/if}
       </div>
     </div>
+    {#if techQualityRawData}
+      <div class="text-xs text-amber-600 font-medium mt-2">{$t.dataSourceMode5}</div>
+    {/if}
   </div>
 
   {#if !$isConnected}
@@ -146,7 +201,8 @@
       <p class="text-amber-600 dark:text-amber-400 font-medium">{$t.connectFirstWarning}</p>
     </div>
   {:else if $meterStore.shortReadData}
-    {@const data = $meterStore.shortReadData}
+    {@const baseData = $meterStore.shortReadData}
+    {@const data = tqOverrides ? { ...baseData, ...tqOverrides } : baseData}
     {@const isThreePhase = $meterStore.meterType === "three-phase"}
 
     <!-- ===== Voltage Gauge Snippet ===== -->
@@ -270,6 +326,64 @@
         {@render currGauge(data.currentL1, data.powerFactorL1, `${$t.current} R (L1)`, "bg-red-500")}
         {@render currGauge(data.currentL2, data.powerFactorL2, `${$t.current} S (L2)`, "bg-yellow-500")}
         {@render currGauge(data.currentL3, data.powerFactorL3, `${$t.current} T (L3)`, "bg-blue-500")}
+      </div>
+    {/if}
+
+    <!-- Row 3: Power & Neutral Current -->
+    {#if data.totalActivePower || data.activePowerL1 || data.neutralCurrent}
+      <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-6 shadow-sm">
+        <h4 class="font-bold text-slate-900 dark:text-white mb-4 flex items-center gap-2">
+          <Icon name="electric_bolt" class="text-primary" />
+          {$t.powerAndNeutral || "Güç & Nötr"}
+        </h4>
+
+        <!-- Total Active Power - large display -->
+        <div class="p-6 bg-gradient-to-br from-primary/10 to-emerald-500/10 rounded-xl border border-primary/20 mb-4 text-center">
+          <div class="text-xs text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">{$t.totalActivePower || "Toplam Aktif Güç"}</div>
+          <div class="text-4xl font-mono font-bold text-primary">{fmt(data.totalActivePower, 3)}</div>
+          <div class="text-sm text-slate-500 mt-1">kW</div>
+        </div>
+
+        <!-- Phase Active Powers -->
+        {#if isThreePhase}
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+            <div class="p-4 bg-red-500/10 rounded-xl border border-red-500/20 text-center">
+              <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">L1 (R)</div>
+              <div class="text-xl font-mono font-bold text-red-600 dark:text-red-400">{fmt(data.activePowerL1, 3)}</div>
+              <div class="text-xs text-slate-500">kW</div>
+            </div>
+            <div class="p-4 bg-yellow-500/10 rounded-xl border border-yellow-500/20 text-center">
+              <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">L2 (S)</div>
+              <div class="text-xl font-mono font-bold text-yellow-600 dark:text-yellow-400">{fmt(data.activePowerL2, 3)}</div>
+              <div class="text-xs text-slate-500">kW</div>
+            </div>
+            <div class="p-4 bg-blue-500/10 rounded-xl border border-blue-500/20 text-center">
+              <div class="text-xs text-slate-500 uppercase tracking-wider mb-1">L3 (T)</div>
+              <div class="text-xl font-mono font-bold text-blue-600 dark:text-blue-400">{fmt(data.activePowerL3, 3)}</div>
+              <div class="text-xs text-slate-500">kW</div>
+            </div>
+          </div>
+        {/if}
+
+        <!-- Reactive Power & Neutral Current -->
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="p-4 bg-indigo-500/10 rounded-xl border border-indigo-500/20 text-center">
+            <div class="flex items-center justify-center gap-2 mb-2">
+              <Icon name="sync_alt" size="sm" class="text-indigo-500" />
+              <span class="text-xs text-slate-500 uppercase tracking-wider">{$t.totalReactivePower || "Toplam Reaktif Güç"}</span>
+            </div>
+            <div class="text-xl font-mono font-bold text-indigo-600 dark:text-indigo-400">{fmt(data.totalReactivePower, 3)}</div>
+            <div class="text-xs text-slate-500">kVAr</div>
+          </div>
+          <div class="p-4 bg-orange-500/10 rounded-xl border border-orange-500/20 text-center">
+            <div class="flex items-center justify-center gap-2 mb-2">
+              <Icon name="cable" size="sm" class="text-orange-500" />
+              <span class="text-xs text-slate-500 uppercase tracking-wider">{$t.neutralCurrent || "Nötr Akım"}</span>
+            </div>
+            <div class="text-xl font-mono font-bold text-orange-600 dark:text-orange-400">{fmt(data.neutralCurrent, 3)}</div>
+            <div class="text-xs text-slate-500">A</div>
+          </div>
+        </div>
       </div>
     {/if}
   {:else}

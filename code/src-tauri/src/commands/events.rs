@@ -27,12 +27,21 @@ impl<'a> EventEmitter<'a> {
     /// * `message` - The log message
     /// * `data` - Optional data payload (e.g., hex dump)
     pub fn log(&self, log_type: &str, message: &str, data: Option<&str>) {
+        let timestamp = chrono::Local::now().format("%H:%M:%S%.3f").to_string();
         let _ = self.window.emit("comm-log", LogEvent {
-            timestamp: chrono::Local::now().format("%H:%M:%S%.3f").to_string(),
+            timestamp: timestamp.clone(),
             log_type: log_type.to_string(),
             message: message.to_string(),
             data: data.map(|s| s.to_string()),
         });
+        let full_msg = match data {
+            Some(d) => format!("{} | {}", message, d),
+            None => message.to_string(),
+        };
+        super::logger::write_log(&timestamp, log_type, &full_msg);
+        if let Some(d) = data {
+            super::logger::write_hex_dump(d);
+        }
     }
 
     /// Emit a log event without data (convenience method)

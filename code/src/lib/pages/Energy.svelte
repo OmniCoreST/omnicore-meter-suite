@@ -1,7 +1,28 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, isConnected, meterStore } from "$lib/stores";
+  import { t, isConnected, meterStore, isMeterReading, addLog } from "$lib/stores";
   import { exportToExcel } from "$lib/utils/export";
+  import { readPacket } from "$lib/utils/tauri";
+
+  let historyRawData = $state<string | null>(null);
+  let isReadingMode = $state(false);
+
+  async function readModePacket() {
+    if (isReadingMode || $isMeterReading) return;
+    isReadingMode = true;
+    meterStore.setReading(true);
+    try {
+      addLog("info", "Mod 7 (Geçmiş Veriler) paketi okunuyor...");
+      const result = await readPacket(7);
+      historyRawData = result.rawData;
+      addLog("success", `Mod 7 okuma tamamlandı: ${result.bytesRead} byte, ${(result.readDurationMs / 1000).toFixed(1)}s`);
+    } catch (e) {
+      addLog("error", `Mod 7 okuma hatası: ${e}`);
+    } finally {
+      isReadingMode = false;
+      meterStore.setReading(false);
+    }
+  }
 
   let activeTab = $state<"import" | "export" | "reactive">("import");
 
@@ -16,34 +37,77 @@
   const monthNames = ["Ocak", "Subat", "Mart", "Nisan", "Mayis", "Haziran",
                       "Temmuz", "Agustos", "Eylul", "Ekim", "Kasim", "Aralik"];
 
+  // Helper to parse float from raw OBIS data
+  function parseObisFloat(raw: string, code: string, month: number): number {
+    const escaped = code.replace(/\./g, '\\.');
+    const m = raw.match(new RegExp(`${escaped}\\*${month}\\(([\\d.]+)\\*[^)]*\\)`));
+    return m ? parseFloat(m[1]) : 0;
+  }
+
   // Parse monthly historical data from raw OBIS codes (if available)
   let monthlyData = $derived.by(() => {
     const data = $meterStore.shortReadData;
-    // @ts-ignore - rawData may exist on extended data
-    if (!data || !data.rawData) return [];
+    // @ts-ignore
+    const raw: string | null = historyRawData || (data && data.rawData) || null;
+    if (!raw) return [];
 
     const months = [];
 
     for (let month = 1; month <= 12; month++) {
-      // @ts-ignore
-      const raw = data.rawData;
-      const t1Match = raw.match(new RegExp(`1\\.8\\.1\\*${month}\\(([\\d.]+)\\*kWh\\)`));
-      const t2Match = raw.match(new RegExp(`1\\.8\\.2\\*${month}\\(([\\d.]+)\\*kWh\\)`));
-      const t3Match = raw.match(new RegExp(`1\\.8\\.3\\*${month}\\(([\\d.]+)\\*kWh\\)`));
-      const t4Match = raw.match(new RegExp(`1\\.8\\.4\\*${month}\\(([\\d.]+)\\*kWh\\)`));
-      const totalMatch = raw.match(new RegExp(`1\\.8\\.0\\*${month}\\(([\\d.]+)\\*kWh\\)`));
-
       months.push({
         month,
         monthName: monthNames[month - 1],
-        t1: t1Match ? parseFloat(t1Match[1]) : 0,
-        t2: t2Match ? parseFloat(t2Match[1]) : 0,
-        t3: t3Match ? parseFloat(t3Match[1]) : 0,
-        t4: t4Match ? parseFloat(t4Match[1]) : 0,
-        total: totalMatch ? parseFloat(totalMatch[1]) : 0,
+        t1: parseObisFloat(raw, "1.8.1", month),
+        t2: parseObisFloat(raw, "1.8.2", month),
+        t3: parseObisFloat(raw, "1.8.3", month),
+        t4: parseObisFloat(raw, "1.8.4", month),
+        total: parseObisFloat(raw, "1.8.0", month),
       });
     }
 
+    return months;
+  });
+
+  // Parse monthly export data (2.8.x*n)
+  let monthlyExportData = $derived.by(() => {
+    const data = $meterStore.shortReadData;
+    // @ts-ignore
+    const raw: string | null = historyRawData || (data && data.rawData) || null;
+    if (!raw) return [];
+
+    const months = [];
+    for (let month = 1; month <= 12; month++) {
+      months.push({
+        month,
+        monthName: monthNames[month - 1],
+        t1: parseObisFloat(raw, "2.8.1", month),
+        t2: parseObisFloat(raw, "2.8.2", month),
+        t3: parseObisFloat(raw, "2.8.3", month),
+        t4: parseObisFloat(raw, "2.8.4", month),
+        total: parseObisFloat(raw, "2.8.0", month),
+      });
+    }
+    return months;
+  });
+
+  // Parse monthly reactive data (5.8.0, 6.8.0, 7.8.0, 8.8.0 *n)
+  let monthlyReactiveData = $derived.by(() => {
+    const data = $meterStore.shortReadData;
+    // @ts-ignore
+    const raw: string | null = historyRawData || (data && data.rawData) || null;
+    if (!raw) return [];
+
+    const months = [];
+    for (let month = 1; month <= 12; month++) {
+      months.push({
+        month,
+        monthName: monthNames[month - 1],
+        inductiveImport: parseObisFloat(raw, "5.8.0", month),
+        capacitiveImport: parseObisFloat(raw, "6.8.0", month),
+        inductiveExport: parseObisFloat(raw, "7.8.0", month),
+        capacitiveExport: parseObisFloat(raw, "8.8.0", month),
+      });
+    }
     return months;
   });
 
@@ -245,48 +309,139 @@
 
     <!-- 12-Month History Section -->
     <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl p-6 shadow-sm">
-      <h4 class="font-bold text-slate-900 dark:text-white mb-6 flex items-center gap-2">
-        <Icon name="calendar_month" class="text-primary" />
-        {$t.monthlyHistory}
-      </h4>
+      <div class="flex items-center justify-between mb-6">
+        <h4 class="font-bold text-slate-900 dark:text-white flex items-center gap-2">
+          <Icon name="calendar_month" class="text-primary" />
+          {$t.monthlyHistory}
+          {#if historyRawData}
+            <span class="text-xs font-normal text-primary ml-2">{$t.dataSourceMode7}</span>
+          {/if}
+        </h4>
+        <button
+          onclick={readModePacket}
+          disabled={isReadingMode}
+          class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-colors"
+        >
+          <Icon name="sync" size="sm" class={isReadingMode ? "animate-spin" : ""} />
+          {isReadingMode ? $t.readingPacket : $t.readHistorical}
+        </button>
+      </div>
 
-      {#if monthlyData.length > 0 && monthlyData.some(m => m.total > 0)}
-        <div class="overflow-x-auto">
-          <table class="w-full text-sm">
-            <thead class="bg-slate-50 dark:bg-[#0f1821]">
-              <tr class="border-b border-slate-200 dark:border-[#334a5e]">
-                <th class="px-4 py-3 text-left font-bold text-slate-700 dark:text-slate-300">{$t.month}</th>
-                <th class="px-4 py-3 text-right font-bold text-blue-600">{$t.t1Day}</th>
-                <th class="px-4 py-3 text-right font-bold text-red-600">{$t.t2Peak}</th>
-                <th class="px-4 py-3 text-right font-bold text-emerald-600">{$t.t3Night}</th>
-                <th class="px-4 py-3 text-right font-bold text-amber-600">{$t.t4}</th>
-                <th class="px-4 py-3 text-right font-bold text-primary">{$t.total}</th>
-              </tr>
-            </thead>
-            <tbody>
-              {#each monthlyData as monthData}
-                <tr class="border-b border-slate-100 dark:border-[#334a5e]/30 hover:bg-slate-50 dark:hover:bg-[#1a2632] transition-colors">
-                  <td class="px-4 py-3">
-                    <div class="flex items-center gap-2">
-                      <div class="size-2 rounded-full bg-primary"></div>
-                      <span class="font-medium text-slate-900 dark:text-white">{monthData.monthName}</span>
-                    </div>
-                  </td>
-                  <td class="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatNumber(monthData.t1)}</td>
-                  <td class="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatNumber(monthData.t2)}</td>
-                  <td class="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatNumber(monthData.t3)}</td>
-                  <td class="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatNumber(monthData.t4)}</td>
-                  <td class="px-4 py-3 text-right font-mono font-bold text-primary">{formatNumber(monthData.total)}</td>
+      {#if activeTab === "import"}
+        {#if monthlyData.length > 0 && monthlyData.some(m => m.total > 0)}
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 dark:bg-[#0f1821]">
+                <tr class="border-b border-slate-200 dark:border-[#334a5e]">
+                  <th class="px-4 py-3 text-left font-bold text-slate-700 dark:text-slate-300">{$t.month}</th>
+                  <th class="px-4 py-3 text-right font-bold text-blue-600">{$t.t1Day}</th>
+                  <th class="px-4 py-3 text-right font-bold text-red-600">{$t.t2Peak}</th>
+                  <th class="px-4 py-3 text-right font-bold text-emerald-600">{$t.t3Night}</th>
+                  <th class="px-4 py-3 text-right font-bold text-amber-600">{$t.t4}</th>
+                  <th class="px-4 py-3 text-right font-bold text-primary">{$t.total}</th>
                 </tr>
-              {/each}
-            </tbody>
-          </table>
-        </div>
+              </thead>
+              <tbody>
+                {#each monthlyData as monthData}
+                  <tr class="border-b border-slate-100 dark:border-[#334a5e]/30 hover:bg-slate-50 dark:hover:bg-[#1a2632] transition-colors">
+                    <td class="px-4 py-3">
+                      <div class="flex items-center gap-2">
+                        <div class="size-2 rounded-full bg-primary"></div>
+                        <span class="font-medium text-slate-900 dark:text-white">{monthData.monthName}</span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatNumber(monthData.t1)}</td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatNumber(monthData.t2)}</td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatNumber(monthData.t3)}</td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatNumber(monthData.t4)}</td>
+                    <td class="px-4 py-3 text-right font-mono font-bold text-primary">{formatNumber(monthData.total)}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {:else}
+          <div class="text-center py-8 text-slate-400">
+            <Icon name="history" class="text-4xl mb-2" />
+            <p class="text-sm">{$t.noHistoryData}</p>
+          </div>
+        {/if}
+      {:else if activeTab === "export"}
+        {#if monthlyExportData.length > 0 && monthlyExportData.some(m => m.total > 0)}
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 dark:bg-[#0f1821]">
+                <tr class="border-b border-slate-200 dark:border-[#334a5e]">
+                  <th class="px-4 py-3 text-left font-bold text-slate-700 dark:text-slate-300">{$t.month}</th>
+                  <th class="px-4 py-3 text-right font-bold text-blue-600">{$t.t1Day}</th>
+                  <th class="px-4 py-3 text-right font-bold text-red-600">{$t.t2Peak}</th>
+                  <th class="px-4 py-3 text-right font-bold text-emerald-600">{$t.t3Night}</th>
+                  <th class="px-4 py-3 text-right font-bold text-amber-600">{$t.t4}</th>
+                  <th class="px-4 py-3 text-right font-bold text-violet-600">{$t.total}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each monthlyExportData as monthData}
+                  <tr class="border-b border-slate-100 dark:border-[#334a5e]/30 hover:bg-slate-50 dark:hover:bg-[#1a2632] transition-colors">
+                    <td class="px-4 py-3">
+                      <div class="flex items-center gap-2">
+                        <div class="size-2 rounded-full bg-violet-500"></div>
+                        <span class="font-medium text-slate-900 dark:text-white">{monthData.monthName}</span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatNumber(monthData.t1)}</td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatNumber(monthData.t2)}</td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatNumber(monthData.t3)}</td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatNumber(monthData.t4)}</td>
+                    <td class="px-4 py-3 text-right font-mono font-bold text-violet-600">{formatNumber(monthData.total)}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {:else}
+          <div class="text-center py-8 text-slate-400">
+            <Icon name="history" class="text-4xl mb-2" />
+            <p class="text-sm">{$t.noHistoryData}</p>
+          </div>
+        {/if}
       {:else}
-        <div class="text-center py-8 text-slate-400">
-          <Icon name="history" class="text-4xl mb-2" />
-          <p class="text-sm">{$t.noHistoryData}</p>
-        </div>
+        {#if monthlyReactiveData.length > 0 && monthlyReactiveData.some(m => m.inductiveImport > 0 || m.capacitiveImport > 0)}
+          <div class="overflow-x-auto">
+            <table class="w-full text-sm">
+              <thead class="bg-slate-50 dark:bg-[#0f1821]">
+                <tr class="border-b border-slate-200 dark:border-[#334a5e]">
+                  <th class="px-4 py-3 text-left font-bold text-slate-700 dark:text-slate-300">{$t.month}</th>
+                  <th class="px-4 py-3 text-right font-bold text-indigo-600">{$t.inductiveImport}</th>
+                  <th class="px-4 py-3 text-right font-bold text-pink-600">{$t.capacitiveImport}</th>
+                  <th class="px-4 py-3 text-right font-bold text-cyan-600">{$t.inductiveExport}</th>
+                  <th class="px-4 py-3 text-right font-bold text-teal-600">{$t.capacitiveExport}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each monthlyReactiveData as monthData}
+                  <tr class="border-b border-slate-100 dark:border-[#334a5e]/30 hover:bg-slate-50 dark:hover:bg-[#1a2632] transition-colors">
+                    <td class="px-4 py-3">
+                      <div class="flex items-center gap-2">
+                        <div class="size-2 rounded-full bg-indigo-500"></div>
+                        <span class="font-medium text-slate-900 dark:text-white">{monthData.monthName}</span>
+                      </div>
+                    </td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatNumber(monthData.inductiveImport)}</td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatNumber(monthData.capacitiveImport)}</td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatNumber(monthData.inductiveExport)}</td>
+                    <td class="px-4 py-3 text-right font-mono text-slate-600 dark:text-slate-400">{formatNumber(monthData.capacitiveExport)}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          </div>
+        {:else}
+          <div class="text-center py-8 text-slate-400">
+            <Icon name="history" class="text-4xl mb-2" />
+            <p class="text-sm">{$t.noHistoryData}</p>
+          </div>
+        {/if}
       {/if}
     </div>
   {:else}

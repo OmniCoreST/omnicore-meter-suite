@@ -9,7 +9,7 @@
   let selectedPort = $state("");
   let baudRate = $state("auto");
   let meterAddress = $state("");
-  let timeoutMs = $state(2000);
+  let timeoutMs = $state(5000);
 
   // Serial ports from backend
   let serialPorts = $state<{ name: string; description: string; active: boolean }[]>([]);
@@ -167,6 +167,7 @@
           baudRate: baud || 9600,
           connectionType: connectionType as "optical" | "serial" | "auto",
           meterAddress: meterAddress || undefined,
+          password: undefined,
         });
 
         connectionStore.setMeterIdentity({

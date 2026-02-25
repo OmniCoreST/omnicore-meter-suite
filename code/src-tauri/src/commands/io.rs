@@ -24,7 +24,10 @@ pub fn resolve_initial_bauds(connection_type: &str, configured_baud: u32) -> Vec
             if configured_baud > 0 {
                 vec![configured_baud]
             } else {
-                vec![9600, 300]
+                // IEC 62056-21: /?! is always sent at 300 baud per standard.
+                // Meters at MAS6 (19200) only respond to /?! at 300 baud.
+                // Try 9600 first (most common), then 300 (standard), then 19200.
+                vec![9600, 300, 19200]
             }
         }
         _ => {
@@ -108,6 +111,37 @@ impl ReadConfig {
             idle_timeout_ms: 5000,   // 5 seconds
             initial_delay_ms: 300,
             read_interval_ms: 100,
+        }
+    }
+
+    /// Configuration for mode-specific reads (Modes 5, 7, 8, 9)
+    pub fn mode_read(mode: u8) -> Self {
+        match mode {
+            5 => Self {
+                buffer_size: 4096,       // ~20 OBIS lines
+                idle_timeout_ms: 3000,
+                initial_delay_ms: 300,
+                read_interval_ms: 100,
+            },
+            7 => Self {
+                buffer_size: 32768,      // 12 months × 20 codes
+                idle_timeout_ms: 5000,
+                initial_delay_ms: 300,
+                read_interval_ms: 100,
+            },
+            8 => Self {
+                buffer_size: 32768,      // warning records
+                idle_timeout_ms: 5000,
+                initial_delay_ms: 300,
+                read_interval_ms: 100,
+            },
+            9 => Self {
+                buffer_size: 65536,      // 200 outage records/phase
+                idle_timeout_ms: 8000,
+                initial_delay_ms: 300,
+                read_interval_ms: 100,
+            },
+            _ => Self::short_read(),
         }
     }
 

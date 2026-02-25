@@ -1,13 +1,36 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, isConnected, meterStore } from "$lib/stores";
+  import { t, isConnected, meterStore, isMeterReading, addLog } from "$lib/stores";
   import { exportToExcel } from "$lib/utils/export";
+  import { readPacket } from "$lib/utils/tauri";
+
+  let modeRawData = $state<string | null>(null);
+  let isReadingMode = $state(false);
+
+  async function readModePacket() {
+    if (isReadingMode || $isMeterReading) return;
+    isReadingMode = true;
+    meterStore.setReading(true);
+    try {
+      addLog("info", "Mod 8 (Uyarılar) paketi okunuyor...");
+      const result = await readPacket(8);
+      modeRawData = result.rawData;
+      addLog("success", `Mod 8 okuma tamamlandı: ${result.bytesRead} byte, ${(result.readDurationMs / 1000).toFixed(1)}s`);
+    } catch (e) {
+      addLog("error", `Mod 8 okuma hatası: ${e}`);
+    } finally {
+      isReadingMode = false;
+      meterStore.setReading(false);
+    }
+  }
 
   let expandedSections = $state<Record<string, boolean>>({
     voltage: true,
     current: true,
     magnetic: true,
     cover: true,
+    reset: false,
+    neutralVoltage: false,
     tariff: false,
   });
 
@@ -19,19 +42,19 @@
   let warningsData = $derived.by(() => {
     const data = $meterStore.shortReadData;
     // @ts-ignore
-    if (!data || !data.rawData) {
+    const raw: string | null = modeRawData || (data && data.rawData) || null;
+    if (!raw) {
       return {
-        voltage: { count: 0, records: [] },
-        current: { count: 0, records: [] },
-        magnetic: { count: 0, records: [] },
-        topCover: { count: 0, records: [] },
-        terminalCover: { count: 0, history: [] },
-        tariffChanges: { count: 0, records: [] },
+        voltage: { count: 0, records: [] as {id: number, start: string, end: string}[] },
+        current: { count: 0, records: [] as {id: number, start: string, end: string}[] },
+        magnetic: { count: 0, records: [] as {id: number, start: string, end: string}[], duration: "" },
+        topCover: { count: 0, records: [] as {id: number, start: string, end: string}[] },
+        terminalCover: { count: 0, records: [] as {id: number, start: string, end: string}[] },
+        reset: { count: 0, records: [] as {id: number, start: string, end: string}[] },
+        neutralVoltage: { count: 0, records: [] as {id: number, start: string, end: string}[] },
+        tariffChanges: { count: 0, records: [] as {id: number, timestamp: string}[] },
       };
     }
-
-    // @ts-ignore
-    const raw = data.rawData;
 
     const parseWarningRecords = (baseCode: string, count: number) => {
       const records = [];
@@ -50,29 +73,36 @@
       return records;
     };
 
-    // Voltage warnings (96.7.4 count, 96.77.4*1-10 records)
-    const voltageCount = raw.match(/96\.7\.4\((\d+)\)/);
-    const voltage = parseWarningRecords('96.77.4', 10);
+    // Voltage warnings (96.77.2 count, 96.77.20*1-10 records) — MMS reference
+    const voltageCount = raw.match(/96\.77\.2\((\d+)\)/);
+    const voltage = parseWarningRecords('96.77.20', 10);
 
-    // Current warnings (96.7.5 count, 96.77.5*1-10 records)
-    const currentCount = raw.match(/96\.7\.5\((\d+)\)/);
-    const current = parseWarningRecords('96.77.5', 10);
+    // Current warnings (96.77.3 count, 96.77.30*1-10 records) — MMS reference
+    const currentCount = raw.match(/96\.77\.3\((\d+)\)/);
+    const current = parseWarningRecords('96.77.30', 10);
 
-    // Magnetic field warnings (96.7.6 count, 96.77.6*1-10 records)
-    const magneticCount = raw.match(/96\.7\.6\((\d+)\)/);
-    const magnetic = parseWarningRecords('96.77.6', 10);
+    // Magnetic field warnings (96.20.15 count, 96.20.16*1-10 records) — MMS reference
+    const magneticCount = raw.match(/96\.20\.15\((\d+)\)/);
+    const magnetic = parseWarningRecords('96.20.16', 10);
 
-    // Top cover openings (96.70)
-    const topCoverCount = raw.match(/96\.70\((\d+)\)/);
+    // Magnetic field total duration (96.20.18)
+    const magneticDurationMatch = raw.match(/96\.20\.18\(([^)]+)\)/);
+    const magneticDuration = magneticDurationMatch ? magneticDurationMatch[1] : "";
 
-    // Terminal cover monthly history (96.71*1-12)
-    const terminalHistory = [];
-    for (let m = 1; m <= 12; m++) {
-      const match = raw.match(new RegExp(`96\\.71\\*${m}\\((\\d+)\\)`));
-      if (match) {
-        terminalHistory.push({ month: m, count: parseInt(match[1]) });
-      }
-    }
+    // Top cover openings (96.20.0 count, 96.20.1*1-10 records) per TEDAŞ spec
+    const topCoverCount = raw.match(/96\.20\.0\((\d+)\)/);
+    const topCoverRecords = parseWarningRecords('96.20.1', 10);
+
+    // Terminal cover openings (96.20.5 count, 96.20.6*1-24 records) per TEDAŞ spec
+    const terminalCoverCount = raw.match(/96\.20\.5\((\d+)\)/);
+    const terminalCoverRecords = parseWarningRecords('96.20.6', 24);
+
+    // Reset count (96.11.0 count, 96.11.1*1-10 records) — MMS Category G
+    const resetCount = raw.match(/96\.11\.0\((\d+)\)/);
+    const resetRecords = parseWarningRecords('96.11.1', 10);
+
+    // Neutral voltage warnings (96.20.26*1-10 records) — TEDAŞ spec
+    const neutralVoltageRecords = parseWarningRecords('96.20.26', 10);
 
     // Tariff changes (96.2.2*1-10), skip null dates
     const tariffChanges = [];
@@ -86,9 +116,11 @@
     return {
       voltage: { count: voltageCount ? parseInt(voltageCount[1]) : 0, records: voltage },
       current: { count: currentCount ? parseInt(currentCount[1]) : 0, records: current },
-      magnetic: { count: magneticCount ? parseInt(magneticCount[1]) : 0, records: magnetic },
-      topCover: { count: topCoverCount ? parseInt(topCoverCount[1]) : 0, records: [] },
-      terminalCover: { count: terminalHistory.reduce((a, b) => a + b.count, 0), history: terminalHistory },
+      magnetic: { count: magneticCount ? parseInt(magneticCount[1]) : 0, records: magnetic, duration: magneticDuration },
+      topCover: { count: topCoverCount ? parseInt(topCoverCount[1]) : 0, records: topCoverRecords },
+      terminalCover: { count: terminalCoverCount ? parseInt(terminalCoverCount[1]) : 0, records: terminalCoverRecords },
+      reset: { count: resetCount ? parseInt(resetCount[1]) : 0, records: resetRecords },
+      neutralVoltage: { count: neutralVoltageRecords.length, records: neutralVoltageRecords },
       tariffChanges: { count: tariffChanges.length, records: tariffChanges },
     };
   });
@@ -127,16 +159,31 @@
         <h3 class="text-xl font-bold text-slate-900 dark:text-white mb-2">{$t.warnings}</h3>
         <p class="text-sm text-slate-500 dark:text-slate-400">{$t.warningsDescription}</p>
       </div>
-      {#if $meterStore.shortReadData}
-        <button
-          onclick={handleExport}
-          class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors"
-        >
-          <Icon name="download" size="sm" />
-          {$t.exportToExcel}
-        </button>
-      {/if}
+      <div class="flex items-center gap-2">
+        {#if $isConnected}
+          <button
+            onclick={readModePacket}
+            disabled={isReadingMode}
+            class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-colors"
+          >
+            <Icon name="sync" size="sm" class={isReadingMode ? "animate-spin" : ""} />
+            {isReadingMode ? $t.readingPacket : $t.readWarnings}
+          </button>
+        {/if}
+        {#if $meterStore.shortReadData || modeRawData}
+          <button
+            onclick={handleExport}
+            class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors"
+          >
+            <Icon name="download" size="sm" />
+            {$t.exportToExcel}
+          </button>
+        {/if}
+      </div>
     </div>
+    {#if modeRawData}
+      <div class="text-xs text-primary font-medium mt-2">{$t.dataSourceMode8}</div>
+    {/if}
   </div>
 
   {#if !$isConnected}
@@ -146,7 +193,7 @@
     </div>
   {:else}
     <!-- Summary Cards -->
-    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4">
+    <div class="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-4">
       <div class="bg-amber-500/10 border border-amber-500/20 rounded-xl p-4 text-center">
         <Icon name="flash_on" class="text-amber-500 text-2xl mb-2" />
         <div class="text-2xl font-bold text-amber-600">{warningsData.voltage.count}</div>
@@ -171,6 +218,16 @@
         <Icon name="sensor_door" class="text-purple-500 text-2xl mb-2" />
         <div class="text-2xl font-bold text-purple-600">{warningsData.terminalCover.count}</div>
         <div class="text-xs text-slate-500">{$t.terminalCover}</div>
+      </div>
+      <div class="bg-teal-500/10 border border-teal-500/20 rounded-xl p-4 text-center">
+        <Icon name="restart_alt" class="text-teal-500 text-2xl mb-2" />
+        <div class="text-2xl font-bold text-teal-600">{warningsData.reset.count}</div>
+        <div class="text-xs text-slate-500">{$t.resetCount || "Reset"}</div>
+      </div>
+      <div class="bg-cyan-500/10 border border-cyan-500/20 rounded-xl p-4 text-center">
+        <Icon name="electrical_services" class="text-cyan-500 text-2xl mb-2" />
+        <div class="text-2xl font-bold text-cyan-600">{warningsData.neutralVoltage.count}</div>
+        <div class="text-xs text-slate-500">{$t.neutralVoltage || "Nötr Gerilim"}</div>
       </div>
       <div class="bg-slate-500/10 border border-slate-500/20 rounded-xl p-4 text-center">
         <Icon name="swap_horiz" class="text-slate-500 text-2xl mb-2" />
@@ -285,6 +342,13 @@
 
       {#if expandedSections.magnetic}
         <div class="p-4 pt-0">
+          {#if warningsData.magnetic.duration}
+            <div class="mb-3 p-3 bg-red-100/50 dark:bg-red-900/20 rounded-lg flex items-center gap-2">
+              <Icon name="timer" size="sm" class="text-red-500" />
+              <span class="text-sm text-slate-600 dark:text-slate-400">{$t.totalDuration || "Toplam Süre"}:</span>
+              <span class="text-sm font-mono font-bold text-red-600 dark:text-red-400">{warningsData.magnetic.duration}</span>
+            </div>
+          {/if}
           {#if warningsData.magnetic.records.length > 0}
             <table class="w-full text-sm">
               <thead class="bg-red-100/50 dark:bg-red-900/30">
@@ -337,26 +401,104 @@
               <div class="text-xs text-slate-500">toplam acilma</div>
             </div>
 
-            <!-- Terminal Cover History -->
+            <!-- Terminal Cover -->
             <div class="p-4 bg-white/50 dark:bg-black/20 rounded-lg">
               <div class="flex items-center gap-2 mb-2">
                 <Icon name="sensor_door" class="text-purple-500" size="sm" />
                 <span class="font-bold text-slate-900 dark:text-white">{$t.terminalCover}</span>
               </div>
-              {#if warningsData.terminalCover.history.length > 0}
-                <div class="grid grid-cols-6 gap-1 mt-2">
-                  {#each warningsData.terminalCover.history as h}
-                    <div class="text-center p-1 bg-purple-500/10 rounded text-xs">
-                      <div class="font-bold text-purple-600">{h.count}</div>
-                      <div class="text-[10px] text-slate-500">{h.month}.Ay</div>
-                    </div>
-                  {/each}
-                </div>
-              {:else}
-                <div class="text-3xl font-mono font-bold text-purple-600">{warningsData.terminalCover.count}</div>
-              {/if}
+              <div class="text-3xl font-mono font-bold text-purple-600">{warningsData.terminalCover.count}</div>
+              <div class="text-xs text-slate-500">toplam acilma</div>
             </div>
           </div>
+        </div>
+      {/if}
+    </div>
+
+    <!-- Reset Records Section -->
+    <div class="bg-gradient-to-br from-teal-50 to-cyan-50 dark:from-teal-900/20 dark:to-cyan-900/20 rounded-xl border border-teal-200 dark:border-teal-800 overflow-hidden">
+      <button
+        onclick={() => toggleSection('reset')}
+        class="w-full flex items-center justify-between p-4 hover:bg-teal-100/50 dark:hover:bg-teal-900/30 transition-colors"
+      >
+        <div class="flex items-center gap-3">
+          <Icon name="restart_alt" class="text-teal-500" />
+          <span class="font-bold text-slate-900 dark:text-white">{$t.resetRecords || "Reset Kayıtları"}</span>
+          <span class="px-2 py-1 bg-teal-500/20 text-teal-600 dark:text-teal-400 rounded-full text-xs font-bold">
+            {warningsData.reset.count}
+          </span>
+        </div>
+        <Icon name={expandedSections.reset ? "expand_less" : "expand_more"} class="text-slate-400" />
+      </button>
+
+      {#if expandedSections.reset}
+        <div class="p-4 pt-0">
+          {#if warningsData.reset.records.length > 0}
+            <table class="w-full text-sm">
+              <thead class="bg-teal-100/50 dark:bg-teal-900/30">
+                <tr class="border-b border-teal-200 dark:border-teal-800">
+                  <th class="px-4 py-2 text-left font-bold text-slate-700 dark:text-slate-300">#</th>
+                  <th class="px-4 py-2 text-left font-bold text-slate-700 dark:text-slate-300">{$t.startTime}</th>
+                  <th class="px-4 py-2 text-left font-bold text-slate-700 dark:text-slate-300">{$t.endTime}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each warningsData.reset.records as record}
+                  <tr class="border-b border-teal-100 dark:border-teal-900/30">
+                    <td class="px-4 py-2 font-mono text-slate-600 dark:text-slate-400">{record.id}</td>
+                    <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.start}</td>
+                    <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.end}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          {:else}
+            <p class="text-center text-slate-500 py-4">{$t.noWarnings}</p>
+          {/if}
+        </div>
+      {/if}
+    </div>
+
+    <!-- Neutral Voltage Warnings Section -->
+    <div class="bg-gradient-to-br from-cyan-50 to-sky-50 dark:from-cyan-900/20 dark:to-sky-900/20 rounded-xl border border-cyan-200 dark:border-cyan-800 overflow-hidden">
+      <button
+        onclick={() => toggleSection('neutralVoltage')}
+        class="w-full flex items-center justify-between p-4 hover:bg-cyan-100/50 dark:hover:bg-cyan-900/30 transition-colors"
+      >
+        <div class="flex items-center gap-3">
+          <Icon name="electrical_services" class="text-cyan-500" />
+          <span class="font-bold text-slate-900 dark:text-white">{"Nötr Gerilim Uyarıları"}</span>
+          <span class="px-2 py-1 bg-cyan-500/20 text-cyan-600 dark:text-cyan-400 rounded-full text-xs font-bold">
+            {warningsData.neutralVoltage.count}
+          </span>
+        </div>
+        <Icon name={expandedSections.neutralVoltage ? "expand_less" : "expand_more"} class="text-slate-400" />
+      </button>
+
+      {#if expandedSections.neutralVoltage}
+        <div class="p-4 pt-0">
+          {#if warningsData.neutralVoltage.records.length > 0}
+            <table class="w-full text-sm">
+              <thead class="bg-cyan-100/50 dark:bg-cyan-900/30">
+                <tr class="border-b border-cyan-200 dark:border-cyan-800">
+                  <th class="px-4 py-2 text-left font-bold text-slate-700 dark:text-slate-300">#</th>
+                  <th class="px-4 py-2 text-left font-bold text-slate-700 dark:text-slate-300">{$t.startTime}</th>
+                  <th class="px-4 py-2 text-left font-bold text-slate-700 dark:text-slate-300">{$t.endTime}</th>
+                </tr>
+              </thead>
+              <tbody>
+                {#each warningsData.neutralVoltage.records as record}
+                  <tr class="border-b border-cyan-100 dark:border-cyan-900/30">
+                    <td class="px-4 py-2 font-mono text-slate-600 dark:text-slate-400">{record.id}</td>
+                    <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.start}</td>
+                    <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.end}</td>
+                  </tr>
+                {/each}
+              </tbody>
+            </table>
+          {:else}
+            <p class="text-center text-slate-500 py-4">{$t.noWarnings}</p>
+          {/if}
         </div>
       {/if}
     </div>

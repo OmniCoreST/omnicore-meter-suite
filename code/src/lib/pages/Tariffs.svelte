@@ -176,7 +176,7 @@
 
   async function handleSave() {
     if (password.length !== 8 || !/^\d{8}$/.test(password)) {
-      passwordError = $t.passwordMustBe8Digits;
+      passwordError = "Şifre tam olarak 8 rakam olmalıdır";
       return;
     }
 
@@ -185,7 +185,7 @@
     addLog("info", $t.savingTariffSettings);
 
     try {
-      const authOk = await authenticate(password);
+      const authOk = await authenticate(password, 3);
       if (!authOk) {
         addLog("error", $t.errorWrongPassword);
         errorToast($t.errorWrongPassword);
@@ -423,17 +423,22 @@
     <div class="absolute inset-0" onclick={() => showPasswordDialog = false}></div>
     <div class="relative bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-2xl p-6 w-full max-w-sm shadow-2xl">
       <h3 class="text-lg font-bold text-slate-900 dark:text-white mb-1">{$t.saveTariffs}</h3>
+      <div class="flex items-center gap-2 mb-3">
+        <span class="px-2 py-0.5 bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-bold rounded">P3 - Seviye 3</span>
+        <span class="text-xs text-slate-400">OBIS: 96.50-52 / 96.60-62</span>
+      </div>
       <p class="text-sm text-slate-500 mb-4">{$t.passwordWarning}</p>
 
       <div class="mb-4">
         <label class="block text-sm font-bold text-slate-700 dark:text-slate-300 mb-2" for="tariff-password">
-          {$t.password}
+          P3 {$t.password}
         </label>
         <input
           id="tariff-password"
           type="password"
           maxlength={8}
           bind:value={password}
+          oninput={(e) => { const t = e.currentTarget; t.value = t.value.replace(/\D/g, ''); password = t.value; }}
           onkeydown={(e) => { if (e.key === "Enter") handleSave(); }}
           placeholder="00000000"
           class="w-full px-4 py-3 bg-white dark:bg-[#1a2632] border border-slate-200 dark:border-[#334a5e] rounded-xl text-center font-mono text-lg tracking-[0.3em] focus:border-primary focus:ring-1 focus:ring-primary outline-none"

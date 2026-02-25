@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, isConnected, progressStore, addLog, meterStore } from "$lib/stores";
+  import { t, isConnected, progressStore, addLog, meterStore, connectionStore } from "$lib/stores";
   import { exportToExcel } from "$lib/utils/export";
   import { readLoadProfile, onReadProgress, onCommLog } from "$lib/utils/tauri";
   import { onMount } from "svelte";
@@ -20,16 +20,33 @@
     available: boolean;
   }
 
-  // OBIS code to label/unit mapping
+  // OBIS code to label/unit mapping (per MASS Ek-E and TEDAŞ Ek-H.1)
   const obisLabels: Record<string, { label: string; unit: string }> = {
+    // Energy OBIS codes (LP1)
     "1.8.0": { label: "activeEnergyImport", unit: "kWh" },
     "2.8.0": { label: "activeEnergyExport", unit: "kWh" },
+    "5.8.0": { label: "reactiveInductive", unit: "kVArh" },
+    "6.8.0": { label: "reactiveCapacitive", unit: "kVArh" },
+    "7.8.0": { label: "reactiveInductiveExport", unit: "kVArh" },
+    "8.8.0": { label: "reactiveCapacitiveExport", unit: "kVArh" },
+    // Demand OBIS codes (MASS LP1)
+    "1.6.0": { label: "activePowerImport", unit: "kW" },
+    "2.6.0": { label: "activePowerExport", unit: "kW" },
+    // Tariff energy (MASS LP2)
+    "1.8.1": { label: "activeEnergyT1", unit: "kWh" },
+    "1.8.2": { label: "activeEnergyT2", unit: "kWh" },
+    "1.8.3": { label: "activeEnergyT3", unit: "kWh" },
+    "2.8.1": { label: "activeExportT1", unit: "kWh" },
+    "2.8.2": { label: "activeExportT2", unit: "kWh" },
+    "2.8.3": { label: "activeExportT3", unit: "kWh" },
+    // Instantaneous values (LP2 / MASS LP3)
     "32.7.0": { label: "voltageL1", unit: "V" },
     "52.7.0": { label: "voltageL2", unit: "V" },
     "72.7.0": { label: "voltageL3", unit: "V" },
     "31.7.0": { label: "currentL1", unit: "A" },
     "51.7.0": { label: "currentL2", unit: "A" },
     "71.7.0": { label: "currentL3", unit: "A" },
+    "91.7.0": { label: "currentN", unit: "A" },
     "33.7.0": { label: "powerFactorL1", unit: "" },
     "53.7.0": { label: "powerFactorL2", unit: "" },
     "73.7.0": { label: "powerFactorL3", unit: "" },
@@ -49,6 +66,8 @@
       for (const part of parts) {
         const [obisWithUnit] = part.trim().split("*");
         const obis = obisWithUnit.trim();
+        // Skip empty slots ("0") used in MASS 97.x.0 format
+        if (obis === "0" || obis === "") continue;
         const info = obisLabels[obis] || { label: obis, unit: "" };
         columns.push({
           obis,
@@ -169,7 +188,6 @@
 
   async function startReading() {
     if (!$isConnected) return;
-
     isReading = true;
     readComplete = false;
     profileData = [];
@@ -218,7 +236,9 @@
         endTimeParam = `${endDate.slice(2)},${endTime}`;
       }
 
-      const result = await readLoadProfile(selectedProfileId, startTimeParam, endTimeParam);
+      // Get password from connection store for P3 authentication
+      const storedPassword = $connectionStore.params.password || undefined;
+      const result = await readLoadProfile(selectedProfileId, startTimeParam, endTimeParam, storedPassword);
 
       // Convert entries to our internal format
       const columns = selectedProfile.columns;
@@ -677,3 +697,4 @@
     </div>
   {/if}
 </div>
+
