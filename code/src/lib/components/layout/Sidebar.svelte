@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { navigationStore, type Page, t, hasMeterData } from "$lib/stores";
+  import { navigationStore, type Page, t, hasMeterData, hasComplianceErrors, hasComplianceWarnings } from "$lib/stores";
 
   interface NavItem {
     id: Page;
@@ -21,6 +21,11 @@
     { id: "warnings", icon: "warning", labelKey: "warnings" },
     { id: "outages", icon: "power_off", labelKey: "outages" },
     { id: "status-codes", icon: "qr_code_2", labelKey: "statusCodes" },
+  ];
+
+  // RAPORLAR Section
+  const raporlarItems: NavItem[] = [
+    { id: "compliance", icon: "verified_user", labelKey: "compliance" },
   ];
 
   // AYARLAR (Settings) Section - 7 pages
@@ -118,6 +123,42 @@
           >
             {$t[item.labelKey]}
           </span>
+        </button>
+      {/each}
+    </div>
+
+    <!-- RAPORLAR Section -->
+    <div class="flex flex-col gap-1 mb-4">
+      <p class="text-[10px] font-semibold text-slate-500 uppercase tracking-wider mb-1 px-2 {!$hasMeterData ? 'opacity-40' : ''}">
+        {$t.complianceSection}
+      </p>
+      {#each raporlarItems as item}
+        <button
+          onclick={() => navigate(item.id)}
+          disabled={!$hasMeterData}
+          class="flex items-center gap-2 px-3 py-2 rounded-lg transition-all text-left w-full
+            {!$hasMeterData
+            ? 'opacity-40 cursor-not-allowed'
+            : $navigationStore === item.id
+            ? 'bg-primary/10 text-primary'
+            : 'hover:bg-slate-100 dark:hover:bg-[#334a5e] text-slate-600 dark:text-slate-300 group'}"
+        >
+          <Icon
+            name={item.icon}
+            size="sm"
+            filled={$navigationStore === item.id}
+            class={$navigationStore === item.id ? "" : "group-hover:text-primary dark:group-hover:text-white transition-colors"}
+          />
+          <span class="text-xs {$navigationStore === item.id ? 'font-bold' : 'font-medium group-hover:text-slate-900 dark:group-hover:text-white transition-colors'}">
+            {$t[item.labelKey]}
+          </span>
+          {#if $hasMeterData && item.id === "compliance"}
+            {#if $hasComplianceErrors}
+              <span class="ml-auto h-2 w-2 rounded-full bg-red-500 flex-shrink-0"></span>
+            {:else if $hasComplianceWarnings}
+              <span class="ml-auto h-2 w-2 rounded-full bg-yellow-500 flex-shrink-0"></span>
+            {/if}
+          {/if}
         </button>
       {/each}
     </div>

@@ -5,6 +5,7 @@ mod serial;
 mod commands;
 mod storage;
 mod i18n;
+pub mod compliance;
 
 pub use commands::*;
 pub use storage::{Session, Report, AppSettings};
@@ -128,6 +129,52 @@ mod db_commands {
     }
 }
 
+mod compliance_commands {
+    use crate::compliance::{self, ComplianceResult};
+    use crate::commands::types::ShortReadResult;
+
+    /// Sayaç verisini kural dosyasına göre kontrol eder.
+    /// Önce sunucudan güncel versiyon bilgisini çeker (offline ise None).
+    #[tauri::command]
+    pub async fn check_compliance(data: ShortReadResult) -> Result<ComplianceResult, String> {
+        let latest = compliance::updater::fetch_latest_version().await;
+        let latest_version = latest.map(|v| v.version);
+        Ok(compliance::run_check(&data, latest_version))
+    }
+
+    /// Kural dosyasının tam yolunu döndürür
+    #[tauri::command]
+    pub async fn get_compliance_rules_path() -> Result<String, String> {
+        Ok(compliance::rules::get_rules_path().display().to_string())
+    }
+
+    /// Kural dosyasını diskten yeniden yükler (geçerliliği test eder)
+    #[tauri::command]
+    pub async fn reload_compliance_rules() -> Result<String, String> {
+        let rules = compliance::rules::load_rules()
+            .map_err(|e| format!("Kural dosyası yüklenemedi: {}", e))?;
+        Ok(format!("Kurallar yüklendi: v{} ({} kural)", rules.rules_version, rules.rules.len()))
+    }
+
+    /// Sunucudan yeni kural dosyası indirir
+    #[tauri::command]
+    pub async fn update_compliance_rules() -> Result<String, String> {
+        let info = compliance::updater::fetch_latest_version().await
+            .ok_or_else(|| "Güncelleme sunucusuna ulaşılamadı veya URL yapılandırılmamış".to_string())?;
+
+        let local_version = compliance::rules::load_rules()
+            .map(|r| r.rules_version)
+            .unwrap_or_default();
+
+        if info.version == local_version {
+            return Ok(format!("Zaten güncel (v{})", local_version));
+        }
+
+        let new_version = compliance::updater::download_rules(&info.url).await?;
+        Ok(format!("Kurallar güncellendi: v{}", new_version))
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     env_logger::init();
@@ -145,6 +192,8 @@ pub fn run() {
             storage::init_database(&app_data_dir)
                 .expect("Failed to initialize database");
             commands::logger::init_session_log(app_data_dir);
+            // Uyumluluk kural dosyasını oluştur (yoksa varsayılanı yaz)
+            compliance::rules::ensure_default_rules();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -182,6 +231,11 @@ pub fn run() {
             db_commands::get_setting,
             db_commands::set_setting,
             write_export_file,
+            // Uyumluluk komutları
+            compliance_commands::check_compliance,
+            compliance_commands::get_compliance_rules_path,
+            compliance_commands::reload_compliance_rules,
+            compliance_commands::update_compliance_rules,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");

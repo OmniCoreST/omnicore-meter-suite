@@ -19,7 +19,8 @@ export type Page =
   | "tariffs"
   | "periods"
   | "relay-control"
-  | "obis-reader";
+  | "obis-reader"
+  | "compliance";
 
 // URL aliases for backward compatibility
 const pageAliases: Record<string, Page> = {

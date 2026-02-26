@@ -1,8 +1,8 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, connectionStore, isConnected, isConnecting, addLog, meterStore, isMeterReading, errorToast, successToast, sessionsStore, navigationStore, type SessionInfo } from "$lib/stores";
+  import { t, connectionStore, isConnected, isConnecting, addLog, meterStore, isMeterReading, errorToast, successToast, sessionsStore, navigationStore, complianceStore, type SessionInfo } from "$lib/stores";
   import { onMount, onDestroy } from "svelte";
-  import { listSerialPorts, connect as tauriConnect, disconnect as tauriDisconnect, readFull, setSetting, loadSessionFile, type PortInfo } from "$lib/utils/tauri";
+  import { listSerialPorts, connect as tauriConnect, disconnect as tauriDisconnect, readFull, setSetting, loadSessionFile, checkCompliance, type PortInfo } from "$lib/utils/tauri";
 
   // Connection parameters
   let connectionType = $state("auto");
@@ -208,6 +208,13 @@
             console.log("[Home] About to call meterStore.setShortReadData...");
             meterStore.setShortReadData(result, meterType, false);
             console.log("[Home] meterStore.setShortReadData completed");
+
+            // Arka planda uyumluluk kontrolü yap
+            checkCompliance(result).then((compResult) => {
+              complianceStore.setResult(compResult);
+            }).catch((e) => {
+              console.warn("[Compliance] Otomatik kontrol başarısız:", e);
+            });
 
             // The same data is available in all sections until disconnect
             // Events and Alarms pages will read from shortReadData.ffCode and .gfCode

@@ -30,6 +30,7 @@
   import Periods from "$lib/pages/Periods.svelte";
   import RelayControl from "$lib/pages/RelayControl.svelte";
   import ObisReader from "$lib/pages/ObisReader.svelte";
+  import Compliance from "$lib/pages/Compliance.svelte";
 
   onMount(() => {
     navigationStore.init();
@@ -57,6 +58,7 @@
     periods: Periods,
     "relay-control": RelayControl,
     "obis-reader": ObisReader,
+    compliance: Compliance,
   };
 
   let currentPage = $derived(pageComponents[$navigationStore] || Home);

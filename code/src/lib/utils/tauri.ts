@@ -388,3 +388,48 @@ export async function deleteSessionFile(filename: string): Promise<void> {
   }
   return invoke("delete_session_file", { filename });
 }
+
+// ─── Uyumluluk ────────────────────────────────────────────────────────────────
+
+export interface ComplianceIssue {
+  code: string;
+  severity: "error" | "warning" | "info";
+  field: string;
+  expected: string;
+  actual: string;
+  description: string;
+}
+
+export type RulesStatus = "ok" | "offline" | "tooOld";
+
+export interface ComplianceResult {
+  issues: ComplianceIssue[];
+  errorCount: number;
+  warningCount: number;
+  infoCount: number;
+  rulesVersion: string;
+  latestVersion: string | null;
+  rulesStatus: RulesStatus;
+  checkedAt: string;
+  rulesFilePath: string;
+}
+
+export async function checkCompliance(data: ShortReadResult): Promise<ComplianceResult> {
+  if (!isTauri()) throw new Error("Tauri bağlamı bulunamadı");
+  return invoke<ComplianceResult>("check_compliance", { data });
+}
+
+export async function getComplianceRulesPath(): Promise<string> {
+  if (!isTauri()) return "";
+  return invoke<string>("get_compliance_rules_path");
+}
+
+export async function reloadComplianceRules(): Promise<string> {
+  if (!isTauri()) throw new Error("Tauri bağlamı bulunamadı");
+  return invoke<string>("reload_compliance_rules");
+}
+
+export async function updateComplianceRules(): Promise<string> {
+  if (!isTauri()) throw new Error("Tauri bağlamı bulunamadı");
+  return invoke<string>("update_compliance_rules");
+}
