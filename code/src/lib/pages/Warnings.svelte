@@ -56,49 +56,46 @@
       };
     }
 
-    const parseWarningRecords = (baseCode: string, count: number) => {
+    const parseWarningRecords = (baseCode: string, maxCount: number) => {
       const records = [];
-      for (let i = 1; i <= count; i++) {
+      const escapedCode = baseCode.replace(/\./g, '\\.');
+      // Indexsiz kayıt: 96.20.1(...) formatı — en güncel event (kapak hâlâ açıksa kapanma 00-00-00)
+      const unindexedMatch = raw.match(new RegExp(`${escapedCode}\\(([^;]+);([^)]+)\\)`));
+      if (unindexedMatch && !unindexedMatch[1].startsWith("00-00-00")) {
+        records.push({ id: 0, start: unindexedMatch[1], end: unindexedMatch[2] });
+      }
+      // İndeksli kayıtlar: 96.20.1*1(...) ... *N(...)
+      for (let i = 1; i <= maxCount; i++) {
         const match = raw.match(
-          new RegExp(`${baseCode.replace(/\./g, '\\.')}\\*${i}\\(([^;]+);([^)]+)\\)`)
+          new RegExp(`${escapedCode}\\*${i}\\(([^;]+);([^)]+)\\)`)
         );
-        if (match) {
-          records.push({
-            id: i,
-            start: match[1],
-            end: match[2],
-          });
+        if (match && !match[1].startsWith("00-00-00")) {
+          records.push({ id: i, start: match[1], end: match[2] });
         }
       }
       return records;
     };
 
-    // Voltage warnings (96.77.2 count, 96.77.20*1-10 records) — MMS reference
-    const voltageCount = raw.match(/96\.77\.2\((\d+)\)/);
+    // Voltage warnings (96.77.20*1-10 records) — MMS reference
     const voltage = parseWarningRecords('96.77.20', 10);
 
-    // Current warnings (96.77.3 count, 96.77.30*1-10 records) — MMS reference
-    const currentCount = raw.match(/96\.77\.3\((\d+)\)/);
+    // Current warnings (96.77.30*1-10 records) — MMS reference
     const current = parseWarningRecords('96.77.30', 10);
 
-    // Magnetic field warnings (96.20.15 count, 96.20.16*1-10 records) — MMS reference
-    const magneticCount = raw.match(/96\.20\.15\((\d+)\)/);
+    // Magnetic field warnings (96.20.16*1-10 records) — MMS reference
     const magnetic = parseWarningRecords('96.20.16', 10);
 
     // Magnetic field total duration (96.20.18)
     const magneticDurationMatch = raw.match(/96\.20\.18\(([^)]+)\)/);
     const magneticDuration = magneticDurationMatch ? magneticDurationMatch[1] : "";
 
-    // Top cover openings (96.20.0 count, 96.20.1*1-10 records) per TEDAŞ spec
-    const topCoverCount = raw.match(/96\.20\.0\((\d+)\)/);
+    // Top cover openings (96.20.1*1-10 records) per TEDAŞ spec
     const topCoverRecords = parseWarningRecords('96.20.1', 10);
 
-    // Terminal cover openings (96.20.5 count, 96.20.6*1-24 records) per TEDAŞ spec
-    const terminalCoverCount = raw.match(/96\.20\.5\((\d+)\)/);
+    // Terminal cover openings (96.20.6*1-24 records) per TEDAŞ spec
     const terminalCoverRecords = parseWarningRecords('96.20.6', 24);
 
-    // Reset count (96.11.0 count, 96.11.1*1-10 records) — MMS Category G
-    const resetCount = raw.match(/96\.11\.0\((\d+)\)/);
+    // Reset count (96.11.1*1-10 records) — MMS Category G
     const resetRecords = parseWarningRecords('96.11.1', 10);
 
     // Neutral voltage warnings (96.20.26*1-10 records) — TEDAŞ spec
@@ -114,12 +111,12 @@
     }
 
     return {
-      voltage: { count: voltageCount ? parseInt(voltageCount[1]) : 0, records: voltage },
-      current: { count: currentCount ? parseInt(currentCount[1]) : 0, records: current },
-      magnetic: { count: magneticCount ? parseInt(magneticCount[1]) : 0, records: magnetic, duration: magneticDuration },
-      topCover: { count: topCoverCount ? parseInt(topCoverCount[1]) : 0, records: topCoverRecords },
-      terminalCover: { count: terminalCoverCount ? parseInt(terminalCoverCount[1]) : 0, records: terminalCoverRecords },
-      reset: { count: resetCount ? parseInt(resetCount[1]) : 0, records: resetRecords },
+      voltage: { count: voltage.length, records: voltage },
+      current: { count: current.length, records: current },
+      magnetic: { count: magnetic.length, records: magnetic, duration: magneticDuration },
+      topCover: { count: topCoverRecords.length, records: topCoverRecords },
+      terminalCover: { count: terminalCoverRecords.length, records: terminalCoverRecords },
+      reset: { count: resetRecords.length, records: resetRecords },
       neutralVoltage: { count: neutralVoltageRecords.length, records: neutralVoltageRecords },
       tariffChanges: { count: tariffChanges.length, records: tariffChanges },
     };

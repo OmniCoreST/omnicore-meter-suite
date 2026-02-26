@@ -74,6 +74,19 @@
     </div>
   </div>
 
+  <!-- TEDAŞ Spec Note -->
+  <div class="bg-blue-500/10 border border-blue-500/20 rounded-xl p-4 text-blue-700 dark:text-blue-400">
+    <div class="flex items-start gap-3">
+      <Icon name="info" class="text-lg flex-shrink-0 mt-0.5" />
+      <div class="text-sm space-y-1">
+        <p><span class="font-bold">TEDAŞ MLZ/2017-062.B — Madde 153-154:</span></p>
+        <p>• RS-485 portu üzerinden değiştirilebilir parametreler <span class="font-bold">ayda en fazla 2 kez</span> değiştirilebilir.</p>
+        <p>• Optik port üzerinden değişiklik için <span class="font-bold">klemens kapağının açık olması</span> gerekir ve bu durumda limit uygulanmaz.</p>
+        <p class="text-blue-600 dark:text-blue-500">Şifre değiştirme NAK ile reddedilirse aylık limit dolmuş olabilir.</p>
+      </div>
+    </div>
+  </div>
+
   <!-- Level Tabs -->
   <div class="grid grid-cols-3 gap-3">
     {#each levels as lvl}

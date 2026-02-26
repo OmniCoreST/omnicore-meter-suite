@@ -226,10 +226,10 @@
           <span class="font-bold {activePhase === 'three' ? 'text-white' : 'text-slate-900 dark:text-white'}">{$t.threePhaseOutage}</span>
         </div>
         <div class="text-3xl font-mono font-bold">
-          {outagesData.threePhase.long.count}
+          {modeRawData ? outagesData.threePhase.long.records.length : '—'}
         </div>
         <div class="text-xs {activePhase === 'three' ? 'text-white/70' : 'text-slate-500'}">
-          {outagesData.threePhase.long.records.length} {$t.records}
+          {modeRawData ? $t.records : 'Okuma gerekli'}
         </div>
       </button>
 
@@ -242,10 +242,10 @@
           <span class="font-bold {activePhase === 'l1' ? 'text-white' : 'text-slate-900 dark:text-white'}">{$t.l1Outage}</span>
         </div>
         <div class="text-3xl font-mono font-bold">
-          {outagesData.phase1.long.count}
+          {modeRawData ? outagesData.phase1.long.records.length : '—'}
         </div>
         <div class="text-xs {activePhase === 'l1' ? 'text-white/70' : 'text-slate-500'}">
-          {outagesData.phase1.long.records.length} {$t.records}
+          {modeRawData ? $t.records : 'Okuma gerekli'}
         </div>
       </button>
 
@@ -258,10 +258,10 @@
           <span class="font-bold {activePhase === 'l2' ? 'text-white' : 'text-slate-900 dark:text-white'}">{$t.l2Outage}</span>
         </div>
         <div class="text-3xl font-mono font-bold">
-          {outagesData.phase2.long.count}
+          {modeRawData ? outagesData.phase2.long.records.length : '—'}
         </div>
         <div class="text-xs {activePhase === 'l2' ? 'text-white/70' : 'text-slate-500'}">
-          {outagesData.phase2.long.records.length} {$t.records}
+          {modeRawData ? $t.records : 'Okuma gerekli'}
         </div>
       </button>
 
@@ -274,10 +274,10 @@
           <span class="font-bold {activePhase === 'l3' ? 'text-white' : 'text-slate-900 dark:text-white'}">{$t.l3Outage}</span>
         </div>
         <div class="text-3xl font-mono font-bold">
-          {outagesData.phase3.long.count}
+          {modeRawData ? outagesData.phase3.long.records.length : '—'}
         </div>
         <div class="text-xs {activePhase === 'l3' ? 'text-white/70' : 'text-slate-500'}">
-          {outagesData.phase3.long.records.length} {$t.records}
+          {modeRawData ? $t.records : 'Okuma gerekli'}
         </div>
       </button>
     </div>

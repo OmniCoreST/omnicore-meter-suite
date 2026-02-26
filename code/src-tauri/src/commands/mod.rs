@@ -1770,8 +1770,7 @@ pub async fn write_obis(obis_code: String, value: String, window: tauri::Window)
     // Build and send write command
     let cmd = iec62056::build_write_command(&obis_code, &value);
     let cmd_hex: Vec<String> = cmd.iter().map(|b| format!("{:02X}", b)).collect();
-    let w_type = if obis_code.starts_with("96.96.") { "W1" } else { "W2" };
-    emit_log("tx", &format!("{} {}({}) [{}]", w_type, obis_code, value, cmd_hex.join(" ")));
+    emit_log("tx", &format!("W2 {}({}) [{}]", obis_code, value, cmd_hex.join(" ")));
 
     // Delay before sending write command
     std::thread::sleep(Duration::from_millis(500));
@@ -2279,9 +2278,9 @@ pub async fn change_password(current_password: String, new_password: String, lev
     let auth_ok = auth_ok.map_err(|e| format!("Kimlik doğrulama hatası: {}", e))?;
 
     if !auth_ok {
-        emit_log("error", &format!("P{} kimlik doğrulama başarısız", auth_level));
+        emit_log("error", &format!("P{} kimlik doğrulama başarısız — şifre yanlış, sayaç kilitli (3 hatalı giriş = 6 saat kilit) veya baud hızı uyumsuzluğu", auth_level));
         let _ = end_session(window.clone()).await;
-        return Err("Kimlik doğrulama başarısız - şifre yanlış veya sayaç kilitli".to_string());
+        return Err("Kimlik doğrulama başarısız — şifre yanlış, sayaç kilitli veya baud hızı uyumsuzluğu".to_string());
     }
 
     let result: Result<String, String> = {
@@ -2309,8 +2308,8 @@ pub async fn change_password(current_password: String, new_password: String, lev
                         Ok(format!("Şifre {} ile başarıyla değiştirildi", obis_code))
                     }
                     b if b == control::NAK => {
-                        emit_log("error", &format!("{} reddedildi (NAK) — P3 şifresi yanlış veya sayaç kilitli (3 hatalı giriş = 6 saat kilit)", w_label));
-                        Err("Şifre değiştirilemedi - P3 şifresi yanlış".to_string())
+                        emit_log("error", &format!("{} reddedildi (NAK) — TEDAŞ MLZ/2017-062.B Madde 154 gereği RS-485 portu üzerinden değiştirilebilir parametreler ayda en fazla 2 kez değiştirilebilir. Aylık limit aşılmış olabilir. Alternatif: klemens kapağı açıldıktan sonra optik port üzerinden sınırsız değiştirilebilir (Madde 153).", w_label));
+                        Err("Şifre değiştirme reddedildi (NAK) — TEDAŞ şartnamesine göre RS-485 üzerinden ayda en fazla 2 kez değişiklik yapılabilir (Madde 154). Aylık limit dolmuş olabilir.".to_string())
                     }
                     b if b == control::SOH => {
                         emit_log("error", "Sayaç B0 ile oturumu kapattı");

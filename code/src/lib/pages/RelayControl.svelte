@@ -89,7 +89,7 @@
     addLog("info", action === "open" ? "Röle açılıyor (96.3.10=0)..." : "Röle kesiliyor (96.3.10=1)...");
 
     try {
-      const authOk = await authenticate(password, 2); // P2 - Operator
+      const authOk = await authenticate(password, 3); // P3 - Master (relay control requires P3)
       if (!authOk) {
         addLog("error", $t.errorWrongPassword);
         errorToast($t.errorWrongPassword);
@@ -97,6 +97,8 @@
       }
 
       await writeObis("96.3.10", action === "open" ? "0" : "1");
+      // Wait 3 seconds for relay to actuate before ending session
+      await new Promise(resolve => setTimeout(resolve, 3000));
       await endSession();
 
       relayStatus = action === "open" ? "active" : "passive";
@@ -296,7 +298,7 @@
         {pendingAction === "open" ? $t.connectRelay : $t.disconnectRelay}
       </h3>
       <div class="flex items-center gap-2 mb-3">
-        <span class="px-2 py-0.5 bg-amber-500/10 text-amber-600 dark:text-amber-400 text-xs font-bold rounded">P2 - Operator</span>
+        <span class="px-2 py-0.5 bg-red-500/10 text-red-600 dark:text-red-400 text-xs font-bold rounded">P3 - Master</span>
         <span class="text-xs text-slate-400">OBIS: 96.3.10</span>
       </div>
       <p class="text-sm text-slate-500 mb-4">{$t.passwordWarning}</p>

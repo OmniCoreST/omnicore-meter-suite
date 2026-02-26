@@ -329,7 +329,7 @@
             <span class="flex items-center gap-1 text-sm font-bold {hasRelayData ? (relayActive ? 'text-amber-500' : 'text-slate-400') : 'text-slate-400'}">
               {#if hasRelayData}
                 <Icon name={relayActive ? "flash_on" : "flash_off"} size="sm" />
-                {relayActive ? $t.energyCut : $t.energyOn}
+                {relayActive ? $t.energyOn : $t.energyCut}
               {:else}
                 -
               {/if}
