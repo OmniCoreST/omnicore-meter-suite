@@ -398,6 +398,7 @@ export interface ComplianceIssue {
   expected: string;
   actual: string;
   description: string;
+  specRef?: string;
 }
 
 export type RulesStatus = "ok" | "offline" | "tooOld";
@@ -414,9 +415,9 @@ export interface ComplianceResult {
   rulesFilePath: string;
 }
 
-export async function checkCompliance(data: ShortReadResult): Promise<ComplianceResult> {
+export async function checkCompliance(data: ShortReadResult, meterPhases: number = 3): Promise<ComplianceResult> {
   if (!isTauri()) throw new Error("Tauri bağlamı bulunamadı");
-  return invoke<ComplianceResult>("check_compliance", { data });
+  return invoke<ComplianceResult>("check_compliance", { data, meterPhases });
 }
 
 export async function getComplianceRulesPath(): Promise<string> {

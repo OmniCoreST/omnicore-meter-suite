@@ -14,6 +14,16 @@
   let reloading = $state(false);
   let updating = $state(false);
 
+  const PHASES_KEY = "compliance_meter_phases";
+  let meterPhases = $state<1 | 3>(
+    (parseInt(localStorage.getItem(PHASES_KEY) ?? "3") === 1 ? 1 : 3)
+  );
+
+  function setMeterPhases(val: 1 | 3) {
+    meterPhases = val;
+    localStorage.setItem(PHASES_KEY, String(val));
+  }
+
   const currentData = $derived(
     $meterStore.shortReadData ?? $meterStore.fullReadData
   );
@@ -32,7 +42,7 @@
     if (!currentData) return;
     complianceStore.setLoading();
     try {
-      const res = await checkCompliance(currentData as any);
+      const res = await checkCompliance(currentData as any, meterPhases);
       complianceStore.setResult(res);
       if (res.rulesStatus === "tooOld") {
         errorToast($t.complianceTooOld);
@@ -108,6 +118,19 @@
       ? "bg-yellow-500/10 border-yellow-500/20"
       : "bg-blue-500/10 border-blue-500/20";
   }
+
+  /** "TEDAŞ §5.3 Ek-F / MASS §5.3 Ek-C" → ["TEDAŞ §5.3 Ek-F", "MASS §5.3 Ek-C"] */
+  function specSources(specRef: string): string[] {
+    return specRef.split(" / ").map(part =>
+      part.trim().replace(/^TEDAS(\s|§)/, "TEDAŞ$1")
+    );
+  }
+
+  /** FF/GF bit kontrolleri için true döner — bu kurallarda ölçülen/beklenen değer anlamlı değil */
+  function isBitCheck(field: string): boolean {
+    return field === "ff_code" || field === "gf_code";
+  }
+
 </script>
 
 <div class="space-y-6">
@@ -122,22 +145,44 @@
       </p>
     </div>
 
-    <button
-      onclick={runCheck}
-      disabled={!currentData || loading}
-      class="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all
-        {!currentData || loading
-          ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
-          : 'bg-primary text-white hover:bg-primary/90 active:scale-95'}"
-    >
-      {#if loading}
-        <span class="material-symbols-outlined text-base animate-spin">autorenew</span>
-        Kontrol ediliyor...
-      {:else}
-        <span class="material-symbols-outlined text-base">verified_user</span>
-        {$t.complianceCheck}
-      {/if}
-    </button>
+    <div class="flex items-center gap-3">
+      <!-- Faz seçici -->
+      <div class="flex items-center rounded-lg border border-slate-200 dark:border-slate-600 overflow-hidden text-xs font-medium">
+        <button
+          onclick={() => setMeterPhases(1)}
+          class="px-3 py-2 transition-colors {meterPhases === 1
+            ? 'bg-primary text-white'
+            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}"
+        >
+          1 Faz
+        </button>
+        <button
+          onclick={() => setMeterPhases(3)}
+          class="px-3 py-2 transition-colors {meterPhases === 3
+            ? 'bg-primary text-white'
+            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}"
+        >
+          3 Faz
+        </button>
+      </div>
+
+      <button
+        onclick={runCheck}
+        disabled={!currentData || loading}
+        class="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all
+          {!currentData || loading
+            ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
+            : 'bg-primary text-white hover:bg-primary/90 active:scale-95'}"
+      >
+        {#if loading}
+          <span class="material-symbols-outlined text-base animate-spin">autorenew</span>
+          Kontrol ediliyor...
+        {:else}
+          <span class="material-symbols-outlined text-base">verified_user</span>
+          {$t.complianceCheck}
+        {/if}
+      </button>
+    </div>
   </div>
 
   <!-- Veri yok -->
@@ -257,25 +302,44 @@
           {#each sortedIssues as issue (issue.code)}
             <div class="rounded-xl border p-4 {severityBorder(issue.severity)}">
               <div class="flex items-start gap-3">
-                <span class="material-symbols-outlined text-xl mt-0.5 {severityText(issue.severity)} flex-shrink-0">
+                <span class="material-symbols-outlined text-xl mt-1 {severityText(issue.severity)} flex-shrink-0">
                   {severityIcon(issue.severity)}
                 </span>
                 <div class="flex-1 min-w-0">
-                  <div class="flex items-center gap-2 mb-1">
+                  <!-- Kod + şartname rozeti -->
+                  <div class="flex items-center gap-2 mb-1.5 flex-wrap">
                     <span class="font-mono text-xs font-bold {severityText(issue.severity)}">{issue.code}</span>
-                    <span class="text-xs text-slate-500 font-medium">{issue.field}</span>
+                    {#if issue.specRef}
+                      {#each specSources(issue.specRef) as src}
+                        <span class="text-xs bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full font-medium">
+                          {src}
+                        </span>
+                      {/each}
+                    {/if}
                   </div>
-                  <p class="text-sm text-slate-700 dark:text-slate-200 font-medium mb-2">{issue.description}</p>
-                  <div class="grid grid-cols-2 gap-2 text-xs">
-                    <div class="bg-white/50 dark:bg-black/20 rounded-lg p-2">
-                      <p class="text-slate-400 mb-0.5">{$t.complianceExpected}</p>
-                      <p class="font-mono text-slate-600 dark:text-slate-300">{issue.expected}</p>
+                  <!-- Şartname referansı + açıklama -->
+                  {#if issue.specRef}
+                    <p class="text-xs text-slate-400 dark:text-slate-500 mb-1">
+                      <span class="font-semibold">{issue.specRef}'e göre:</span>
+                    </p>
+                  {/if}
+                  <p class="text-sm font-medium text-slate-700 dark:text-slate-200 leading-relaxed">
+                    {issue.description}
+                  </p>
+                  <!-- Olması gereken / Ölçülen -->
+                  {#if !isBitCheck(issue.field) && issue.actual}
+                    <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
+                      {#if issue.expected}
+                        <span>Olması gereken: <span class="font-mono font-semibold text-slate-600 dark:text-slate-300">{issue.expected}</span></span>
+                        <span class="text-slate-300 dark:text-slate-600">·</span>
+                      {/if}
+                      <span>Bağlı sayaçta ölçülen: <span class="font-mono font-semibold {severityText(issue.severity)}">{issue.actual}</span></span>
                     </div>
-                    <div class="bg-white/50 dark:bg-black/20 rounded-lg p-2">
-                      <p class="text-slate-400 mb-0.5">{$t.complianceActual}</p>
-                      <p class="font-mono {severityText(issue.severity)} font-medium">{issue.actual}</p>
-                    </div>
-                  </div>
+                  {/if}
+                  <!-- Aksiyon notu -->
+                  <p class="mt-2 text-xs font-semibold {severityText(issue.severity)}">
+                    Gerekli düzeltmelerin yapılması gerekmektedir.
+                  </p>
                 </div>
               </div>
             </div>

@@ -136,10 +136,10 @@ mod compliance_commands {
     /// Sayaç verisini kural dosyasına göre kontrol eder.
     /// Önce sunucudan güncel versiyon bilgisini çeker (offline ise None).
     #[tauri::command]
-    pub async fn check_compliance(data: ShortReadResult) -> Result<ComplianceResult, String> {
+    pub async fn check_compliance(data: ShortReadResult, meter_phases: u8) -> Result<ComplianceResult, String> {
         let latest = compliance::updater::fetch_latest_version().await;
         let latest_version = latest.map(|v| v.version);
-        Ok(compliance::run_check(&data, latest_version))
+        Ok(compliance::run_check(&data, latest_version, meter_phases))
     }
 
     /// Kural dosyasının tam yolunu döndürür

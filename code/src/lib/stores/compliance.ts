@@ -7,6 +7,7 @@ export interface ComplianceIssue {
   expected: string;
   actual: string;
   description: string;
+  specRef?: string;
 }
 
 export type RulesStatus = "ok" | "offline" | "tooOld";

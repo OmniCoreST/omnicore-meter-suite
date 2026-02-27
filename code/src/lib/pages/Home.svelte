@@ -210,7 +210,8 @@
             console.log("[Home] meterStore.setShortReadData completed");
 
             // Arka planda uyumluluk kontrolü yap
-            checkCompliance(result).then((compResult) => {
+            const storedPhases = parseInt(localStorage.getItem("compliance_meter_phases") ?? "3") === 1 ? 1 : 3;
+            checkCompliance(result, storedPhases).then((compResult) => {
               complianceStore.setResult(compResult);
             }).catch((e) => {
               console.warn("[Compliance] Otomatik kontrol başarısız:", e);

@@ -4,9 +4,17 @@ use crate::commands::types::ShortReadResult;
 use super::rules::{Rule, RulesFile};
 use super::ComplianceIssue;
 
-pub fn evaluate(rules_file: &RulesFile, data: &ShortReadResult) -> Vec<ComplianceIssue> {
+pub fn evaluate(rules_file: &RulesFile, data: &ShortReadResult, meter_phases: u8) -> Vec<ComplianceIssue> {
     rules_file.rules.iter()
-        .filter_map(|rule| evaluate_rule(rule, data))
+        .filter_map(|rule| {
+            // phases kısıtı varsa uyuşmayan sayaçlarda atla
+            if let Some(required_phases) = rule.phases {
+                if required_phases != meter_phases {
+                    return None;
+                }
+            }
+            evaluate_rule(rule, data)
+        })
         .collect()
 }
 
@@ -215,5 +223,6 @@ fn make_issue(rule: &Rule, expected: String, actual: String) -> ComplianceIssue 
         expected,
         actual,
         description: rule.description.clone(),
+        spec_ref: rule.spec_ref.clone(),
     }
 }

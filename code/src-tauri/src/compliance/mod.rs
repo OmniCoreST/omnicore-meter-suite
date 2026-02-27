@@ -17,6 +17,8 @@ pub struct ComplianceIssue {
     pub expected: String,
     pub actual: String,
     pub description: String,
+    /// Şartname referansı — ör. "TEDAŞ §2.2.2 / MASS §2.2.2"
+    pub spec_ref: Option<String>,
 }
 
 /// Tüm uyumluluk kontrolü sonucu
@@ -48,7 +50,7 @@ pub enum RulesStatus {
 }
 
 /// Ana giriş noktası
-pub fn run_check(data: &ShortReadResult, latest_version: Option<String>) -> ComplianceResult {
+pub fn run_check(data: &ShortReadResult, latest_version: Option<String>, meter_phases: u8) -> ComplianceResult {
     rules::ensure_default_rules();
 
     let rules_file_path = rules::get_rules_path().display().to_string();
@@ -75,7 +77,7 @@ pub fn run_check(data: &ShortReadResult, latest_version: Option<String>) -> Comp
 
     match rules::load_rules() {
         Ok(rules_file) => {
-            let issues = engine::evaluate(&rules_file, data);
+            let issues = engine::evaluate(&rules_file, data, meter_phases);
             let error_count = issues.iter().filter(|i| i.severity == "error").count();
             let warning_count = issues.iter().filter(|i| i.severity == "warning").count();
             let info_count = issues.iter().filter(|i| i.severity == "info").count();
@@ -103,6 +105,7 @@ pub fn run_check(data: &ShortReadResult, latest_version: Option<String>) -> Comp
                     expected: "Geçerli kural dosyası".to_string(),
                     actual: e.to_string(),
                     description: format!("Kural dosyası yüklenemedi: {}", e),
+                    spec_ref: None,
                 }],
                 error_count: 1,
                 warning_count: 0,
