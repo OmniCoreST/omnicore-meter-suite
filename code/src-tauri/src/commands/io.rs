@@ -26,8 +26,8 @@ pub fn resolve_initial_bauds(connection_type: &str, configured_baud: u32) -> Vec
             } else {
                 // IEC 62056-21: /?! is always sent at 300 baud per standard.
                 // Meters at MAS6 (19200) only respond to /?! at 300 baud.
-                // Try 9600 first (most common), then 300 (standard), then 19200.
-                vec![9600, 300, 19200]
+                // Try 300 first (standard), then 9600, then 19200.
+                vec![300, 9600, 19200]
             }
         }
         _ => {
@@ -35,7 +35,7 @@ pub fn resolve_initial_bauds(connection_type: &str, configured_baud: u32) -> Vec
             if configured_baud > 0 {
                 vec![configured_baud]
             } else {
-                vec![9600, 300, 19200]
+                vec![300, 9600, 19200]
             }
         }
     }

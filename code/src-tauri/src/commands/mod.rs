@@ -68,7 +68,7 @@ pub async fn connect(params: ConnectionParams, window: tauri::Window) -> Result<
     }
 
     let port_name = params.port.clone();
-    let timeout_ms = if params.timeout_ms == 0 { 2000 } else { params.timeout_ms };
+    let timeout_ms = if params.timeout_ms == 0 { 5000 } else { params.timeout_ms };
     let meter_address = params.meter_address.clone();
 
     // Determine initial baud rates based on connection type (Turkish MASS standard)

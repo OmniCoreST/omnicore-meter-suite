@@ -434,3 +434,44 @@ export async function updateComplianceRules(): Promise<string> {
   if (!isTauri()) throw new Error("Tauri bağlamı bulunamadı");
   return invoke<string>("update_compliance_rules");
 }
+
+export async function importComplianceRulesFromFile(path: string): Promise<string> {
+  if (!isTauri()) throw new Error("Tauri bağlamı bulunamadı");
+  return invoke<string>("import_compliance_rules_from_file", { path });
+}
+
+export async function addComplianceRule(ruleToml: string): Promise<string> {
+  if (!isTauri()) throw new Error("Tauri bağlamı bulunamadı");
+  return invoke<string>("add_compliance_rule", { ruleToml });
+}
+
+export interface ComplianceRuleDef {
+  code: string;
+  field: string;
+  check: string;
+  severity: string;
+  description: string;
+  min: number | null;
+  max: number | null;
+  value: string | null;
+  bit: number | null;
+  tolerance: number | null;
+  max_drift: number | null;
+  phases: number | null;
+  spec_ref: string | null;
+}
+
+export async function listComplianceRules(): Promise<ComplianceRuleDef[]> {
+  if (!isTauri()) return [];
+  return invoke<ComplianceRuleDef[]>("list_compliance_rules");
+}
+
+export async function updateComplianceRule(rule: ComplianceRuleDef): Promise<string> {
+  if (!isTauri()) throw new Error("Tauri bağlamı bulunamadı");
+  return invoke<string>("update_compliance_rule", { rule });
+}
+
+export async function deleteComplianceRule(code: string): Promise<string> {
+  if (!isTauri()) throw new Error("Tauri bağlamı bulunamadı");
+  return invoke<string>("delete_compliance_rule", { code });
+}

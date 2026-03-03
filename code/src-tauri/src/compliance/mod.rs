@@ -51,8 +51,6 @@ pub enum RulesStatus {
 
 /// Ana giriş noktası
 pub fn run_check(data: &ShortReadResult, latest_version: Option<String>, meter_phases: u8) -> ComplianceResult {
-    rules::ensure_default_rules();
-
     let rules_file_path = rules::get_rules_path().display().to_string();
 
     let rules_status = compute_rules_status(

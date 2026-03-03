@@ -173,6 +173,68 @@ mod compliance_commands {
         let new_version = compliance::updater::download_rules(&info.url).await?;
         Ok(format!("Kurallar güncellendi: v{}", new_version))
     }
+
+    /// Mevcut tüm kuralları listeler
+    #[tauri::command]
+    pub async fn list_compliance_rules() -> Result<Vec<compliance::rules::Rule>, String> {
+        let rules_file = compliance::rules::load_rules().map_err(|e| e.to_string())?;
+        Ok(rules_file.rules)
+    }
+
+    /// Varolan bir kuralı code'una göre günceller
+    #[tauri::command]
+    pub async fn update_compliance_rule(rule: compliance::rules::Rule) -> Result<String, String> {
+        let mut rules_file = compliance::rules::load_rules().map_err(|e| e.to_string())?;
+        if let Some(existing) = rules_file.rules.iter_mut().find(|r| r.code == rule.code) {
+            *existing = rule;
+            compliance::rules::save_rules(&rules_file).map_err(|e| e.to_string())?;
+            Ok("Kural güncellendi".to_string())
+        } else {
+            Err(format!("Kural bulunamadı: {}", rule.code))
+        }
+    }
+
+    /// Bir kuralı code'una göre siler
+    #[tauri::command]
+    pub async fn delete_compliance_rule(code: String) -> Result<String, String> {
+        let mut rules_file = compliance::rules::load_rules().map_err(|e| e.to_string())?;
+        let len_before = rules_file.rules.len();
+        rules_file.rules.retain(|r| r.code != code);
+        if rules_file.rules.len() < len_before {
+            compliance::rules::save_rules(&rules_file).map_err(|e| e.to_string())?;
+            Ok("Kural silindi".to_string())
+        } else {
+            Err(format!("Kural bulunamadı: {}", code))
+        }
+    }
+
+    /// Yerel dosyadan kural dosyasını içe aktarır
+    #[tauri::command]
+    pub async fn import_compliance_rules_from_file(path: String) -> Result<String, String> {
+        let content = std::fs::read_to_string(&path)
+            .map_err(|e| format!("Dosya okunamadı: {}", e))?;
+        let parsed: compliance::rules::RulesFile = toml::from_str(&content)
+            .map_err(|e| format!("Geçersiz TOML dosyası: {}", e))?;
+        let new_version = parsed.rules_version.clone();
+        let dest = compliance::rules::get_rules_path();
+        std::fs::write(&dest, content.as_bytes())
+            .map_err(|e| format!("Dosya yazılamadı: {}", e))?;
+        Ok(format!("Kurallar içe aktarıldı: v{}", new_version))
+    }
+
+    /// Verilen TOML bloğunu kural dosyasına ekler
+    #[tauri::command]
+    pub async fn add_compliance_rule(rule_toml: String) -> Result<String, String> {
+        use std::io::Write;
+        let path = compliance::rules::get_rules_path();
+        let mut file = std::fs::OpenOptions::new()
+            .append(true)
+            .open(&path)
+            .map_err(|e| format!("Dosya açılamadı: {}", e))?;
+        writeln!(file, "\n{}", rule_toml)
+            .map_err(|e| format!("Kural yazılamadı: {}", e))?;
+        Ok("Kural başarıyla eklendi".to_string())
+    }
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
@@ -192,8 +254,6 @@ pub fn run() {
             storage::init_database(&app_data_dir)
                 .expect("Failed to initialize database");
             commands::logger::init_session_log(app_data_dir);
-            // Uyumluluk kural dosyasını oluştur (yoksa varsayılanı yaz)
-            compliance::rules::ensure_default_rules();
             Ok(())
         })
         .invoke_handler(tauri::generate_handler![
@@ -236,6 +296,11 @@ pub fn run() {
             compliance_commands::get_compliance_rules_path,
             compliance_commands::reload_compliance_rules,
             compliance_commands::update_compliance_rules,
+            compliance_commands::list_compliance_rules,
+            compliance_commands::update_compliance_rule,
+            compliance_commands::delete_compliance_rule,
+            compliance_commands::import_compliance_rules_from_file,
+            compliance_commands::add_compliance_rule,
         ])
         .run(tauri::generate_context!())
         .expect("error while running tauri application");
