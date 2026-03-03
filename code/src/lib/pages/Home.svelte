@@ -140,6 +140,7 @@
       try {
         await tauriDisconnect();
         connectionStore.disconnect();
+        complianceStore.clear();
         addLog("info", "Bağlantı kesildi");
       } catch (e) {
         addLog("error", `Bağlantı kesilemedi: ${e}`);
