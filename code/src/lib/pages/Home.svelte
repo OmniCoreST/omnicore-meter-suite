@@ -2,7 +2,7 @@
   import Icon from "$lib/components/common/Icon.svelte";
   import { t, connectionStore, isConnected, isConnecting, addLog, meterStore, isMeterReading, errorToast, successToast, sessionsStore, navigationStore, complianceStore, type SessionInfo } from "$lib/stores";
   import { onMount, onDestroy } from "svelte";
-  import { listSerialPorts, connect as tauriConnect, disconnect as tauriDisconnect, readFull, setSetting, loadSessionFile, checkCompliance, type PortInfo } from "$lib/utils/tauri";
+  import { listSerialPorts, connect as tauriConnect, disconnect as tauriDisconnect, readFull, setSetting, loadSessionFile, type PortInfo } from "$lib/utils/tauri";
 
   // Connection parameters
   let connectionType = $state("auto");
@@ -140,6 +140,7 @@
       try {
         await tauriDisconnect();
         connectionStore.disconnect();
+        meterStore.clear();
         complianceStore.clear();
         addLog("info", "Bağlantı kesildi");
       } catch (e) {
@@ -209,14 +210,6 @@
             console.log("[Home] About to call meterStore.setShortReadData...");
             meterStore.setShortReadData(result, meterType, false);
             console.log("[Home] meterStore.setShortReadData completed");
-
-            // Arka planda uyumluluk kontrolü yap
-            const storedPhases = parseInt(localStorage.getItem("compliance_meter_phases") ?? "3") === 1 ? 1 : 3;
-            checkCompliance(result, storedPhases).then((compResult) => {
-              complianceStore.setResult(compResult);
-            }).catch((e) => {
-              console.warn("[Compliance] Otomatik kontrol başarısız:", e);
-            });
 
             // The same data is available in all sections until disconnect
             // Events and Alarms pages will read from shortReadData.ffCode and .gfCode
@@ -444,10 +437,10 @@
             {#if $isMeterReading}
               <!-- Glow animation when reading -->
               <div class="absolute inset-0 bg-gradient-to-r from-primary via-emerald-400 to-primary animate-pulse opacity-30"></div>
-              <Icon name="sync" class="animate-spin relative z-10" />
+              <Icon name="sync" class="animate-spin-reverse relative z-10" />
               <span class="relative z-10">{$t.reading || "Okunuyor"}...</span>
             {:else if $isConnecting}
-              <Icon name="sync" class="animate-spin" />
+              <Icon name="sync" class="animate-spin-reverse" />
               <span>{$t.connecting || "Bağlanıyor"}...</span>
             {:else if $isConnected}
               <Icon name="power_off" />
@@ -469,7 +462,7 @@
           {#if portsLoading}
             <!-- Loading Ports -->
             <div class="p-6 bg-slate-50 dark:bg-[#0f1821] border border-slate-200 dark:border-[#334a5e] rounded-lg text-center">
-              <Icon name="sync" class="text-primary text-3xl mb-2 animate-spin" />
+              <Icon name="sync" class="text-primary text-3xl mb-2 animate-spin-reverse" />
               <p class="text-sm font-bold text-slate-600 dark:text-slate-400">{$t.loadingPorts}</p>
             </div>
           {:else if hasNoPorts}
@@ -684,7 +677,7 @@
 {#if isLoadingSession}
   <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
     <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl shadow-xl p-8 text-center">
-      <Icon name="sync" class="text-primary text-4xl mb-3 animate-spin" />
+      <Icon name="sync" class="text-primary text-4xl mb-3 animate-spin-reverse" />
       <p class="text-sm font-bold text-slate-900 dark:text-white">{$t.loadingSession || "Loading session..."}</p>
     </div>
   </div>
@@ -735,7 +728,7 @@
           class="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50"
         >
           {#if isDeletingSession}
-            <Icon name="sync" size="sm" class="animate-spin" />
+            <Icon name="sync" size="sm" class="animate-spin-reverse" />
           {:else}
             <Icon name="delete" size="sm" />
           {/if}

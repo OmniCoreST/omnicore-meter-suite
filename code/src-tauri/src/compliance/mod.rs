@@ -19,6 +19,10 @@ pub struct ComplianceIssue {
     pub description: String,
     /// Şartname referansı — ör. "TEDAŞ §2.2.2 / MASS §2.2.2"
     pub spec_ref: Option<String>,
+    /// Sorunun olası nedeni
+    pub cause: Option<String>,
+    /// Önerilen düzeltme adımı
+    pub remedy: Option<String>,
 }
 
 /// Tüm uyumluluk kontrolü sonucu
@@ -104,6 +108,8 @@ pub fn run_check(data: &ShortReadResult, latest_version: Option<String>, meter_p
                     actual: e.to_string(),
                     description: format!("Kural dosyası yüklenemedi: {}", e),
                     spec_ref: None,
+                    cause: None,
+                    remedy: None,
                 }],
                 error_count: 1,
                 warning_count: 0,

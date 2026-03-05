@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { navigationStore, type Page, t, hasMeterData, hasComplianceErrors, hasComplianceWarnings } from "$lib/stores";
+  import { navigationStore, type Page, t, hasMeterData, hasComplianceErrors, hasComplianceWarnings, complianceErrorCount, complianceWarningCount } from "$lib/stores";
 
   interface NavItem {
     id: Page;
@@ -153,11 +153,18 @@
             {$t[item.labelKey]}
           </span>
           {#if $hasMeterData && item.id === "compliance"}
-            {#if $hasComplianceErrors}
-              <span class="ml-auto h-2 w-2 rounded-full bg-red-500 flex-shrink-0"></span>
-            {:else if $hasComplianceWarnings}
-              <span class="ml-auto h-2 w-2 rounded-full bg-yellow-500 flex-shrink-0"></span>
-            {/if}
+            <div class="ml-auto flex items-center gap-1 flex-shrink-0">
+              {#if $hasComplianceErrors}
+                <span class="inline-flex items-center justify-center min-w-[15px] h-[15px] px-[3px] rounded-full bg-red-500 text-white text-[9px] font-bold leading-none">
+                  {$complianceErrorCount}
+                </span>
+              {/if}
+              {#if $hasComplianceWarnings}
+                <span class="inline-flex items-center justify-center min-w-[15px] h-[15px] px-[3px] rounded-full bg-yellow-500 text-white text-[9px] font-bold leading-none">
+                  {$complianceWarningCount}
+                </span>
+              {/if}
+            </div>
           {/if}
         </button>
       {/each}

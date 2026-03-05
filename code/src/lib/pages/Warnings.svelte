@@ -58,16 +58,22 @@
 
     const parseWarningRecords = (baseCode: string, count: number) => {
       const records = [];
+
+      // Base record (aktif/devam eden olay): 96.20.16(start;end)
+      const baseMatch = raw.match(
+        new RegExp(`${baseCode.replace(/\./g, '\\.')}\\(([^;)]+);([^)]+)\\)`)
+      );
+      if (baseMatch && !baseMatch[1].startsWith('00-00-00')) {
+        records.push({ id: 0, start: baseMatch[1], end: baseMatch[2] });
+      }
+
+      // İndeksli kayıtlar: 96.20.16*1(start;end) ... *N
       for (let i = 1; i <= count; i++) {
         const match = raw.match(
           new RegExp(`${baseCode.replace(/\./g, '\\.')}\\*${i}\\(([^;]+);([^)]+)\\)`)
         );
         if (match) {
-          records.push({
-            id: i,
-            start: match[1],
-            end: match[2],
-          });
+          records.push({ id: i, start: match[1], end: match[2] });
         }
       }
       return records;
@@ -166,7 +172,7 @@
             disabled={isReadingMode}
             class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-colors"
           >
-            <Icon name="sync" size="sm" class={isReadingMode ? "animate-spin" : ""} />
+            <Icon name="sync" size="sm" class={isReadingMode ? "animate-spin-reverse" : ""} />
             {isReadingMode ? $t.readingPacket : $t.readWarnings}
           </button>
         {/if}
@@ -265,10 +271,16 @@
               </thead>
               <tbody>
                 {#each warningsData.voltage.records as record}
-                  <tr class="border-b border-amber-100 dark:border-amber-900/30">
-                    <td class="px-4 py-2 font-mono text-slate-600 dark:text-slate-400">{record.id}</td>
+                  <tr class="border-b border-amber-100 dark:border-amber-900/30" class:bg-amber-50={record.id === 0} class:dark:bg-amber-900/20={record.id === 0}>
+                    <td class="px-4 py-2 font-mono text-slate-600 dark:text-slate-400">
+                      {#if record.id === 0}
+                        <span class="px-2 py-0.5 bg-amber-500 text-white text-xs rounded-full font-bold">Aktif</span>
+                      {:else}
+                        {record.id}
+                      {/if}
+                    </td>
                     <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.start}</td>
-                    <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.end}</td>
+                    <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.end || '—'}</td>
                   </tr>
                 {/each}
               </tbody>
@@ -309,10 +321,16 @@
               </thead>
               <tbody>
                 {#each warningsData.current.records as record}
-                  <tr class="border-b border-blue-100 dark:border-blue-900/30">
-                    <td class="px-4 py-2 font-mono text-slate-600 dark:text-slate-400">{record.id}</td>
+                  <tr class="border-b border-blue-100 dark:border-blue-900/30" class:bg-blue-50={record.id === 0} class:dark:bg-blue-900/20={record.id === 0}>
+                    <td class="px-4 py-2 font-mono text-slate-600 dark:text-slate-400">
+                      {#if record.id === 0}
+                        <span class="px-2 py-0.5 bg-blue-500 text-white text-xs rounded-full font-bold">Aktif</span>
+                      {:else}
+                        {record.id}
+                      {/if}
+                    </td>
                     <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.start}</td>
-                    <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.end}</td>
+                    <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.end || '—'}</td>
                   </tr>
                 {/each}
               </tbody>
@@ -360,10 +378,16 @@
               </thead>
               <tbody>
                 {#each warningsData.magnetic.records as record}
-                  <tr class="border-b border-red-100 dark:border-red-900/30">
-                    <td class="px-4 py-2 font-mono text-slate-600 dark:text-slate-400">{record.id}</td>
+                  <tr class="border-b border-red-100 dark:border-red-900/30" class:bg-red-50={record.id === 0} class:dark:bg-red-900/20={record.id === 0}>
+                    <td class="px-4 py-2 font-mono text-slate-600 dark:text-slate-400">
+                      {#if record.id === 0}
+                        <span class="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full font-bold">Aktif</span>
+                      {:else}
+                        {record.id}
+                      {/if}
+                    </td>
                     <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.start}</td>
-                    <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.end}</td>
+                    <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.end || '—'}</td>
                   </tr>
                 {/each}
               </tbody>
@@ -445,9 +469,15 @@
               <tbody>
                 {#each warningsData.reset.records as record}
                   <tr class="border-b border-teal-100 dark:border-teal-900/30">
-                    <td class="px-4 py-2 font-mono text-slate-600 dark:text-slate-400">{record.id}</td>
+                    <td class="px-4 py-2 font-mono text-slate-600 dark:text-slate-400">
+                      {#if record.id === 0}
+                        <span class="px-2 py-0.5 bg-teal-500 text-white text-xs rounded-full font-bold">Aktif</span>
+                      {:else}
+                        {record.id}
+                      {/if}
+                    </td>
                     <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.start}</td>
-                    <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.end}</td>
+                    <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.end || '—'}</td>
                   </tr>
                 {/each}
               </tbody>
@@ -489,9 +519,15 @@
               <tbody>
                 {#each warningsData.neutralVoltage.records as record}
                   <tr class="border-b border-cyan-100 dark:border-cyan-900/30">
-                    <td class="px-4 py-2 font-mono text-slate-600 dark:text-slate-400">{record.id}</td>
+                    <td class="px-4 py-2 font-mono text-slate-600 dark:text-slate-400">
+                      {#if record.id === 0}
+                        <span class="px-2 py-0.5 bg-cyan-500 text-white text-xs rounded-full font-bold">Aktif</span>
+                      {:else}
+                        {record.id}
+                      {/if}
+                    </td>
                     <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.start}</td>
-                    <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.end}</td>
+                    <td class="px-4 py-2 font-mono text-slate-900 dark:text-white">{record.end || '—'}</td>
                   </tr>
                 {/each}
               </tbody>

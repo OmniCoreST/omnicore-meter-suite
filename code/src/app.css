@@ -100,6 +100,25 @@ body {
   -webkit-user-select: none;
 }
 
+/* OBIS yükleme ekranı — nefes animasyonu */
+@keyframes obis-bg-pulse {
+  0%, 100% { opacity: 0;    }
+  50%       { opacity: 1;    }
+}
+.obis-bg-pulse {
+  animation: obis-bg-pulse 3s cubic-bezier(0.45, 0, 0.55, 1) infinite;
+}
+
+/* Counter-clockwise spin for icons like sync/autorenew whose arrows face that direction */
+@keyframes spin-reverse {
+  from { transform: rotate(0deg); }
+  to   { transform: rotate(-360deg); }
+}
+
+.animate-spin-reverse {
+  animation: spin-reverse 1s linear infinite;
+}
+
 /* Smooth transitions for theme changes */
 .theme-transition {
   transition: background-color 0.3s ease, color 0.3s ease,

@@ -459,6 +459,8 @@ export interface ComplianceRuleDef {
   max_drift: number | null;
   phases: number | null;
   spec_ref: string | null;
+  cause: string | null;
+  remedy: string | null;
 }
 
 export async function listComplianceRules(): Promise<ComplianceRuleDef[]> {

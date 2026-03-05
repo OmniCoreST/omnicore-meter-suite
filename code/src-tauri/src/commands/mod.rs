@@ -71,9 +71,12 @@ pub async fn connect(params: ConnectionParams, window: tauri::Window) -> Result<
     let timeout_ms = if params.timeout_ms == 0 { 5000 } else { params.timeout_ms };
     let meter_address = params.meter_address.clone();
 
+    // Probe timeout: short per-baud-rate timeout used during baud scanning.
+    // The full timeout_ms is only used for actual data reads after connection.
+    // Keeps baud scan fast when trying multiple rates (max ~2s per attempt).
+    let probe_timeout_ms: u64 = 1500;
+
     // Determine initial baud rates based on connection type (Turkish MASS standard)
-    // Try 19200 first: if the meter is at MAS6 we connect immediately without sending
-    // garbage bytes at wrong baud rates (which confuses RS485 meters).
     let baud_rates_to_try = io::resolve_initial_bauds(&params.connection_type, params.baud_rate);
 
     let mut port: Option<Box<dyn SerialPort>> = None;
@@ -97,8 +100,8 @@ pub async fn connect(params: ConnectionParams, window: tauri::Window) -> Result<
         emit_log("info", &format!("Seri port açılıyor: {} @ {} baud (7E1) [Deneme {}/{}]",
             port_name, try_baud, attempt + 1, baud_rates_to_try.len()), None);
 
-        // Open serial port with IEC 62056-21 settings (7E1)
-        let mut current_port = match iec62056::open_port(&port_name, try_baud, timeout_ms as u64) {
+        // Open serial port with probe timeout (short, for fast baud scanning)
+        let mut current_port = match iec62056::open_port(&port_name, try_baud, probe_timeout_ms) {
             Ok(p) => p,
             Err(e) => {
                 emit_log("warn", &format!("Port açılamadı @ {} baud: {}", try_baud, e), None);
@@ -149,13 +152,14 @@ pub async fn connect(params: ConnectionParams, window: tauri::Window) -> Result<
                 Err(_) => break,
             }
 
-            if start_time.elapsed() > Duration::from_millis(timeout_ms as u64) {
+            if start_time.elapsed() > Duration::from_millis(probe_timeout_ms) {
                 break;
             }
         }
 
         if total_read > 0 {
-            // We got a response!
+            // Got a response — restore full timeout for subsequent data reads
+            let _ = current_port.set_timeout(Duration::from_millis(timeout_ms as u64));
             successful_baud = try_baud;
             port = Some(current_port);
             emit_log("success", &format!("Yanıt alındı @ {} baud ({} byte)", try_baud, total_read), None);

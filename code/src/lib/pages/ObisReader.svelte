@@ -31,10 +31,15 @@
     energy: ["1.8.0", "1.8.1", "1.8.2", "1.8.3", "2.8.0", "5.8.0", "6.8.0", "7.8.0", "8.8.0", "1.6.0"],
     instant: ["32.7.0", "52.7.0", "72.7.0", "31.7.0", "51.7.0", "71.7.0", "14.7.0", "33.7.0", "53.7.0", "73.7.0"],
     status: ["96.1.0", "0.9.1", "0.9.2", "96.50.1", "96.3.10", "97.97.0", "96.7.0", "96.7.1", "96.7.2", "96.7.3"],
+    events: ["96.20.5", "96.20.6", "96.20.6*1", "96.20.0", "96.20.1", "96.20.15", "96.20.16", "F.F.0", "F.A.0", "96.5.0"],
   };
 
   function applyPreset(type: keyof typeof presets) {
     const codes = presets[type];
+    // Ensure enough rows exist
+    while (rows.length < codes.length) {
+      rows = [...rows, { id: rows.length + 1, code: "", value: "", checked: true, loading: false }];
+    }
     rows = rows.map((row, i) => ({
       ...row,
       code: codes[i] || "",
@@ -146,7 +151,7 @@
         class="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
       >
         {#if isReading}
-          <Icon name="sync" class="animate-spin" />
+          <Icon name="sync" class="animate-spin-reverse" />
           {$t.reading}
         {:else}
           <Icon name="play_arrow" />
@@ -180,6 +185,13 @@
       >
         <Icon name="info" size="sm" class="inline mr-1" />
         {$t.presetStatus}
+      </button>
+      <button
+        onclick={() => applyPreset("events")}
+        class="px-4 py-2 bg-orange-500/10 hover:bg-orange-500/20 border border-orange-500/20 rounded-lg text-sm font-medium text-orange-600 dark:text-orange-400 transition-colors"
+      >
+        <Icon name="warning" size="sm" class="inline mr-1" />
+        {$t.presetEvents}
       </button>
       <div class="flex-1"></div>
       <button
@@ -239,7 +251,7 @@
               <td class="px-4 py-2">
                 {#if row.loading}
                   <div class="flex items-center gap-2 text-primary">
-                    <Icon name="sync" size="sm" class="animate-spin" />
+                    <Icon name="sync" size="sm" class="animate-spin-reverse" />
                     <span class="text-sm">{$t.reading}</span>
                   </div>
                 {:else if row.value}

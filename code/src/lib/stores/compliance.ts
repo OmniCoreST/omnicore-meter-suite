@@ -8,6 +8,8 @@ export interface ComplianceIssue {
   actual: string;
   description: string;
   specRef?: string;
+  cause?: string;
+  remedy?: string;
 }
 
 export type RulesStatus = "ok" | "offline" | "tooOld";
@@ -56,4 +58,14 @@ export const hasComplianceErrors = derived(
 export const hasComplianceWarnings = derived(
   complianceStore,
   ($s) => ($s.result?.warningCount ?? 0) > 0
+);
+
+export const complianceErrorCount = derived(
+  complianceStore,
+  ($s) => $s.result?.errorCount ?? 0
+);
+
+export const complianceWarningCount = derived(
+  complianceStore,
+  ($s) => $s.result?.warningCount ?? 0
 );

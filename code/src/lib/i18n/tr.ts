@@ -607,6 +607,7 @@ export const tr = {
   presetEnergy: "Enerji Kodları",
   presetInstant: "Anlık Ölçümler",
   presetStatus: "Durum Kodları",
+  presetEvents: "Olay Kayıtları",
   obisPlaceholder: "Örn: 1.8.0",
   noValue: "Değer yok",
   presets: "Hazır Setler",

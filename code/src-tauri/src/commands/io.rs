@@ -14,28 +14,21 @@ use tauri::{Emitter, Window};
 /// Turkish MASS standard behavior:
 /// - optical: always 300 bps (IEC 62056-21 requirement), negotiate up
 /// - auto + specific baud: use that baud
-/// - auto + auto (0): try 9600, then 300
+/// - auto + auto (0): try all IEC 62056-21 rates (300 first per standard, then common rates)
 /// - serial + specific baud: use that baud
-/// - serial + auto (0): try 9600, then 300, then 19200
+/// - serial + auto (0): try all IEC 62056-21 rates
 pub fn resolve_initial_bauds(connection_type: &str, configured_baud: u32) -> Vec<u32> {
     match connection_type {
         "optical" => vec![300],
-        "auto" => {
+        "auto" | _ => {
             if configured_baud > 0 {
                 vec![configured_baud]
             } else {
                 // IEC 62056-21: /?! is always sent at 300 baud per standard.
-                // Meters at MAS6 (19200) only respond to /?! at 300 baud.
-                // Try 300 first (standard), then 9600, then 19200.
-                vec![300, 9600, 19200]
-            }
-        }
-        _ => {
-            // "serial", "rs485", "rs232", or any other
-            if configured_baud > 0 {
-                vec![configured_baud]
-            } else {
-                vec![300, 9600, 19200]
+                // Standards-compliant meters respond at 300. Non-standard meters may only
+                // respond at their factory baud rate, so we try all IEC 62056-21 rates.
+                // Order: 300 first (standard), then most common factory rates.
+                vec![300, 9600, 2400, 4800, 19200, 1200, 600]
             }
         }
     }

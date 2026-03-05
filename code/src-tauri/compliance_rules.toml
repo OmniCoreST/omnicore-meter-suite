@@ -36,6 +36,8 @@ check = "not_empty"
 severity = "error"
 description = "Seri numarası boş — sayaç kimliği okunamıyor"
 spec_ref = "TEDAŞ Şartname 3.1 / MASS Şartname 3.1"
+cause = "Sayaç hafızasında seri numarası kaydı bulunmuyor veya 0.0.0 OBIS kodu yanıt vermiyor."
+remedy = "Sayacı servise gönderin. Fabrika ayarlarında seri numarası programlanmalıdır."
 
 [[rules]]
 code = "ID-002"
@@ -44,6 +46,8 @@ check = "not_empty"
 severity = "warning"
 description = "Üretim tarihi boş"
 spec_ref = "TEDAŞ Şartname 3.1 / MASS Şartname 3.1"
+cause = "Sayaç üretim tarihi parametresi programlanmamış veya OBIS 0.1.0 kaydı yok."
+remedy = "Sayacı üretici servisiyle iletişime geçerek üretim tarihi parametresini programlatın."
 
 [[rules]]
 code = "ID-003"
@@ -52,6 +56,8 @@ check = "not_empty"
 severity = "warning"
 description = "Kalibrasyon tarihi boş"
 spec_ref = "TEDAŞ Şartname 2.1.11 madde 47 / MASS Şartname 2.1.11"
+cause = "Sayaç kalibrasyon tarihi hiç girilmemiş veya periyodik kalibrasyon yapılmamış."
+remedy = "Akredite bir laboratuvarda kalibrasyon yaptırın ve tarihi sayaca programlatın."
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # ELEKTRİKSEL PARAMETRELER
@@ -68,6 +74,8 @@ max = 265.0
 severity = "error"
 description = "L1 (R faz) gerilimi çalışma aralığı dışında (90–265 V)"
 spec_ref = "TEDAŞ Şartname 2.2.2 Çizelge 4 / MASS Şartname 2.2.2"
+cause = "Şebeke gerilimi normal sınırlar dışında. Düşük gerilim: trafo sorunu veya aşırı yük. Yüksek gerilim: reaktif güç dengesizliği veya trafo hatası olabilir."
+remedy = "Dağıtım şirketi ile iletişime geçin. Trafo çıkış gerilimini ve bağlantı noktası gerilimini kontrol edin."
 
 [[rules]]
 code = "EL-002"
@@ -79,6 +87,8 @@ phases = 3
 severity = "error"
 description = "L2 (S faz) gerilimi çalışma aralığı dışında (90–265 V)"
 spec_ref = "TEDAŞ Şartname 2.2.2 Çizelge 4 / MASS Şartname 2.2.2"
+cause = "S fazı gerilimi anormal. Faz kopukluğu, kötü bağlantı veya şebeke dengesizliği olabilir."
+remedy = "Faz bağlantılarını ve sigorta durumunu kontrol edin. Dağıtım şirketini bilgilendirin."
 
 [[rules]]
 code = "EL-003"
@@ -90,6 +100,8 @@ phases = 3
 severity = "error"
 description = "L3 (T faz) gerilimi çalışma aralığı dışında (90–265 V)"
 spec_ref = "TEDAŞ Şartname 2.2.2 Çizelge 4 / MASS Şartname 2.2.2"
+cause = "T fazı gerilimi anormal. Faz kopukluğu, kötü bağlantı veya şebeke dengesizliği olabilir."
+remedy = "Faz bağlantılarını ve sigorta durumunu kontrol edin. Dağıtım şirketini bilgilendirin."
 
 [[rules]]
 code = "EL-004"
@@ -100,6 +112,8 @@ max = 51.0
 severity = "warning"
 description = "Şebeke frekansı tolerans dışında — beklenen: 50 Hz ±%2 (49–51 Hz)"
 spec_ref = "TEDAŞ Şartname 1.4 Çizelge 2 / MASS Şartname 1.4"
+cause = "Şebeke frekansı, Türkiye elektrik şebekesi için belirlenen 50 Hz ±%2 tolerans bandının dışında."
+remedy = "Bu durum genellikle anlık şebeke yüküne bağlıdır ve kullanıcı müdahalesini gerektirmez. Sürekli ise TEİAŞ'a bildirin."
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # PIL VE ROLE DURUMU
@@ -114,6 +128,8 @@ value = "low"
 severity = "warning"
 description = "Pil seviyesi düşük — sayaç belleğini kaybedebilir"
 spec_ref = "TEDAŞ Şartname 4.11 / MASS Şartname 4.11"
+cause = "Yedek pil ömrünü tamamlamak üzere. Güç kesintisinde sayaç saati ve belleği korunamayabilir."
+remedy = "En kısa sürede yetkili servis aracılığıyla pili değiştirin. Sayacı kapalı tutmayın."
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # DEMANT PERIYODU
@@ -128,6 +144,8 @@ value = "15"
 severity = "warning"
 description = "Talep ölçüm periyodu 15 dakika olmalı (TEDAŞ standart değeri)"
 spec_ref = "TEDAŞ Şartname 4.3 madde 91 / MASS Şartname 4.3 madde 80"
+cause = "Sayaç talep ölçüm periyodu TEDAŞ standardı olan 15 dakika yerine farklı bir değere programlanmış."
+remedy = "Sayacın talep periyodu parametresini 15 dakika olarak programlayın (Periyotlar sayfasından yapılabilir)."
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # TARiFE DENGESi
@@ -142,6 +160,8 @@ tolerance = 0.01
 severity = "warning"
 description = "T1+T2+T3+T4 toplamı genel toplama eşit değil (tolerans: 0,01 kWh)"
 spec_ref = "TEDAŞ Şartname 4.2 / MASS Şartname 4.2"
+cause = "Tarife register'larının toplamı toplam enerji değeriyle örtüşmüyor. Sayaç yazılım hatası veya bozuk hafıza kaydı olabilir."
+remedy = "Sayacı servise gönderin. Register tutarsızlığı fabrika sıfırlaması gerektirebilir."
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # SAAT SAPMASI
@@ -157,6 +177,8 @@ max_drift = 5
 severity = "warning"
 description = "Sayaç saati sistem saatinden 5 dakikadan fazla sapıyor — zaman senkronizasyonu önerilir"
 spec_ref = "TEDAŞ Şartname 2.1.11 madde 47 / TS EN 62054-21"
+cause = "Sayaç iç saati (RTC) ile bilgisayar saati arasında 5 dakikadan fazla fark var. Uzun süredir senkronize edilmemiş veya RTC pili zayıflamış olabilir."
+remedy = "Zaman Senkronizasyonu sayfasından saat düzeltmesi yapın. Sorun tekrarlarsa pil değişimi gerekebilir."
 
 # ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 # FF HATA / DURUM KODU (F.F.0)
@@ -174,6 +196,8 @@ bit = 0
 severity = "error"
 description = "Gerçek zamanlı saat modülü (RTC) arızası (FF Bit 0)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayaç içindeki RTC entegresi arızalı veya RTC pili tamamen bitmiş."
+remedy = "Sayacı yetkili servise gönderin. RTC modülü veya pil değişimi gereklidir."
 
 [[rules]]
 code = "FF-002"
@@ -183,6 +207,8 @@ bit = 1
 severity = "error"
 description = "Ölçüm entegresi arızası — enerji ölçümü güvenilir değil (FF Bit 1)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Enerji ölçüm entegresi (metroloji çipi) arızalı. Bu durumda sayacın ölçüm değerlerine güvenilemez."
+remedy = "Sayacı derhal devre dışı bırakın ve yetkili servis aracılığıyla değiştirin."
 
 [[rules]]
 code = "FF-003"
@@ -192,6 +218,8 @@ bit = 2
 severity = "error"
 description = "Kritik ölçüm hatası tespit edildi (FF Bit 2)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayaç kendi öz-testinde kritik bir donanım hatası tespit etti."
+remedy = "Sayacı yetkili servis aracılığıyla değiştirin. Ölçüm değerleri geçersiz sayılmalıdır."
 
 [[rules]]
 code = "FF-004"
@@ -201,6 +229,8 @@ bit = 3
 severity = "warning"
 description = "RS-485 iletişim portu hatası (FF Bit 3)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayacın RS-485 haberleşme portu hata durumunda. Kablo sorunu veya port donanımı arızalı olabilir."
+remedy = "RS-485 kablo bağlantılarını kontrol edin. Sorun devam ederse yetkili servis çağırın."
 
 [[rules]]
 code = "FF-005"
@@ -210,6 +240,8 @@ bit = 4
 severity = "error"
 description = "Sayaç kalibre edilmemiş (FF Bit 4)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayaç fabrikadan kalibrasyon yapılmadan çıkmış ya da kalibrasyon verileri silinmiş."
+remedy = "Akredite bir kalibrasyon laboratuvarında kalibrasyon yaptırın. Sayaç bu halde kullanılamaz."
 
 # ── Fiziksel Mudahale (Bit 5–7) ─────────────────────────────────────────────
 
@@ -221,6 +253,8 @@ bit = 5
 severity = "warning"
 description = "Klemens kapağı açık veya açılma geçmişi mevcut (FF Bit 5)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Klemens bölmesi kapağı açılmış ya da şu anda açık. Yetkisiz müdahale veya bakım kaydı olabilir."
+remedy = "Kapak kapalıysa geçmiş müdahale tutanağını inceleyin. Açıksa derhal kapatıp mühürleyin ve tutanak tutun."
 
 [[rules]]
 code = "FF-007"
@@ -230,6 +264,8 @@ bit = 6
 severity = "warning"
 description = "Üst kapak açık veya açılma geçmişi mevcut (FF Bit 6)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayacın üst kapağı açılmış ya da şu anda açık. Yetkisiz müdahale şüphesi."
+remedy = "Kapak kapalıysa geçmiş açılma kaydını inceleyin. Gerekirse tutanak tutarak dağıtım şirketini bilgilendirin."
 
 [[rules]]
 code = "FF-008"
@@ -239,6 +275,8 @@ bit = 7
 severity = "info"
 description = "Geçmişte üst kapak açılmış (FF Bit 7)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayaç hafızasında geçmişte üst kapak açılma olayı kaydedilmiş."
+remedy = "Geçmiş uyarılar sayfasından kapak açılma kaydını inceleyin. Yetkisiz açılma şüphesi varsa dağıtım şirketini bilgilendirin."
 
 # ── Akım Var / Gerilim Yok (Bit 8–10) ──────────────────────────────────────
 
@@ -250,6 +288,8 @@ bit = 8
 severity = "error"
 description = "R fazında akım var, gerilim yok — kaçak veya müdahale şüphesi (FF Bit 8)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "R fazında gerilim ölçülmüyor ancak akım akmaya devam ediyor. Sayaç gerilim bağlantısının devre dışı bırakıldığına dair bir müdahale şüphesi taşıyor."
+remedy = "Acilen dağıtım şirketine bildirin. Sayaç bağlantılarını yetkili teknisyen incelemelidir."
 
 [[rules]]
 code = "FF-010"
@@ -260,6 +300,8 @@ phases = 3
 severity = "error"
 description = "S fazında akım var, gerilim yok — kaçak veya müdahale şüphesi (FF Bit 9)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "S fazında gerilim ölçülmüyor ancak akım akmaya devam ediyor. Müdahale şüphesi."
+remedy = "Acilen dağıtım şirketine bildirin. Sayaç bağlantılarını yetkili teknisyen incelemelidir."
 
 [[rules]]
 code = "FF-011"
@@ -270,6 +312,8 @@ phases = 3
 severity = "error"
 description = "T fazında akım var, gerilim yok — kaçak veya müdahale şüphesi (FF Bit 10)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "T fazında gerilim ölçülmüyor ancak akım akmaya devam ediyor. Müdahale şüphesi."
+remedy = "Acilen dağıtım şirketine bildirin. Sayaç bağlantılarını yetkili teknisyen incelemelidir."
 
 # ── Manyetik Alan (Bit 11–13) ───────────────────────────────────────────────
 # TEDAS Şartname 4.10 madde 141, MASS Şartname 4.10 madde 128 — Esik: >400 mT
@@ -282,6 +326,8 @@ bit = 11
 severity = "error"
 description = "R fazında manyetik alan müdahalesi tespit edildi (>400 mT) (FF Bit 11)"
 spec_ref = "TEDAŞ Şartname 4.10 madde 141 / MASS Şartname 4.10 madde 128"
+cause = "Sayaç ölçüm devresini etkileyecek güçte bir manyetik alan (>400 mT) tespit edildi. Harici güçlü mıknatıs ile müdahale şüphesi."
+remedy = "Acilen dağıtım şirketine bildirin. Sayaç çevresini inceleyin. Manyetik müdahale enerji hırsızlığı kapsamında değerlendirilebilir."
 
 [[rules]]
 code = "FF-013"
@@ -292,6 +338,8 @@ phases = 3
 severity = "error"
 description = "S fazında manyetik alan müdahalesi tespit edildi (>400 mT) (FF Bit 12)"
 spec_ref = "TEDAŞ Şartname 4.10 madde 141 / MASS Şartname 4.10 madde 128"
+cause = "S fazı ölçüm devresini etkileyecek güçte manyetik alan tespit edildi. Harici güçlü mıknatıs ile müdahale şüphesi."
+remedy = "Acilen dağıtım şirketine bildirin. Manyetik müdahale enerji hırsızlığı kapsamında değerlendirilebilir."
 
 [[rules]]
 code = "FF-014"
@@ -302,6 +350,8 @@ phases = 3
 severity = "error"
 description = "T fazında manyetik alan müdahalesi tespit edildi (>400 mT) (FF Bit 13)"
 spec_ref = "TEDAŞ Şartname 4.10 madde 141 / MASS Şartname 4.10 madde 128"
+cause = "T fazı ölçüm devresini etkileyecek güçte manyetik alan tespit edildi. Harici güçlü mıknatıs ile müdahale şüphesi."
+remedy = "Acilen dağıtım şirketine bildirin. Manyetik müdahale enerji hırsızlığı kapsamında değerlendirilebilir."
 
 # ── Endeks Durgunlugu (Bit 14–16) ───────────────────────────────────────────
 
@@ -313,6 +363,8 @@ bit = 14
 severity = "warning"
 description = "Akım >20 mA iken T1 endeksi durağan — kayıt hatası şüphesi (FF Bit 14)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Akım geçmesine rağmen T1 tarife endeksi artmıyor. Tarife programı bozuk, sayaç yazılımı arızalı veya tarife saati yanlış olabilir."
+remedy = "Tarife yapılandırmasını ve sayaç saatini kontrol edin. Sorun devam ederse yetkili servis çağırın."
 
 [[rules]]
 code = "FF-016"
@@ -322,6 +374,8 @@ bit = 15
 severity = "warning"
 description = "Akım >20 mA iken T2 endeksi durağan — kayıt hatası şüphesi (FF Bit 15)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Akım geçmesine rağmen T2 tarife endeksi artmıyor. Tarife programı bozuk veya tarife saati yanlış olabilir."
+remedy = "Tarife yapılandırmasını ve sayaç saatini kontrol edin. Sorun devam ederse yetkili servis çağırın."
 
 [[rules]]
 code = "FF-017"
@@ -331,6 +385,8 @@ bit = 16
 severity = "warning"
 description = "Akım >20 mA iken T3 endeksi durağan — kayıt hatası şüphesi (FF Bit 16)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Akım geçmesine rağmen T3 tarife endeksi artmıyor. Tarife programı bozuk veya tarife saati yanlış olabilir."
+remedy = "Tarife yapılandırmasını ve sayaç saatini kontrol edin. Sorun devam ederse yetkili servis çağırın."
 
 # ── Faz Endeks Ilerleyisi Sifir (Bit 17–19) ─────────────────────────────────
 
@@ -342,6 +398,8 @@ bit = 17
 severity = "warning"
 description = "R faz enerji endeksi iki aydır ilerlemiyor (FF Bit 17)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "R fazı toplam enerji tüketimi iki aydır sıfır. Abone tüketime rağmen endeks artmıyorsa sayaç ölçüm sorunu veya bağlantı hatası var demektir."
+remedy = "Fiziksel bağlantıyı ve sigorta durumunu kontrol edin. Gerçek tüketim varsa sayacı servise gönderin."
 
 [[rules]]
 code = "FF-019"
@@ -352,6 +410,8 @@ phases = 3
 severity = "warning"
 description = "S faz enerji endeksi iki aydır ilerlemiyor (FF Bit 18)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "S fazı toplam enerji tüketimi iki aydır sıfır. Faz kopukluğu veya sayaç ölçüm hatası olabilir."
+remedy = "S fazı bağlantısını ve sigorta durumunu kontrol edin. Gerçek tüketim varsa yetkili servis çağırın."
 
 [[rules]]
 code = "FF-020"
@@ -362,6 +422,8 @@ phases = 3
 severity = "warning"
 description = "T faz enerji endeksi iki aydır ilerlemiyor (FF Bit 19)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "T fazı toplam enerji tüketimi iki aydır sıfır. Faz kopukluğu veya sayaç ölçüm hatası olabilir."
+remedy = "T fazı bağlantısını ve sigorta durumunu kontrol edin. Gerçek tüketim varsa yetkili servis çağırın."
 
 # ── Faz Kesilmesi (Bit 20–23) ───────────────────────────────────────────────
 
@@ -373,6 +435,8 @@ bit = 20
 severity = "warning"
 description = "R faz kesintisi alarmı devam ediyor (FF Bit 20)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "R fazında aktif bir gerilim kesintisi alarmı sürüyor. Şebeke arızası, trafo sorunu veya ana sigorta atması olabilir."
+remedy = "Dağıtım şirketini bilgilendirin. R fazı gerilimini ölçün ve sigorta durumunu kontrol edin."
 
 [[rules]]
 code = "FF-022"
@@ -383,6 +447,8 @@ phases = 3
 severity = "warning"
 description = "S faz kesintisi alarmı devam ediyor (FF Bit 21)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "S fazında aktif bir gerilim kesintisi alarmı sürüyor. Şebeke arızası veya sigorta atması olabilir."
+remedy = "Dağıtım şirketini bilgilendirin. S fazı gerilimini ölçün ve sigorta durumunu kontrol edin."
 
 [[rules]]
 code = "FF-023"
@@ -393,6 +459,8 @@ phases = 3
 severity = "warning"
 description = "T faz kesintisi alarmı devam ediyor (FF Bit 22)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "T fazında aktif bir gerilim kesintisi alarmı sürüyor. Şebeke arızası veya sigorta atması olabilir."
+remedy = "Dağıtım şirketini bilgilendirin. T fazı gerilimini ölçün ve sigorta durumunu kontrol edin."
 
 [[rules]]
 code = "FF-024"
@@ -402,6 +470,8 @@ bit = 23
 severity = "warning"
 description = "3 faz birden kesintisi alarmı devam ediyor (FF Bit 23)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Üç fazın tamamında eş zamanlı gerilim kesintisi alarmı sürüyor. Genel şebeke arızası, trafo veya ana hat sigortası atması olabilir."
+remedy = "Acilen dağıtım şirketini bilgilendirin. Trafo ve ana hat sigortalarını kontrol ettirin."
 
 # ── Sonlanmamis Uyarilar (Bit 24–25) ────────────────────────────────────────
 
@@ -413,6 +483,8 @@ bit = 24
 severity = "warning"
 description = "Akım hatası uyarısı hâlâ aktif, sonlanmamış (FF Bit 24)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayaç tarafından tetiklenen akım hatası uyarısı (aşırı akım, faz dengesizliği vb.) henüz kapanmamış."
+remedy = "Yük durumunu ve faz akımlarını kontrol edin. Aşırı yük varsa yükü azaltın. Sorun devam ederse yetkili servis çağırın."
 
 [[rules]]
 code = "FF-026"
@@ -422,6 +494,8 @@ bit = 25
 severity = "warning"
 description = "Gerilim hatası uyarısı hâlâ aktif, sonlanmamış (FF Bit 25)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayaç tarafından tetiklenen gerilim hatası uyarısı (düşük/yüksek gerilim vb.) henüz kapanmamış."
+remedy = "Hat gerilimini ölçün. Anormal gerilim varsa dağıtım şirketini bilgilendirin."
 
 # ── Endeks Gerilemesi (Bit 26–28) ───────────────────────────────────────────
 
@@ -433,6 +507,8 @@ bit = 26
 severity = "error"
 description = "R faz aktif enerji endeksi geriledi — enerji hırsızlığı şüphesi (FF Bit 26)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "R fazı enerji endeksi azalmış. Bu durum enerji hırsızlığı, müdahale veya ciddi bir sayaç arızasına işaret eder."
+remedy = "Acilen dağıtım şirketine bildirin. Sayaç bağlantıları ve tüketim geçmişi yetkili teknisyen tarafından incelenmeli."
 
 [[rules]]
 code = "FF-028"
@@ -443,6 +519,8 @@ phases = 3
 severity = "error"
 description = "S faz aktif enerji endeksi geriledi — enerji hırsızlığı şüphesi (FF Bit 27)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "S fazı enerji endeksi azalmış. Enerji hırsızlığı, müdahale veya sayaç arızası şüphesi."
+remedy = "Acilen dağıtım şirketine bildirin. Sayaç bağlantıları yetkili teknisyen tarafından incelenmeli."
 
 [[rules]]
 code = "FF-029"
@@ -453,6 +531,8 @@ phases = 3
 severity = "error"
 description = "T faz aktif enerji endeksi geriledi — enerji hırsızlığı şüphesi (FF Bit 28)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "T fazı enerji endeksi azalmış. Enerji hırsızlığı, müdahale veya sayaç arızası şüphesi."
+remedy = "Acilen dağıtım şirketine bildirin. Sayaç bağlantıları yetkili teknisyen tarafından incelenmeli."
 
 # ── Demant Anomalisi (Bit 29–31) ────────────────────────────────────────────
 
@@ -464,6 +544,8 @@ bit = 29
 severity = "warning"
 description = "Aktif güç varken maksimum talep endeksi ilerlemiyor (FF Bit 29)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Aktif enerji tüketilmesine rağmen maksimum talep (demant) kaydı artmıyor. Sayacın demant ölçüm modülü arızalı veya demant periyodu yanlış yapılandırılmış olabilir."
+remedy = "Demant periyodunu kontrol edin (standart: 15 dk). Sorun devam ederse yetkili servis çağırın."
 
 [[rules]]
 code = "FF-031"
@@ -473,6 +555,8 @@ bit = 30
 severity = "warning"
 description = "T0 ile T1+T2+T3+T4 toplamı arasındaki fark 200 W'ı aşıyor (FF Bit 30)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Toplam aktif güç ile tarife dilimlerinin güç toplamı arasında 200 W'ın üzerinde fark var. Tarife programı hatalı veya sayaç yazılımı arızalı olabilir."
+remedy = "Tarife yapılandırmasını kontrol edin. Sorun devam ederse sayacı yetkili servise gönderin."
 
 [[rules]]
 code = "FF-032"
@@ -482,6 +566,8 @@ bit = 31
 severity = "info"
 description = "T4 tarifesinde endeks mevcut — T4 tarifesi aktif (FF Bit 31)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayaçta T4 tarifesi aktif ve bu tarifede tüketim kaydedilmiş. Bazı bölgelerde T4 tarifesi kullanılmayabilir."
+remedy = "Aboneliğin T4 tarifesini desteklediğini doğrulayın. Beklenmedik bir durumsa tarife programını gözden geçirin."
 
 # ── Tarife Bozukluklari (Bit 32–34) ─────────────────────────────────────────
 
@@ -493,6 +579,8 @@ bit = 32
 severity = "error"
 description = "Tarife dilimi ve saatleri arızalı — tarife yapılandırması geçersiz (FF Bit 32)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayacın tarife dilim programı bozulmuş veya geçersiz. Güç kesintisi, hafıza bozulması ya da yanlış programlama sonucu oluşabilir."
+remedy = "Yetkili servis aracılığıyla tarife programını sıfırlayıp yeniden yükleyin. Bu işlem için dağıtım şirketiyle koordinasyon gerekebilir."
 
 [[rules]]
 code = "FF-034"
@@ -502,6 +590,8 @@ bit = 33
 severity = "warning"
 description = "Tarife değişiklik yılı üretim yılından farklı (FF Bit 33)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayaca yüklenen son tarife programının geçerlilik yılı, sayacın üretim yılıyla uyuşmuyor. Hatalı programlama veya yanlış tarife dosyası kullanılmış olabilir."
+remedy = "Tarife programını güncel ve doğru yıl bilgisiyle yeniden yükleyin."
 
 [[rules]]
 code = "FF-035"
@@ -511,6 +601,8 @@ bit = 34
 severity = "warning"
 description = "Üretim yılı kalibrasyon yılından farklı (FF Bit 34)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayacın üretim yılı ile kalibrasyon yılı arasında tutarsızlık var. Kalibrasyon tarihi hatalı girilmiş veya sayaç yeniden kalibre edilmemiş olabilir."
+remedy = "Kalibrasyon tarihini doğrulayın. Gerekirse akredite laboratuvarda yeniden kalibrasyon yaptırın."
 
 # ── Uzun Sureli Anomaliler (Bit 35–38) ──────────────────────────────────────
 
@@ -522,6 +614,8 @@ bit = 35
 severity = "warning"
 description = "Son 3 ayda maksimum talep değişmedi ve gerilim mevcut (FF Bit 35)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Gerilim olmasına rağmen 3 aydır demant değeri hiç değişmemiş. Abonelik gerçekte tüketim yapmıyor olabilir ya da demant kaydı arızalı."
+remedy = "Abonenin gerçek tüketim durumunu doğrulayın. Tüketim varsa sayacın demant modülünü yetkili serviste kontrol ettirin."
 
 [[rules]]
 code = "FF-037"
@@ -531,6 +625,8 @@ bit = 36
 severity = "error"
 description = "İki bellek bölgesi hatası — veri bütünlüğü riski (FF Bit 36)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayacın iki ayrı bellek bölgesinde hata tespit edildi. Bu durum veri kaybı veya bozulma riskine işaret eder."
+remedy = "Sayacı derhal yetkili servise gönderin. Bellek arızası mevcut kayıtların güvenilirliğini tehlikeye atabilir."
 
 [[rules]]
 code = "FF-038"
@@ -540,6 +636,8 @@ bit = 37
 severity = "warning"
 description = "Sistem pili zayıf (FF Bit 37)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayacın ana yedek pili ömrünü tamamlamak üzere. Güç kesintisinde sistem verileri korunamayabilir."
+remedy = "En kısa sürede yetkili servis aracılığıyla sistemi pili değiştirin."
 
 [[rules]]
 code = "FF-039"
@@ -549,6 +647,8 @@ bit = 38
 severity = "warning"
 description = "Gerçek zamanlı saat (RTC) pili zayıf — saat kaybı riski (FF Bit 38)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "RTC (gerçek zamanlı saat) pili bitmek üzere. Güç kesintisinde sayaç saati sıfırlanabilir, bu da tarife uygulamasını ve yük profilini olumsuz etkiler."
+remedy = "Yetkili servis aracılığıyla RTC pilini değiştirin. Değişim sonrası saat senkronizasyonu yapın."
 
 # ── Sik Alarm Durumlari (Bit 39–43) ─────────────────────────────────────────
 
@@ -560,6 +660,8 @@ bit = 39
 severity = "warning"
 description = "Sık kesinti alarmı aktif (saatte >20 kesinti) (FF Bit 39)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Son bir saatte 20'den fazla kısa süreli güç kesintisi yaşanmış. Şebeke kalitesi sorunları, gevşek bağlantı veya trafo arızası olabilir."
+remedy = "Bağlantı noktasını ve sigorta kutusunu kontrol edin. Dağıtım şirketini kesinti raporu için bilgilendirin."
 
 [[rules]]
 code = "FF-041"
@@ -569,6 +671,8 @@ bit = 40
 severity = "warning"
 description = "Sık uyarı alarmı devam ediyor (FF Bit 40)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayaç kısa aralıklarla tekrarlayan uyarılar üretiyor. Kararsız şebeke, gevşek bağlantı veya aşırı yük dalgalanması olabilir."
+remedy = "Şebeke gerilimini izleyin. Dalgalanma sürekliyse dağıtım şirketine bildirin."
 
 [[rules]]
 code = "FF-042"
@@ -578,6 +682,8 @@ bit = 41
 severity = "warning"
 description = "R fazında sık uyarı alarmı devam ediyor (FF Bit 41)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "R fazına özgü tekrarlayan uyarılar sürüyor. Faza özgü yük dalgalanması, bağlantı sorunu veya şebeke dengesizliği olabilir."
+remedy = "R fazı gerilimi ve bağlantılarını kontrol edin. Dağıtım şirketini bilgilendirin."
 
 [[rules]]
 code = "FF-043"
@@ -588,6 +694,8 @@ phases = 3
 severity = "warning"
 description = "S fazında sık uyarı alarmı devam ediyor (FF Bit 42)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "S fazına özgü tekrarlayan uyarılar sürüyor. Şebeke dengesizliği veya S fazı bağlantı sorunu olabilir."
+remedy = "S fazı gerilimi ve bağlantılarını kontrol edin. Dağıtım şirketini bilgilendirin."
 
 [[rules]]
 code = "FF-044"
@@ -598,6 +706,8 @@ phases = 3
 severity = "warning"
 description = "T fazında sık uyarı alarmı devam ediyor (FF Bit 43)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "T fazına özgü tekrarlayan uyarılar sürüyor. Şebeke dengesizliği veya T fazı bağlantı sorunu olabilir."
+remedy = "T fazı gerilimi ve bağlantılarını kontrol edin. Dağıtım şirketini bilgilendirin."
 
 # ── Guc ve Gerilim Asimlari (Bit 44–53) ─────────────────────────────────────
 
@@ -609,6 +719,8 @@ bit = 44
 severity = "info"
 description = "Yüksek maksimum talep aşımı (MF: 20 kW, TF: 60 kW) (FF Bit 44)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayacın kaydettiği maksimum anlık güç (demant) belirlenen sınırı (monofaze: 20 kW, trifaze: 60 kW) aşmış."
+remedy = "Abonenin sözleşme gücünü ve yük profilini gözden geçirin. Sürekli aşım varsa dağıtım şirketiyle sözleşme kapasitesi artırımı için görüşün."
 
 [[rules]]
 code = "FF-046"
@@ -618,6 +730,8 @@ bit = 45
 severity = "warning"
 description = "R fazında yüksek gerilim aşımı (>253 V) (FF Bit 45)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "R fazında gerilim 253 V sınırını aşmış. Şebeke gerilimi yüksek, trafo voltaj kademesi yanlış veya reaktif güç dengesizliği olabilir."
+remedy = "Dağıtım şirketini bilgilendirin. Trafo çıkış gerilimini ve reaktif güç kompanzasyonunu kontrol ettirin."
 
 [[rules]]
 code = "FF-047"
@@ -628,6 +742,8 @@ phases = 3
 severity = "warning"
 description = "S fazında yüksek gerilim aşımı (>253 V) (FF Bit 46)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "S fazında gerilim 253 V sınırını aşmış. Şebeke dengesizliği veya trafo hatası olabilir."
+remedy = "Dağıtım şirketini bilgilendirin. Trafo çıkış gerilimini kontrol ettirin."
 
 [[rules]]
 code = "FF-048"
@@ -638,6 +754,8 @@ phases = 3
 severity = "warning"
 description = "T fazında yüksek gerilim aşımı (>253 V) (FF Bit 47)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "T fazında gerilim 253 V sınırını aşmış. Şebeke dengesizliği veya trafo hatası olabilir."
+remedy = "Dağıtım şirketini bilgilendirin. Trafo çıkış gerilimini kontrol ettirin."
 
 [[rules]]
 code = "FF-049"
@@ -647,6 +765,8 @@ bit = 48
 severity = "warning"
 description = "R fazında düşük gerilim aşımı (<195,5 V) (FF Bit 48)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "R fazı gerilimi 195,5 V'un altına düşmüş. Aşırı yük, uzun hat, ince iletken veya trafo yetersizliği olabilir."
+remedy = "Dağıtım şirketini bilgilendirin. Hat gerilim düşümünü hesaplatın, gerekirse iletken kesiti artırılmalıdır."
 
 [[rules]]
 code = "FF-050"
@@ -657,6 +777,8 @@ phases = 3
 severity = "warning"
 description = "S fazında düşük gerilim aşımı (<195,5 V) (FF Bit 49)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "S fazı gerilimi 195,5 V'un altına düşmüş. Aşırı yük, uzun hat veya trafo yetersizliği olabilir."
+remedy = "Dağıtım şirketini bilgilendirin. Hat ve trafo kapasitesini kontrol ettirin."
 
 [[rules]]
 code = "FF-051"
@@ -667,6 +789,8 @@ phases = 3
 severity = "warning"
 description = "T fazında düşük gerilim aşımı (<195,5 V) (FF Bit 50)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "T fazı gerilimi 195,5 V'un altına düşmüş. Aşırı yük, uzun hat veya trafo yetersizliği olabilir."
+remedy = "Dağıtım şirketini bilgilendirin. Hat ve trafo kapasitesini kontrol ettirin."
 
 [[rules]]
 code = "FF-052"
@@ -676,6 +800,8 @@ bit = 51
 severity = "warning"
 description = "R fazında yüksek akım aşımı (FF Bit 51)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "R fazı akımı sayacın ölçüm üst sınırını aşmış. Aşırı yük veya kısa devre akımı olabilir."
+remedy = "Bağlı yükleri kontrol edin. Aşırı yük varsa yükü azaltın veya sigorta kapasitesini gözden geçirin."
 
 [[rules]]
 code = "FF-053"
@@ -686,6 +812,8 @@ phases = 3
 severity = "warning"
 description = "S fazında yüksek akım aşımı (FF Bit 52)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "S fazı akımı sayacın ölçüm üst sınırını aşmış. Aşırı yük veya faz dengesizliği olabilir."
+remedy = "S fazına bağlı yükleri kontrol edin. Dengesiz yük varsa fazlar arasında yük dağılımını düzeltin."
 
 [[rules]]
 code = "FF-054"
@@ -696,6 +824,8 @@ phases = 3
 severity = "warning"
 description = "T fazında yüksek akım aşımı (FF Bit 53)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "T fazı akımı sayacın ölçüm üst sınırını aşmış. Aşırı yük veya faz dengesizliği olabilir."
+remedy = "T fazına bağlı yükleri kontrol edin. Dengesiz yük varsa fazlar arasında yük dağılımını düzeltin."
 
 # ── Dengesizlik ve Role (Bit 54–55) ─────────────────────────────────────────
 
@@ -707,6 +837,8 @@ bit = 54
 severity = "warning"
 description = "Nötr-faz akım dengesizliği tespit edildi (FF Bit 54)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Nötr hattında ölçülen akım, faz akımlarının beklenen değerinden anlamlı ölçüde farklı. Kaçak akım, faz dengesizliği veya nötr hattı sorunu olabilir."
+remedy = "Nötr hattı bağlantısını ve topraklama durumunu kontrol edin. Kaçak akım şüphesi varsa yetkili elektrikçi çağırın."
 
 [[rules]]
 code = "FF-056"
@@ -716,3 +848,5 @@ bit = 55
 severity = "error"
 description = "Açma-kesme rölesi arızası (FF Bit 55)"
 spec_ref = "TEDAŞ Şartname 5.3 Ek-F / MASS Şartname 5.3 Ek-C"
+cause = "Sayacın dahili açma/kesme rölesi arızalı. Röle, uzaktan komutla aboneyi kesme/bağlama işlevi yapamıyor."
+remedy = "Sayacı yetkili servise gönderin. Röle arızası uzaktan yönetimi engeller ve acil durumlarda kesme yapılamamasına yol açabilir."

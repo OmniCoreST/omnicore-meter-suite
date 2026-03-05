@@ -258,7 +258,7 @@
             class="flex items-center justify-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary/90 text-white text-sm font-bold rounded-xl transition-all shadow-md shadow-primary/20 hover:shadow-lg hover:shadow-primary/30 disabled:opacity-50 disabled:cursor-not-allowed disabled:shadow-none"
           >
             {#if isSaving}
-              <Icon name="sync" size="sm" class="animate-spin" />
+              <Icon name="sync" size="sm" class="animate-spin-reverse" />
               {$t.saving || "Saving..."}
             {:else}
               <Icon name="save" size="sm" />

@@ -149,7 +149,7 @@
         class="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
       >
         {#if isSaving && pendingAction === "save"}
-          <Icon name="sync" class="animate-spin" />
+          <Icon name="sync" class="animate-spin-reverse" />
           {$t.saving}
         {:else}
           <Icon name="edit_note" />
@@ -248,7 +248,7 @@
       class="flex items-center gap-2 px-6 py-3 bg-red-500 hover:bg-red-600 text-white font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {#if isSaving && pendingAction === "reset"}
-        <Icon name="sync" class="animate-spin" />
+        <Icon name="sync" class="animate-spin-reverse" />
         {$t.saving}
       {:else}
         <Icon name="restart_alt" />

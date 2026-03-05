@@ -148,7 +148,7 @@
           disabled={!$isConnected || isRefreshing}
           class="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-[#334a5e] hover:bg-slate-200 dark:hover:bg-[#455a6e] text-slate-700 dark:text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
-          <Icon name="refresh" size="sm" class={isRefreshing ? "animate-spin" : ""} />
+          <Icon name="refresh" size="sm" class={isRefreshing ? "animate-spin-reverse" : ""} />
           {$t.refresh}
         </button>
       </div>
@@ -226,7 +226,7 @@
       class="w-full flex items-center justify-center gap-2 px-6 py-3 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
     >
       {#if isSyncing}
-        <Icon name="sync" class="animate-spin" />
+        <Icon name="sync" class="animate-spin-reverse" />
         {$t.syncing}
       {:else}
         <Icon name="sync" />

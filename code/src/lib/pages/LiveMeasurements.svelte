@@ -180,7 +180,7 @@
             disabled={isReadingTechQuality}
             class="flex items-center gap-2 px-4 py-2.5 bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
           >
-            <Icon name="speed" size="sm" class={isReadingTechQuality ? "animate-spin" : ""} />
+            <Icon name="speed" size="sm" class={isReadingTechQuality ? "animate-spin-reverse" : ""} />
             {isReadingTechQuality ? $t.readingPacket : $t.readTechQuality}
           </button>
           <button
@@ -188,7 +188,7 @@
             disabled={isRefreshing}
             class="flex items-center gap-2 px-4 py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white rounded-lg text-sm font-medium transition-colors"
           >
-            <Icon name="refresh" size="sm" class={isRefreshing ? "animate-spin" : ""} />
+            <Icon name="refresh" size="sm" class={isRefreshing ? "animate-spin-reverse" : ""} />
             {$t.refreshMeasurements}
           </button>
         {/if}

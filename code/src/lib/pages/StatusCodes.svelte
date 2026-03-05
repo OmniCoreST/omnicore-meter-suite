@@ -15,7 +15,10 @@
     if (!data || !data.ffCode) return [];
 
     try {
-      const ffValue = BigInt("0x" + data.ffCode);
+      const ffRaw = data.ffCode;
+      const ffValue = /^[01]+$/.test(ffRaw) && ffRaw.length > 8
+        ? BigInt("0b" + ffRaw.slice(0, 64))
+        : BigInt("0x" + ffRaw);
 
       const bits = [];
       for (let i = 0; i < 56; i++) {
@@ -54,7 +57,10 @@
     }
 
     try {
-      const gfValue = BigInt("0x" + data.gfCode);
+      const gfRaw = data.gfCode;
+      const gfValue = /^[01]+$/.test(gfRaw) && gfRaw.length > 8
+        ? BigInt("0b" + gfRaw.slice(0, 64))
+        : BigInt("0x" + gfRaw);
 
       // EDAŞ ID (bits 0-4)
       const edasId = Number(gfValue & 0x1Fn);

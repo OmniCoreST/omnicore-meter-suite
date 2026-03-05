@@ -7,6 +7,7 @@
   import {
     checkCompliance,
     readFull,
+    readObisBatch,
     getComplianceRulesPath,
     reloadComplianceRules,
     updateComplianceRules,
@@ -26,15 +27,144 @@
   let showUpdateModal = $state(false);
   let fetchingData = $state(false);
 
-  const PHASES_KEY = "compliance_meter_phases";
-  let meterPhases = $state<1 | 3>(
-    (parseInt(localStorage.getItem(PHASES_KEY) ?? "3") === 1 ? 1 : 3)
-  );
+  // OBIS yağmuru canvas animasyonu
+  let rainCanvas = $state<HTMLCanvasElement | null>(null);
+  let rainAnimFrame: number | null = null;
 
-  function setMeterPhases(val: 1 | 3) {
-    meterPhases = val;
-    localStorage.setItem(PHASES_KEY, String(val));
+  const OBIS_CODES = [
+    "1.8.0","1.8.1","1.8.2","1.8.3","1.8.4",
+    "2.8.0","2.8.1","2.8.2","3.8.0","4.8.0",
+    "5.8.0","6.8.0","7.8.0","8.8.0",
+    "32.7.0","52.7.0","72.7.0",
+    "31.7.0","51.7.0","71.7.0",
+    "13.7.0","33.7.0","53.7.0","73.7.0",
+    "14.7.0","0.9.1","0.9.2","0.0.0",
+    "96.5.0","96.5.1","96.5.4","96.5.5",
+    "0.8.0","0.8.1","0.8.2","0.8.3","0.8.4",
+    "15.8.0","16.8.0","128.8.0",
+  ];
+
+  function startRain(canvas: HTMLCanvasElement) {
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return;
+
+    const resize = () => {
+      canvas.width = canvas.offsetWidth;
+      canvas.height = canvas.offsetHeight;
+    };
+    resize();
+    const ro = new ResizeObserver(resize);
+    ro.observe(canvas);
+
+    const rand = (a: number, b: number) => a + Math.random() * (b - a);
+    const randCode = () => OBIS_CODES[Math.floor(Math.random() * OBIS_CODES.length)];
+
+    const PARTICLE_COUNT = 38;
+    const START_DELAY_MS = 1200; // ilk N ms'de hiç kod gösterme
+    let startTime = performance.now();
+
+    type Particle = {
+      x: number; y: number;
+      code: string;
+      fontSize: number;
+      alpha: number;
+      phase: "in" | "hold" | "out";
+      phaseT: number;
+      inDur: number;
+      holdDur: number;
+      outDur: number;
+    };
+
+    const makeParticle = (fresh = true): Particle => ({
+      x:        rand(40, canvas.width  - 40),
+      y:        rand(30, canvas.height - 30),
+      code:     randCode(),
+      fontSize: rand(10, 16),
+      alpha:    0,
+      phase:    "in",
+      phaseT:   0,
+      inDur:    rand(20, 50),
+      holdDur:  rand(40, 120),
+      outDur:   rand(30, 70),
+    });
+
+    // hepsi gizli başlıyor — delay sonrası birer birer açılacak
+    const particles: Particle[] = Array.from({ length: PARTICLE_COUNT }, () => makeParticle());
+
+    const tick = () => {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      const elapsed = performance.now() - startTime;
+      if (elapsed < START_DELAY_MS) {
+        rainAnimFrame = requestAnimationFrame(tick);
+        return;
+      }
+
+      ctx.textAlign = "center";
+
+      for (const p of particles) {
+        p.phaseT++;
+
+        if (p.phase === "in") {
+          p.alpha = p.phaseT / p.inDur;
+          if (p.phaseT >= p.inDur) { p.phase = "hold"; p.phaseT = 0; }
+        } else if (p.phase === "hold") {
+          p.alpha = 1;
+          if (p.phaseT >= p.holdDur) { p.phase = "out"; p.phaseT = 0; }
+        } else {
+          p.alpha = 1 - p.phaseT / p.outDur;
+          if (p.phaseT >= p.outDur) {
+            Object.assign(p, makeParticle());
+          }
+        }
+
+        const a = Math.max(0, Math.min(1, p.alpha));
+        ctx.shadowColor = `rgba(39,158,167,${a * 0.8})`;
+        ctx.shadowBlur  = 8 + a * 10;
+        const r = Math.round(39  + (200 - 39)  * a);
+        const g = Math.round(158 + (255 - 158) * a);
+        const bv= Math.round(167 + (255 - 167) * a);
+        ctx.fillStyle = `rgba(${r},${g},${bv},${a * 0.9})`;
+        ctx.font      = `bold ${p.fontSize}px "Oxanium", monospace`;
+        ctx.fillText(p.code, p.x, p.y);
+      }
+
+      ctx.shadowBlur = 0;
+      rainAnimFrame = requestAnimationFrame(tick);
+    };
+    tick();
+
+    return () => { ro.disconnect(); };
   }
+
+  $effect(() => {
+    if (fetchingData && rainCanvas) {
+      const cleanup = startRain(rainCanvas);
+      return () => {
+        if (rainAnimFrame !== null) { cancelAnimationFrame(rainAnimFrame); rainAnimFrame = null; }
+        cleanup?.();
+      };
+    }
+  });
+
+  // Faz sayısını otomatik tespit et
+  // Öncelik: meterStore.meterType → anlık veri alanları → model adı → localStorage fallback
+  const meterPhases: 1 | 3 = $derived.by(() => {
+    const mt = $meterStore.meterType;
+    if (mt === "three-phase" || mt === "kombi") return 3;
+    if (mt === "single-phase") return 1;
+
+    const data = $meterStore.shortReadData ?? $meterStore.fullReadData;
+    if (data?.voltageL2 !== undefined || data?.currentL2 !== undefined) return 3;
+
+    const model = $connectionStore.meterIdentity?.model ?? "";
+    if (/3[Pp]|TP|MT\d|3PH/i.test(model)) return 3;
+
+    const stored = parseInt(localStorage.getItem("compliance_meter_phases") ?? "0");
+    if (stored === 1 || stored === 3) return stored as 1 | 3;
+
+    return 3;
+  });
 
   const currentData = $derived(
     $meterStore.shortReadData ?? $meterStore.fullReadData
@@ -42,13 +172,30 @@
   const result = $derived($complianceStore.result);
   const loading = $derived($complianceStore.loading);
 
+  /**
+   * readFull(), F.F.0'ı bir kez okuyarak latch'i temizler.
+   * F.F.0 "read-and-clear" latch'tir: ikinci okuma gerçek anlık durumu verir.
+   * Bu fonksiyon readFull sonrası bir kez daha F.F.0 ve F.F.1 okuyarak
+   * raw verisini günceller — böylece klemens kapağı gibi anlık durumlar doğru tespit edilir.
+   */
+  async function readFullWithFreshFF() {
+    const raw = await readFull() as any;
+    try {
+      const fresh = await readObisBatch(["F.F.0", "F.F.1"]);
+      if (fresh["F.F.0"]) raw.ffCode = fresh["F.F.0"];
+      if (fresh["F.F.1"]) raw.gfCode = fresh["F.F.1"];
+    } catch {
+      // Ek okuma başarısız olursa readFull sonucu kullanılmaya devam eder
+    }
+    return raw;
+  }
+
   onMount(async () => {
-    // Bağlantı kurulduğunda Home.svelte zaten readFull + checkCompliance yapıyor.
-    // Buraya her gelindiğinde tekrar okuma yapmak yerine, sonuç yoksa (ilk geliş) yap.
+    // İlk girişte (sonuç yoksa) tam okuma yap; sonrasında kullanıcı isteğe bağlı okur.
     if ($connectionStore.status === "connected" && isTauri() && !$complianceStore.result) {
       fetchingData = true;
       try {
-        const raw = await readFull();
+        const raw = await readFullWithFreshFF();
         const rawStr = raw.rawData || "";
         let meterType: "single-phase" | "three-phase" | "kombi" = "single-phase";
         if (rawStr.includes("52.7.0") || rawStr.includes("72.7.0")) {
@@ -78,7 +225,7 @@
     if ($connectionStore.status !== "connected" || !isTauri()) return;
     fetchingData = true;
     try {
-      const raw = await readFull();
+      const raw = await readFullWithFreshFF();
       const rawStr = raw.rawData || "";
       let meterType: "single-phase" | "three-phase" | "kombi" = "single-phase";
       if (rawStr.includes("52.7.0") || rawStr.includes("72.7.0")) {
@@ -507,16 +654,66 @@
   function severityDot(s: string) {
     return s === "error" ? "bg-red-500" : s === "warning" ? "bg-yellow-500" : "bg-blue-400";
   }
+
 </script>
 
 <div class="space-y-6">
 
-  <!-- Tam okuma bekleme ekranı -->
+  <!-- Tam okuma bekleme ekranı (tam sayfa overlay) -->
   {#if fetchingData}
-    <div class="flex flex-col items-center justify-center gap-4 py-24">
-      <span class="material-symbols-outlined text-5xl text-primary animate-spin">autorenew</span>
-      <p class="text-lg font-semibold text-slate-700 dark:text-slate-200">{$t.complianceFetchingData}</p>
-      <p class="text-sm text-slate-500 dark:text-slate-400">{$t.complianceFetchingDesc}</p>
+    <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0a1520] overflow-hidden">
+
+      <!-- Arka plan nabzı — radar/uyarı ışığı -->
+      <div class="absolute inset-0 obis-bg-pulse pointer-events-none"
+           style="background: radial-gradient(ellipse 70% 60% at 50% 50%, rgba(39,158,167,0.22) 0%, rgba(39,158,167,0.06) 50%, transparent 100%);"></div>
+
+      <!-- OBIS parçacık canvas -->
+      <canvas
+        bind:this={rainCanvas}
+        class="absolute inset-0 w-full h-full pointer-events-none"
+      ></canvas>
+
+      <!-- Merkez kart -->
+      <div class="relative z-10 flex flex-col items-center gap-7 px-12 py-10 text-center
+                  rounded-2xl border border-primary/25 bg-[#0a1520]/80 backdrop-blur-lg
+                  shadow-[0_0_60px_rgba(39,158,167,0.15)]">
+
+        <!-- Halka + ikon -->
+        <div class="relative flex items-center justify-center w-28 h-28">
+          <!-- dış halka ping -->
+          <span class="animate-ping absolute inset-0 rounded-full bg-primary/10"></span>
+          <!-- dönen yay (SVG) -->
+          <svg class="absolute inset-0 w-full h-full animate-spin-reverse" style="animation-duration:2s" viewBox="0 0 112 112">
+            <circle cx="56" cy="56" r="50" fill="none" stroke="rgba(39,158,167,0.15)" stroke-width="2"/>
+            <circle cx="56" cy="56" r="50" fill="none" stroke="rgba(39,158,167,0.7)" stroke-width="2"
+              stroke-dasharray="80 235" stroke-linecap="round"/>
+          </svg>
+          <!-- iç daire + ikon -->
+          <span class="relative flex items-center justify-center w-16 h-16 rounded-full
+                       bg-primary/10 border border-primary/30 shadow-[0_0_20px_rgba(39,158,167,0.3)]">
+            <span class="material-symbols-outlined text-4xl text-primary">electric_meter</span>
+          </span>
+        </div>
+
+        <!-- Yazılar -->
+        <div class="space-y-1.5">
+          <p class="text-xl font-bold text-white tracking-wider">Okuma yapılıyor</p>
+          <div class="flex items-center justify-center gap-1">
+            <span class="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style="animation-delay:0ms"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style="animation-delay:150ms"></span>
+            <span class="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style="animation-delay:300ms"></span>
+          </div>
+          <p class="text-xs text-primary/60 mt-1">OBIS verileri alınıyor</p>
+        </div>
+
+        <!-- Sayaç bilgisi -->
+        {#if $connectionStore.meterIdentity}
+          <div class="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/8 border border-primary/20 text-xs text-primary/70">
+            <span class="material-symbols-outlined text-sm text-primary/80">tag</span>
+            <span>{$connectionStore.meterIdentity.manufacturer} · {$connectionStore.meterIdentity.serialNumber}</span>
+          </div>
+        {/if}
+      </div>
     </div>
   {:else}
 
@@ -532,24 +729,11 @@
     </div>
 
     <div class="flex items-center gap-3">
-      <!-- Faz seçici -->
-      <div class="flex items-center rounded-lg border border-slate-200 dark:border-slate-600 overflow-hidden text-xs font-medium">
-        <button
-          onclick={() => setMeterPhases(1)}
-          class="px-3 py-2 transition-colors {meterPhases === 1
-            ? 'bg-primary text-white'
-            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}"
-        >
-          1 Faz
-        </button>
-        <button
-          onclick={() => setMeterPhases(3)}
-          class="px-3 py-2 transition-colors {meterPhases === 3
-            ? 'bg-primary text-white'
-            : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}"
-        >
-          3 Faz
-        </button>
+      <!-- Faz göstergesi (otomatik tespit) -->
+      <div class="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs font-medium text-slate-600 dark:text-slate-300">
+        <span class="material-symbols-outlined text-sm text-primary">electric_bolt</span>
+        {meterPhases} Faz
+        <span class="text-slate-400 dark:text-slate-500">(Otomatik)</span>
       </div>
 
       <button
@@ -561,7 +745,7 @@
             : 'bg-primary text-white hover:bg-primary/90 active:scale-95'}"
       >
         {#if loading}
-          <span class="material-symbols-outlined text-base animate-spin">autorenew</span>
+          <span class="material-symbols-outlined text-base animate-spin-reverse">autorenew</span>
           Kontrol ediliyor...
         {:else}
           <span class="material-symbols-outlined text-base">verified_user</span>
@@ -579,7 +763,7 @@
               : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95'}"
         >
           {#if fetchingData}
-            <span class="material-symbols-outlined text-base animate-spin">autorenew</span>
+            <span class="material-symbols-outlined text-base animate-spin-reverse">autorenew</span>
             {$t.complianceRefetching}
           {:else}
             <span class="material-symbols-outlined text-base">sync</span>
@@ -587,6 +771,7 @@
           {/if}
         </button>
       {/if}
+
     </div>
   </div>
 
@@ -614,7 +799,7 @@
           disabled={updating}
           class="mx-auto flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-all disabled:opacity-50"
         >
-          <span class="material-symbols-outlined text-base {updating ? 'animate-spin' : ''}">cloud_download</span>
+          <span class="material-symbols-outlined text-base {updating ? 'animate-spin-reverse' : ''}">cloud_download</span>
           {updating ? $t.complianceUpdating : $t.complianceUpdate}
         </button>
       </div>
@@ -653,12 +838,12 @@
           </button>
           <button onclick={reloadRules} disabled={reloading}
             class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all disabled:opacity-50">
-            <span class="material-symbols-outlined text-sm {reloading ? 'animate-spin' : ''}">refresh</span>
+            <span class="material-symbols-outlined text-sm {reloading ? 'animate-spin-reverse' : ''}">refresh</span>
             {reloading ? $t.complianceReloading : $t.complianceReload}
           </button>
           <button onclick={() => showUpdateModal = true} disabled={updating}
             class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all disabled:opacity-50">
-            <span class="material-symbols-outlined text-sm {updating ? 'animate-spin' : ''}">cloud_download</span>
+            <span class="material-symbols-outlined text-sm {updating ? 'animate-spin-reverse' : ''}">cloud_download</span>
             {updating ? $t.complianceUpdating : $t.complianceUpdate}
           </button>
         </div>
@@ -705,47 +890,61 @@
         <!-- İhlaller listesi -->
         <div class="space-y-2">
           {#each sortedIssues as issue (issue.code)}
-            <div class="rounded-xl border p-4 {severityBorder(issue.severity)}">
-              <div class="flex items-start gap-3">
-                <span class="material-symbols-outlined text-xl mt-1 {severityText(issue.severity)} flex-shrink-0">
-                  {severityIcon(issue.severity)}
-                </span>
-                <div class="flex-1 min-w-0">
-                  <!-- Kod + şartname rozeti -->
-                  <div class="flex items-center gap-2 mb-1.5 flex-wrap">
-                    <span class="font-mono text-xs font-bold {severityText(issue.severity)}">{issue.code}</span>
-                    {#if issue.specRef}
-                      {#each specSources(issue.specRef) as src}
-                        <span class="text-xs bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400 px-2 py-0.5 rounded-full font-medium">
-                          {src}
-                        </span>
-                      {/each}
-                    {/if}
-                  </div>
-                  <!-- Şartname referansı + açıklama -->
-                  {#if issue.specRef}
-                    <p class="text-xs text-slate-400 dark:text-slate-500 mb-1">
-                      <span class="font-semibold">{issue.specRef}'e göre:</span>
-                    </p>
-                  {/if}
-                  <p class="text-sm font-medium text-slate-700 dark:text-slate-200 leading-relaxed">
-                    {issue.description}
-                  </p>
-                  <!-- Olması gereken / Ölçülen -->
-                  {#if !isBitCheck(issue.field) && issue.actual}
-                    <div class="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-slate-500 dark:text-slate-400">
-                      {#if issue.expected}
-                        <span>Olması gereken: <span class="font-mono font-semibold text-slate-600 dark:text-slate-300">{issue.expected}</span></span>
-                        <span class="text-slate-300 dark:text-slate-600">·</span>
+            <div class="rounded-xl border overflow-hidden {severityBorder(issue.severity)}">
+              <div class="grid grid-cols-2 divide-x divide-slate-200/60 dark:divide-slate-700/60">
+
+                <!-- SOL: kural bilgisi -->
+                <div class="p-4 flex items-start gap-3">
+                  <span class="material-symbols-outlined text-xl mt-0.5 {severityText(issue.severity)} flex-shrink-0">
+                    {severityIcon(issue.severity)}
+                  </span>
+                  <div class="min-w-0">
+                    <!-- Kod + şartname rozetleri -->
+                    <div class="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                      <span class="font-mono text-xs font-bold {severityText(issue.severity)}">{issue.code}</span>
+                      {#if issue.specRef}
+                        {#each specSources(issue.specRef) as src}
+                          <span class="text-[10px] bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-full font-medium">
+                            {src}
+                          </span>
+                        {/each}
                       {/if}
-                      <span>Bağlı sayaçta ölçülen: <span class="font-mono font-semibold {severityText(issue.severity)}">{issue.actual}</span></span>
+                    </div>
+                    {#if issue.specRef}
+                      <p class="text-[10px] text-slate-400 dark:text-slate-500 mb-1">
+                        <span class="font-semibold">{issue.specRef}'e göre:</span>
+                      </p>
+                    {/if}
+                    <p class="text-sm font-medium text-slate-700 dark:text-slate-200 leading-relaxed">
+                      {issue.description}
+                    </p>
+                  </div>
+                </div>
+
+                <!-- SAĞ: neden & düzeltme -->
+                <div class="p-4 flex flex-col gap-3 bg-black/[0.02] dark:bg-white/[0.02]">
+                  {#if issue.cause}
+                    <div>
+                      <p class="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-xs">help</span>
+                        Neden
+                      </p>
+                      <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{issue.cause}</p>
                     </div>
                   {/if}
-                  <!-- Aksiyon notu -->
-                  <p class="mt-2 text-xs font-semibold {severityText(issue.severity)}">
-                    Gerekli düzeltmelerin yapılması gerekmektedir.
-                  </p>
+                  {#if issue.remedy}
+                    <div class="border-t border-slate-200/60 dark:border-slate-700/60 pt-3">
+                      <p class="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                        <span class="material-symbols-outlined text-xs">build</span>
+                        Düzeltme
+                      </p>
+                      <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{issue.remedy}</p>
+                    </div>
+                  {:else if !issue.cause}
+                    <p class="text-xs text-slate-400 dark:text-slate-500 italic">Bu kural için neden/düzeltme bilgisi tanımlanmamış.</p>
+                  {/if}
                 </div>
+
               </div>
             </div>
           {/each}
@@ -1019,7 +1218,7 @@
               : 'bg-primary text-white hover:bg-primary/90 active:scale-95'}"
         >
           {#if saving}
-            <span class="material-symbols-outlined text-base animate-spin">autorenew</span>
+            <span class="material-symbols-outlined text-base animate-spin-reverse">autorenew</span>
             Kaydediliyor...
           {:else}
             <span class="material-symbols-outlined text-base">save</span>
@@ -1070,7 +1269,7 @@
       <div class="overflow-y-auto flex-1 divide-y divide-slate-100 dark:divide-slate-700">
         {#if loadingRules}
           <div class="py-12 text-center">
-            <span class="material-symbols-outlined text-3xl text-slate-400 animate-spin block">autorenew</span>
+            <span class="material-symbols-outlined text-3xl text-slate-400 animate-spin-reverse block">autorenew</span>
           </div>
         {:else if managedRules.length === 0}
           <div class="py-12 text-center text-slate-400 text-sm">{$t.complianceNoRules}</div>
@@ -1100,7 +1299,7 @@
                   class="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-500/10 transition-all disabled:opacity-50"
                   title={$t.complianceDeleteRule}
                 >
-                  <span class="material-symbols-outlined text-sm {deletingCode === rule.code ? 'animate-spin' : ''}">
+                  <span class="material-symbols-outlined text-sm {deletingCode === rule.code ? 'animate-spin-reverse' : ''}">
                     {deletingCode === rule.code ? 'autorenew' : 'delete'}
                   </span>
                 </button>

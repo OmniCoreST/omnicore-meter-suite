@@ -605,6 +605,7 @@ export const en = {
   presetEnergy: "Energy Codes",
   presetInstant: "Instant Values",
   presetStatus: "Status Codes",
+  presetEvents: "Event Records",
   obisPlaceholder: "E.g.: 1.8.0",
   noValue: "No value",
   presets: "Presets",

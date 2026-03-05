@@ -7,8 +7,23 @@
       "Bash(sudo usermod:*)",
       "Bash(cmd.exe:*)",
       "Bash(pdftoppm:*)",
-      "Bash(pdftotext:*)"
-      
+      "Bash(pdftotext:*)",
+      "Bash(netstat -ano)",
+      "Bash(xargs -I{} taskkill //PID {} //F)",
+      "Bash(npm run:*)",
+      "Bash(xargs sed:*)",
+      "Bash(powershell:*)",
+      "Bash(python3:*)",
+      "Bash(node:*)",
+      "Bash(taskkill:*)",
+      "Bash(xargs -r taskkill //PID //F)",
+      "Bash(xargs grep:*)",
+      "WebSearch",
+      "Bash(powershell.exe:*)",
+      "Bash(netstat:*)",
+      "Bash(cmd:*)",
+      "Bash(\"../target/debug/omnicore-meter-suite.exe\":*)",
+      "WebFetch(domain:www.meterisk.com)"
     ]
   }
 }

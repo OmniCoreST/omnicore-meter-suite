@@ -397,7 +397,7 @@
 {#if isLoadingSession}
   <div class="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
     <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl shadow-xl p-8 text-center">
-      <Icon name="sync" class="text-primary text-4xl mb-3 animate-spin" />
+      <Icon name="sync" class="text-primary text-4xl mb-3 animate-spin-reverse" />
       <p class="text-sm font-bold text-slate-900 dark:text-white">{$t.loadingSession || "Loading session..."}</p>
     </div>
   </div>
@@ -448,7 +448,7 @@
           class="flex items-center gap-2 px-4 py-2 bg-red-500 hover:bg-red-600 text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50"
         >
           {#if isDeletingSession}
-            <Icon name="sync" size="sm" class="animate-spin" />
+            <Icon name="sync" size="sm" class="animate-spin-reverse" />
           {:else}
             <Icon name="delete" size="sm" />
           {/if}

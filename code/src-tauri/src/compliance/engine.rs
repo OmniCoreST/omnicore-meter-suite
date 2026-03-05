@@ -224,5 +224,7 @@ fn make_issue(rule: &Rule, expected: String, actual: String) -> ComplianceIssue 
         actual,
         description: rule.description.clone(),
         spec_ref: rule.spec_ref.clone(),
+        cause: rule.cause.clone(),
+        remedy: rule.remedy.clone(),
     }
 }

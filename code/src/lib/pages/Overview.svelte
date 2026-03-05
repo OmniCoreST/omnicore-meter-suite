@@ -235,7 +235,7 @@
             disabled={isRefreshing || !$isConnected}
             class="flex items-center gap-1 px-2 py-1 text-xs font-bold text-primary border border-primary/30 rounded-lg hover:bg-primary/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
-            <Icon name="sync" size="sm" class={isRefreshing ? "animate-spin" : ""} />
+            <Icon name="sync" size="sm" class={isRefreshing ? "animate-spin-reverse" : ""} />
             {isRefreshing ? "..." : $t.refresh || "Yenile"}
           </button>
         </div>

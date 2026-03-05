@@ -189,7 +189,7 @@
             disabled={isReadingMode}
             class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-colors"
           >
-            <Icon name="sync" size="sm" class={isReadingMode ? "animate-spin" : ""} />
+            <Icon name="sync" size="sm" class={isReadingMode ? "animate-spin-reverse" : ""} />
             {isReadingMode ? $t.readingPacket : $t.readOutages}
           </button>
         {/if}

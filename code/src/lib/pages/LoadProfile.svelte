@@ -541,7 +541,7 @@
         class="flex items-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary/90 text-white font-bold rounded-lg shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed ml-auto"
       >
         {#if isReading}
-          <Icon name="sync" class="animate-spin" />
+          <Icon name="sync" class="animate-spin-reverse" />
           {$t.reading}
         {:else}
           <Icon name="play_arrow" />
@@ -558,7 +558,7 @@
         <div class="relative flex items-center justify-center w-12 h-12 shrink-0">
           <span class="animate-ping absolute h-10 w-10 rounded-full bg-primary/20"></span>
           <span class="relative flex items-center justify-center h-10 w-10 rounded-full bg-primary/10">
-            <Icon name="sync" class="text-primary animate-spin" />
+            <Icon name="sync" class="text-primary animate-spin-reverse" />
           </span>
         </div>
         <div class="flex-grow min-w-0">

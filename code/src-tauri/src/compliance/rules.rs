@@ -29,6 +29,12 @@ pub struct Rule {
     /// Şartname referansı — ör. "TEDAŞ Şartname 2.2.2 / MASS Şartname 2.2.2"
     #[serde(skip_serializing_if = "Option::is_none")]
     pub spec_ref: Option<String>,
+    /// Sorunun nedeni — ör. "Sayaç saati sistem saatiyle senkronize değil"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub cause: Option<String>,
+    /// Düzeltme önerisi — ör. "Zaman senkronizasyonu yapın"
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub remedy: Option<String>,
 }
 
 /// TOML kural dosyasının kök yapısı

@@ -36,6 +36,8 @@ export {
   complianceStore,
   hasComplianceErrors,
   hasComplianceWarnings,
+  complianceErrorCount,
+  complianceWarningCount,
   type ComplianceIssue,
   type ComplianceResult,
   type ComplianceState,

@@ -126,7 +126,7 @@
         disabled={!$isConnected || isLoading || isActing}
         class="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-[#334a5e] hover:bg-slate-200 dark:hover:bg-[#455a6e] text-slate-700 dark:text-white font-bold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
-        <Icon name="refresh" class={isLoading ? "animate-spin" : ""} />
+        <Icon name="refresh" class={isLoading ? "animate-spin-reverse" : ""} />
         {$t.refresh}
       </button>
     </div>
@@ -146,7 +146,7 @@
     <div class="flex flex-col items-center">
       {#if isLoading}
         <div class="w-48 h-48 rounded-full flex items-center justify-center mb-6 bg-slate-100 dark:bg-[#1a2632]">
-          <Icon name="sync" class="text-slate-400 text-7xl animate-spin" />
+          <Icon name="sync" class="text-slate-400 text-7xl animate-spin-reverse" />
         </div>
         <div class="text-center">
           <h2 class="text-2xl font-bold text-slate-400 mb-2">{$t.relayState}</h2>
@@ -199,7 +199,7 @@
             : 'bg-emerald-500 hover:bg-emerald-600 text-white shadow-lg shadow-emerald-500/20'}"
       >
         {#if isActing && pendingAction === "open"}
-          <Icon name="sync" class="text-2xl animate-spin" />
+          <Icon name="sync" class="text-2xl animate-spin-reverse" />
         {:else}
           <Icon name="power" class="text-2xl" />
         {/if}
@@ -216,7 +216,7 @@
             : 'bg-red-500 hover:bg-red-600 text-white shadow-lg shadow-red-500/20'}"
       >
         {#if isActing && pendingAction === "close"}
-          <Icon name="sync" class="text-2xl animate-spin" />
+          <Icon name="sync" class="text-2xl animate-spin-reverse" />
         {:else}
           <Icon name="power_off" class="text-2xl" />
         {/if}

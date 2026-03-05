@@ -170,7 +170,7 @@
         class="w-full flex items-center justify-center gap-2 px-6 py-4 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed mt-6"
       >
         {#if isChanging}
-          <Icon name="sync" class="animate-spin" />
+          <Icon name="sync" class="animate-spin-reverse" />
           {$t.saving}
         {:else}
           <Icon name="lock_reset" />
