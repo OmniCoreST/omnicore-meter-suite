@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, connectionStore, isConnected, isConnecting, addLog, meterStore, isMeterReading, errorToast, successToast, sessionsStore, navigationStore, complianceStore, type SessionInfo } from "$lib/stores";
+  import { t, connectionStore, isConnected, isConnecting, addLog, meterStore, isMeterReading, errorToast, successToast, sessionsStore, navigationStore, complianceStore, complianceErrorCount, complianceWarningCount, hasMeterData, type SessionInfo } from "$lib/stores";
   import { onMount, onDestroy } from "svelte";
   import { listSerialPorts, connect as tauriConnect, disconnect as tauriDisconnect, readFull, setSetting, loadSessionFile, type PortInfo } from "$lib/utils/tauri";
 
@@ -357,6 +357,7 @@
   let hasNoPorts = $derived(serialPorts.length === 0);
 </script>
 
+<div class="space-y-6">
 <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
   <!-- New Connection Card -->
   <div
@@ -620,6 +621,113 @@
       {/if}
     </div>
   </div>
+</div>
+
+<!-- Compliance Check Card -->
+<div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl shadow-sm overflow-hidden">
+  <!-- Card Header -->
+  <div
+    class="bg-gradient-to-r from-amber-500/10 to-orange-500/10 dark:from-amber-500/20 dark:to-orange-500/20 px-6 py-4 border-b border-slate-200 dark:border-[#334a5e]"
+  >
+    <div class="flex items-center justify-between">
+      <div class="flex items-center gap-3">
+        <div class="p-2 bg-amber-500/10 rounded-lg">
+          <Icon name="verified_user" class="text-amber-500" />
+        </div>
+        <div>
+          <h3 class="text-lg font-bold text-slate-900 dark:text-white">{$t.compliance}</h3>
+          <p class="text-xs text-slate-500 dark:text-slate-400">{$t.complianceDescription}</p>
+        </div>
+      </div>
+
+      <!-- Status badges -->
+      <div class="flex items-center gap-3">
+        {#if $complianceStore.result}
+          <div class="flex items-center gap-2">
+            {#if $complianceStore.result.errorCount > 0}
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-red-500/10 border border-red-500/20">
+                <Icon name="cancel" size="sm" class="text-red-500" />
+                <span class="text-xs font-bold text-red-500">{$complianceErrorCount} {$t.complianceErrors}</span>
+              </span>
+            {/if}
+            {#if $complianceStore.result.warningCount > 0}
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-yellow-500/10 border border-yellow-500/20">
+                <Icon name="warning" size="sm" class="text-yellow-500" />
+                <span class="text-xs font-bold text-yellow-500">{$complianceWarningCount} {$t.complianceWarnings}</span>
+              </span>
+            {/if}
+            {#if $complianceStore.result.errorCount === 0 && $complianceStore.result.warningCount === 0}
+              <span class="inline-flex items-center gap-1 px-2.5 py-1 rounded-full bg-emerald-500/10 border border-emerald-500/20">
+                <Icon name="check_circle" size="sm" class="text-emerald-500" />
+                <span class="text-xs font-bold text-emerald-500">{$t.complianceAllPassed}</span>
+              </span>
+            {/if}
+          </div>
+        {/if}
+        <button
+          onclick={() => navigationStore.navigate("compliance")}
+          class="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-bold rounded-lg transition-colors"
+        >
+          <Icon name="arrow_forward" size="sm" />
+          {$t.complianceCheck}
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Card Body - Summary -->
+  <div class="p-6">
+    {#if !$hasMeterData}
+      <div class="flex items-center gap-4 p-4 bg-slate-50 dark:bg-[#0f1821] rounded-lg border border-slate-200 dark:border-[#334a5e]">
+        <Icon name="info" class="text-slate-400 text-2xl flex-shrink-0" />
+        <div>
+          <p class="text-sm font-medium text-slate-600 dark:text-slate-400">{$t.complianceNoData}</p>
+          <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">Sayaca bağlanın veya kayıtlı bir oturum yükleyin.</p>
+        </div>
+      </div>
+    {:else if $complianceStore.result}
+      {@const result = $complianceStore.result}
+      <div class="grid grid-cols-4 gap-4">
+        <div class="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-[#0f1821] border border-slate-200 dark:border-[#334a5e]">
+          <Icon name="rule" class="text-primary text-xl" />
+          <div>
+            <p class="text-lg font-bold text-slate-900 dark:text-white">{result.totalRulesChecked}</p>
+            <p class="text-[10px] text-slate-500 uppercase tracking-wider">Kural Kontrol</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 p-3 rounded-lg {result.errorCount > 0 ? 'bg-red-500/10 border-red-500/20' : 'bg-slate-50 dark:bg-[#0f1821] border-slate-200 dark:border-[#334a5e]'} border">
+          <Icon name="cancel" class="{result.errorCount > 0 ? 'text-red-500' : 'text-slate-300 dark:text-slate-600'} text-xl" />
+          <div>
+            <p class="text-lg font-bold {result.errorCount > 0 ? 'text-red-500' : 'text-slate-400'}">{result.errorCount}</p>
+            <p class="text-[10px] text-slate-500 uppercase tracking-wider">Hata</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 p-3 rounded-lg {result.warningCount > 0 ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-slate-50 dark:bg-[#0f1821] border-slate-200 dark:border-[#334a5e]'} border">
+          <Icon name="warning" class="{result.warningCount > 0 ? 'text-yellow-500' : 'text-slate-300 dark:text-slate-600'} text-xl" />
+          <div>
+            <p class="text-lg font-bold {result.warningCount > 0 ? 'text-yellow-500' : 'text-slate-400'}">{result.warningCount}</p>
+            <p class="text-[10px] text-slate-500 uppercase tracking-wider">Uyarı</p>
+          </div>
+        </div>
+        <div class="flex items-center gap-3 p-3 rounded-lg bg-slate-50 dark:bg-[#0f1821] border border-slate-200 dark:border-[#334a5e]">
+          <Icon name="schedule" class="text-slate-400 text-xl" />
+          <div>
+            <p class="text-sm font-bold text-slate-900 dark:text-white">{new Date(result.checkedAt).toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit" })}</p>
+            <p class="text-[10px] text-slate-500 uppercase tracking-wider">Son Kontrol</p>
+          </div>
+        </div>
+      </div>
+    {:else}
+      <div class="flex items-center gap-4 p-4 bg-amber-500/5 rounded-lg border border-amber-500/10">
+        <Icon name="verified_user" class="text-amber-500/50 text-2xl flex-shrink-0" />
+        <div>
+          <p class="text-sm font-medium text-slate-600 dark:text-slate-400">Sayaç verisi mevcut — uyumluluk kontrolü henüz yapılmadı.</p>
+          <p class="text-xs text-slate-400 dark:text-slate-500 mt-0.5">TEDAŞ MLZ/2017-062.B kurallarına göre denetlemek için kontrol başlatın.</p>
+        </div>
+      </div>
+    {/if}
+  </div>
+</div>
 </div>
 
 <!-- Session Load Confirmation Dialog -->

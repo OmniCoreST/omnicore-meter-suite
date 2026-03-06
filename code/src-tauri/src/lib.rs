@@ -130,30 +130,62 @@ mod db_commands {
 }
 
 mod compliance_commands {
-    use crate::compliance::{self, ComplianceResult};
-    use crate::commands::types::ShortReadResult;
+    use crate::compliance;
 
-    /// Sayaç verisini kural dosyasına göre kontrol eder.
+    /// Sayaç verisini kural dosyasına göre kontrol eder (legacy v2 compat).
     /// Önce sunucudan güncel versiyon bilgisini çeker (offline ise None).
     #[tauri::command]
-    pub async fn check_compliance(data: ShortReadResult, meter_phases: u8) -> Result<ComplianceResult, String> {
+    pub async fn check_compliance(
+        data: crate::commands::types::ShortReadResult,
+        meter_phases: u8,
+    ) -> Result<compliance::ComplianceResult, String> {
         let latest = compliance::updater::fetch_latest_version().await;
         let latest_version = latest.map(|v| v.version);
-        Ok(compliance::run_check(&data, latest_version, meter_phases))
+        Ok(compliance::run_check_legacy(&data, latest_version, meter_phases))
+    }
+
+    /// Run compliance check on a CommunicationLog (v3 API).
+    #[tauri::command]
+    pub async fn check_compliance_v3(
+        log: compliance::CommunicationLog,
+        profile_id: String,
+    ) -> Result<compliance::ComplianceResult, String> {
+        let latest = compliance::updater::fetch_latest_version().await;
+        let latest_version = latest.map(|v| v.version);
+        Ok(compliance::run_check(&log, &profile_id, latest_version))
+    }
+
+    /// Get available profiles from config
+    #[tauri::command]
+    pub async fn get_compliance_profiles() -> Result<Vec<compliance::config::Profile>, String> {
+        let config = compliance::config::load_config().map_err(|e| e.to_string())?;
+        Ok(config.profiles)
+    }
+
+    /// Get test plan from config
+    #[tauri::command]
+    pub async fn get_compliance_test_plan() -> Result<Option<compliance::config::TestPlan>, String> {
+        let config = compliance::config::load_config().map_err(|e| e.to_string())?;
+        Ok(config.test_plan)
     }
 
     /// Kural dosyasının tam yolunu döndürür
     #[tauri::command]
     pub async fn get_compliance_rules_path() -> Result<String, String> {
-        Ok(compliance::rules::get_rules_path().display().to_string())
+        Ok(compliance::config::get_config_path().display().to_string())
     }
 
     /// Kural dosyasını diskten yeniden yükler (geçerliliği test eder)
     #[tauri::command]
     pub async fn reload_compliance_rules() -> Result<String, String> {
-        let rules = compliance::rules::load_rules()
-            .map_err(|e| format!("Kural dosyası yüklenemedi: {}", e))?;
-        Ok(format!("Kurallar yüklendi: v{} ({} kural)", rules.rules_version, rules.rules.len()))
+        let config = compliance::config::load_config()
+            .map_err(|e| format!("Config dosyası yüklenemedi: {}", e))?;
+        Ok(format!(
+            "Config yüklendi: v{} ({} profil, {} kural)",
+            config.config_version,
+            config.profiles.len(),
+            config.rules.len()
+        ))
     }
 
     /// Sunucudan yeni kural dosyası indirir
@@ -162,8 +194,8 @@ mod compliance_commands {
         let info = compliance::updater::fetch_latest_version().await
             .ok_or_else(|| "Güncelleme sunucusuna ulaşılamadı veya URL yapılandırılmamış".to_string())?;
 
-        let local_version = compliance::rules::load_rules()
-            .map(|r| r.rules_version)
+        let local_version = compliance::config::load_config()
+            .map(|r| r.config_version)
             .unwrap_or_default();
 
         if info.version == local_version {
@@ -171,23 +203,23 @@ mod compliance_commands {
         }
 
         let new_version = compliance::updater::download_rules(&info.url).await?;
-        Ok(format!("Kurallar güncellendi: v{}", new_version))
+        Ok(format!("Config güncellendi: v{}", new_version))
     }
 
     /// Mevcut tüm kuralları listeler
     #[tauri::command]
-    pub async fn list_compliance_rules() -> Result<Vec<compliance::rules::Rule>, String> {
-        let rules_file = compliance::rules::load_rules().map_err(|e| e.to_string())?;
-        Ok(rules_file.rules)
+    pub async fn list_compliance_rules() -> Result<Vec<compliance::config::Rule>, String> {
+        let config = compliance::config::load_config().map_err(|e| e.to_string())?;
+        Ok(config.rules)
     }
 
     /// Varolan bir kuralı code'una göre günceller
     #[tauri::command]
-    pub async fn update_compliance_rule(rule: compliance::rules::Rule) -> Result<String, String> {
-        let mut rules_file = compliance::rules::load_rules().map_err(|e| e.to_string())?;
-        if let Some(existing) = rules_file.rules.iter_mut().find(|r| r.code == rule.code) {
+    pub async fn update_compliance_rule(rule: compliance::config::Rule) -> Result<String, String> {
+        let mut config = compliance::config::load_config().map_err(|e| e.to_string())?;
+        if let Some(existing) = config.rules.iter_mut().find(|r| r.code == rule.code) {
             *existing = rule;
-            compliance::rules::save_rules(&rules_file).map_err(|e| e.to_string())?;
+            compliance::config::save_config(&config).map_err(|e| e.to_string())?;
             Ok("Kural güncellendi".to_string())
         } else {
             Err(format!("Kural bulunamadı: {}", rule.code))
@@ -197,11 +229,11 @@ mod compliance_commands {
     /// Bir kuralı code'una göre siler
     #[tauri::command]
     pub async fn delete_compliance_rule(code: String) -> Result<String, String> {
-        let mut rules_file = compliance::rules::load_rules().map_err(|e| e.to_string())?;
-        let len_before = rules_file.rules.len();
-        rules_file.rules.retain(|r| r.code != code);
-        if rules_file.rules.len() < len_before {
-            compliance::rules::save_rules(&rules_file).map_err(|e| e.to_string())?;
+        let mut config = compliance::config::load_config().map_err(|e| e.to_string())?;
+        let len_before = config.rules.len();
+        config.rules.retain(|r| r.code != code);
+        if config.rules.len() < len_before {
+            compliance::config::save_config(&config).map_err(|e| e.to_string())?;
             Ok("Kural silindi".to_string())
         } else {
             Err(format!("Kural bulunamadı: {}", code))
@@ -213,20 +245,20 @@ mod compliance_commands {
     pub async fn import_compliance_rules_from_file(path: String) -> Result<String, String> {
         let content = std::fs::read_to_string(&path)
             .map_err(|e| format!("Dosya okunamadı: {}", e))?;
-        let parsed: compliance::rules::RulesFile = toml::from_str(&content)
+        let parsed: compliance::config::ComplianceConfig = toml::from_str(&content)
             .map_err(|e| format!("Geçersiz TOML dosyası: {}", e))?;
-        let new_version = parsed.rules_version.clone();
-        let dest = compliance::rules::get_rules_path();
+        let new_version = parsed.config_version.clone();
+        let dest = compliance::config::get_config_path();
         std::fs::write(&dest, content.as_bytes())
             .map_err(|e| format!("Dosya yazılamadı: {}", e))?;
-        Ok(format!("Kurallar içe aktarıldı: v{}", new_version))
+        Ok(format!("Config içe aktarıldı: v{}", new_version))
     }
 
     /// Verilen TOML bloğunu kural dosyasına ekler
     #[tauri::command]
     pub async fn add_compliance_rule(rule_toml: String) -> Result<String, String> {
         use std::io::Write;
-        let path = compliance::rules::get_rules_path();
+        let path = compliance::config::get_config_path();
         let mut file = std::fs::OpenOptions::new()
             .append(true)
             .open(&path)
@@ -248,6 +280,10 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_fs::init())
         .setup(|app| {
+            // Remove default menu bar
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.remove_menu();
+            }
             // Initialize database
             let app_data_dir = app.path().app_data_dir()
                 .expect("Failed to get app data directory");
@@ -293,6 +329,9 @@ pub fn run() {
             write_export_file,
             // Uyumluluk komutları
             compliance_commands::check_compliance,
+            compliance_commands::check_compliance_v3,
+            compliance_commands::get_compliance_profiles,
+            compliance_commands::get_compliance_test_plan,
             compliance_commands::get_compliance_rules_path,
             compliance_commands::reload_compliance_rules,
             compliance_commands::update_compliance_rules,

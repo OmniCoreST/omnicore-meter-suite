@@ -70,16 +70,8 @@ description = "Uc fazli akim trafosu baglantili sayac"
 #   short_read    - Kisa okuma (Mode 6)
 #   full_read     - Tam okuma (Mode 0)
 #   load_profile  - Yuk profili okuma (Mode 1 + P.01)
-#   packet_read   - Paket okuma (Mode 7/8/9) — packet_mode ile belirtilir
+#   time_check    - Saat karsilastirma (0.9.1 / 0.9.2 okuma)
 #   obis_read     - Belirli OBIS kodlarini tekil okuma (Mode 1 + R1)
-#
-# TEDAS Okuma Modlari:
-#   Mode 0  - Uzun Okuma Modu (Tum Bilgiler)
-#   Mode 1  - Programlama Modu
-#   Mode 6  - Kisa Okuma Paketi
-#   Mode 7  - Gecmis Bilgiler Paketi
-#   Mode 8  - Uyari Paketi
-#   Mode 9  - Kesinti Kayitlari Paketi (Son 10 Kesinti Bilgileri)
 #
 # Adimlar yukaridan asagiya sirayla calistirilir.
 # Bir adim basarisiz olursa sonraki adimlar yine calisir (bagimsiz).
@@ -110,33 +102,6 @@ name = "Yuk Profili Okuma"
 mode = "load_profile"
 enabled = true
 timeout_seconds = 180
-retry_count = 1
-
-[[test_plan.steps]]
-id = "history_packet"
-name = "Gecmis Bilgiler Paketi (Mode 7)"
-mode = "packet_read"
-packet_mode = 7
-enabled = true
-timeout_seconds = 60
-retry_count = 1
-
-[[test_plan.steps]]
-id = "warning_packet"
-name = "Uyari Paketi (Mode 8)"
-mode = "packet_read"
-packet_mode = 8
-enabled = true
-timeout_seconds = 60
-retry_count = 1
-
-[[test_plan.steps]]
-id = "outage_packet"
-name = "Kesinti Kayitlari Paketi (Mode 9)"
-mode = "packet_read"
-packet_mode = 9
-enabled = true
-timeout_seconds = 60
 retry_count = 1
 
 [[test_plan.steps]]

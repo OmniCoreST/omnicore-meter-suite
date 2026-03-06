@@ -1,13 +1,16 @@
-﻿<script lang="ts">
+<script lang="ts">
   import { onMount } from "svelte";
-  import { t } from "$lib/stores";
-  import { complianceStore } from "$lib/stores/compliance";
+  import { t, isConnected, navigationStore } from "$lib/stores";
+  import { complianceStore, type ComplianceResult } from "$lib/stores/compliance";
   import { meterStore } from "$lib/stores/meter";
   import { connectionStore } from "$lib/stores/connection";
   import {
     checkCompliance,
+    readShort,
     readFull,
     readObisBatch,
+    readLoadProfile,
+    readPacket,
     getComplianceRulesPath,
     reloadComplianceRules,
     updateComplianceRules,
@@ -16,247 +19,267 @@
     listComplianceRules,
     updateComplianceRule,
     deleteComplianceRule,
+    getComplianceProfiles,
+    getComplianceTestPlan,
     isTauri,
     type ComplianceRuleDef,
+    type ShortReadResult,
   } from "$lib/utils/tauri";
+  import type { ComplianceProfile, TestStep } from "$lib/stores/compliance";
   import { open as openFileDialog } from "@tauri-apps/plugin-dialog";
   import { warningToast, successToast, errorToast } from "$lib/stores/toast";
+
+  // ─── State ───────────────────────────────────────────────────────────────────
 
   let reloading = $state(false);
   let updating = $state(false);
   let showUpdateModal = $state(false);
-  let fetchingData = $state(false);
 
-  // OBIS yağmuru canvas animasyonu
-  let rainCanvas = $state<HTMLCanvasElement | null>(null);
-  let rainAnimFrame: number | null = null;
+  // Profile & test plan
+  let profiles = $state<ComplianceProfile[]>([]);
+  let selectedProfileId = $state("");
+  let testSteps = $state<TestStep[]>([]);
 
-  const OBIS_CODES = [
-    "1.8.0","1.8.1","1.8.2","1.8.3","1.8.4",
-    "2.8.0","2.8.1","2.8.2","3.8.0","4.8.0",
-    "5.8.0","6.8.0","7.8.0","8.8.0",
-    "32.7.0","52.7.0","72.7.0",
-    "31.7.0","51.7.0","71.7.0",
-    "13.7.0","33.7.0","53.7.0","73.7.0",
-    "14.7.0","0.9.1","0.9.2","0.0.0",
-    "96.5.0","96.5.1","96.5.4","96.5.5",
-    "0.8.0","0.8.1","0.8.2","0.8.3","0.8.4",
-    "15.8.0","16.8.0","128.8.0",
-  ];
-
-  function startRain(canvas: HTMLCanvasElement) {
-    const ctx = canvas.getContext("2d");
-    if (!ctx) return;
-
-    const resize = () => {
-      canvas.width = canvas.offsetWidth;
-      canvas.height = canvas.offsetHeight;
-    };
-    resize();
-    const ro = new ResizeObserver(resize);
-    ro.observe(canvas);
-
-    const rand = (a: number, b: number) => a + Math.random() * (b - a);
-    const randCode = () => OBIS_CODES[Math.floor(Math.random() * OBIS_CODES.length)];
-
-    const PARTICLE_COUNT = 38;
-    const START_DELAY_MS = 1200; // ilk N ms'de hiç kod gösterme
-    let startTime = performance.now();
-
-    type Particle = {
-      x: number; y: number;
-      code: string;
-      fontSize: number;
-      alpha: number;
-      phase: "in" | "hold" | "out";
-      phaseT: number;
-      inDur: number;
-      holdDur: number;
-      outDur: number;
-    };
-
-    const makeParticle = (fresh = true): Particle => ({
-      x:        rand(40, canvas.width  - 40),
-      y:        rand(30, canvas.height - 30),
-      code:     randCode(),
-      fontSize: rand(10, 16),
-      alpha:    0,
-      phase:    "in",
-      phaseT:   0,
-      inDur:    rand(20, 50),
-      holdDur:  rand(40, 120),
-      outDur:   rand(30, 70),
-    });
-
-    // hepsi gizli başlıyor — delay sonrası birer birer açılacak
-    const particles: Particle[] = Array.from({ length: PARTICLE_COUNT }, () => makeParticle());
-
-    const tick = () => {
-      ctx.clearRect(0, 0, canvas.width, canvas.height);
-
-      const elapsed = performance.now() - startTime;
-      if (elapsed < START_DELAY_MS) {
-        rainAnimFrame = requestAnimationFrame(tick);
-        return;
-      }
-
-      ctx.textAlign = "center";
-
-      for (const p of particles) {
-        p.phaseT++;
-
-        if (p.phase === "in") {
-          p.alpha = p.phaseT / p.inDur;
-          if (p.phaseT >= p.inDur) { p.phase = "hold"; p.phaseT = 0; }
-        } else if (p.phase === "hold") {
-          p.alpha = 1;
-          if (p.phaseT >= p.holdDur) { p.phase = "out"; p.phaseT = 0; }
-        } else {
-          p.alpha = 1 - p.phaseT / p.outDur;
-          if (p.phaseT >= p.outDur) {
-            Object.assign(p, makeParticle());
-          }
-        }
-
-        const a = Math.max(0, Math.min(1, p.alpha));
-        ctx.shadowColor = `rgba(39,158,167,${a * 0.8})`;
-        ctx.shadowBlur  = 8 + a * 10;
-        const r = Math.round(39  + (200 - 39)  * a);
-        const g = Math.round(158 + (255 - 158) * a);
-        const bv= Math.round(167 + (255 - 167) * a);
-        ctx.fillStyle = `rgba(${r},${g},${bv},${a * 0.9})`;
-        ctx.font      = `bold ${p.fontSize}px "Oxanium", monospace`;
-        ctx.fillText(p.code, p.x, p.y);
-      }
-
-      ctx.shadowBlur = 0;
-      rainAnimFrame = requestAnimationFrame(tick);
-    };
-    tick();
-
-    return () => { ro.disconnect(); };
+  // Test runner
+  type StepStatus = "pending" | "running" | "done" | "failed" | "skipped";
+  interface StepState {
+    step: TestStep;
+    status: StepStatus;
+    message: string;
+    durationMs: number;
+    issueCount: number;
   }
 
-  $effect(() => {
-    if (fetchingData && rainCanvas) {
-      const cleanup = startRain(rainCanvas);
-      return () => {
-        if (rainAnimFrame !== null) { cancelAnimationFrame(rainAnimFrame); rainAnimFrame = null; }
-        cleanup?.();
-      };
-    }
-  });
+  let running = $state(false);
+  let stepStates = $state<StepState[]>([]);
+  let currentStepIndex = $state(-1);
+  let runLog = $state<string[]>([]);
 
-  // Faz sayısını otomatik tespit et
-  // Öncelik: meterStore.meterType → anlık veri alanları → model adı → localStorage fallback
+  // Collected data from readings
+  let shortReadData = $state<ShortReadResult | null>(null);
+  let fullReadData = $state<ShortReadResult | null>(null);
+
+  // Results
+  const result = $derived($complianceStore.result);
+
+  // Phase detection
   const meterPhases: 1 | 3 = $derived.by(() => {
     const mt = $meterStore.meterType;
     if (mt === "three-phase" || mt === "kombi") return 3;
     if (mt === "single-phase") return 1;
-
     const data = $meterStore.shortReadData ?? $meterStore.fullReadData;
     if (data?.voltageL2 !== undefined || data?.currentL2 !== undefined) return 3;
-
     const model = $connectionStore.meterIdentity?.model ?? "";
     if (/3[Pp]|TP|MT\d|3PH/i.test(model)) return 3;
-
-    const stored = parseInt(localStorage.getItem("compliance_meter_phases") ?? "0");
-    if (stored === 1 || stored === 3) return stored as 1 | 3;
-
     return 3;
   });
 
-  const currentData = $derived(
-    $meterStore.shortReadData ?? $meterStore.fullReadData
-  );
-  const result = $derived($complianceStore.result);
-  const loading = $derived($complianceStore.loading);
-
-  /**
-   * readFull(), F.F.0'ı bir kez okuyarak latch'i temizler.
-   * F.F.0 "read-and-clear" latch'tir: ikinci okuma gerçek anlık durumu verir.
-   * Bu fonksiyon readFull sonrası bir kez daha F.F.0 ve F.F.1 okuyarak
-   * raw verisini günceller — böylece klemens kapağı gibi anlık durumlar doğru tespit edilir.
-   */
-  async function readFullWithFreshFF() {
-    const raw = await readFull() as any;
-    try {
-      const fresh = await readObisBatch(["F.F.0", "F.F.1"]);
-      if (fresh["F.F.0"]) raw.ffCode = fresh["F.F.0"];
-      if (fresh["F.F.1"]) raw.gfCode = fresh["F.F.1"];
-    } catch {
-      // Ek okuma başarısız olursa readFull sonucu kullanılmaya devam eder
-    }
-    return raw;
-  }
-
-  onMount(async () => {
-    // İlk girişte (sonuç yoksa) tam okuma yap; sonrasında kullanıcı isteğe bağlı okur.
-    if ($connectionStore.status === "connected" && isTauri() && !$complianceStore.result) {
-      fetchingData = true;
-      try {
-        const raw = await readFullWithFreshFF();
-        const rawStr = raw.rawData || "";
-        let meterType: "single-phase" | "three-phase" | "kombi" = "single-phase";
-        if (rawStr.includes("52.7.0") || rawStr.includes("72.7.0")) {
-          meterType = "three-phase";
-        }
-        meterStore.setShortReadData(raw, meterType, false);
-        complianceStore.setLoading();
-        const res = await checkCompliance(raw as any, meterPhases);
-        complianceStore.setResult(res);
-      } catch (e) {
-        errorToast(String(e));
-      } finally {
-        fetchingData = false;
-      }
+  // Auto-select profile based on phases
+  $effect(() => {
+    if (profiles.length > 0 && !selectedProfileId) {
+      const defaultId = meterPhases === 1 ? "single_phase" : "three_phase_direct";
+      const match = profiles.find(p => p.id === defaultId);
+      selectedProfileId = match?.id ?? profiles[0].id;
     }
   });
 
-  const sortedIssues = $derived(
-    result?.issues.slice().sort((a, b) => {
-      const order = { error: 0, warning: 1, info: 2 };
-      return (order[a.severity as keyof typeof order] ?? 3) -
-             (order[b.severity as keyof typeof order] ?? 3);
-    }) ?? []
-  );
+  // ─── Init ────────────────────────────────────────────────────────────────────
 
-  async function refetchAndCheck() {
-    if ($connectionStore.status !== "connected" || !isTauri()) return;
-    fetchingData = true;
+  onMount(async () => {
+    if (!isTauri()) return;
     try {
-      const raw = await readFullWithFreshFF();
-      const rawStr = raw.rawData || "";
-      let meterType: "single-phase" | "three-phase" | "kombi" = "single-phase";
-      if (rawStr.includes("52.7.0") || rawStr.includes("72.7.0")) {
-        meterType = "three-phase";
-      }
-      meterStore.setShortReadData(raw, meterType, false);
-      complianceStore.setLoading();
-      const res = await checkCompliance(raw as any, meterPhases);
-      complianceStore.setResult(res);
+      const [profs, plan] = await Promise.all([
+        getComplianceProfiles(),
+        getComplianceTestPlan(),
+      ]);
+      profiles = profs;
+      if (plan) testSteps = plan.steps.filter(s => s.enabled);
+      complianceStore.setProfiles(profs);
+      complianceStore.setTestPlan(plan);
     } catch (e) {
-      errorToast(String(e));
-    } finally {
-      fetchingData = false;
+      console.error("Failed to load compliance config:", e);
     }
+  });
+
+  // ─── Test Runner ─────────────────────────────────────────────────────────────
+
+  function addLog(msg: string) {
+    const ts = new Date().toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit" });
+    runLog = [...runLog, `[${ts}] ${msg}`];
   }
 
-  async function runCheck() {
-    if (!currentData) return;
+  async function runFullTest() {
+    if (!$isConnected || running) return;
+
+    running = true;
+    runLog = [];
+    shortReadData = null;
+    fullReadData = null;
+    complianceStore.setLoading();
+
+    // Initialize step states
+    stepStates = testSteps.map(step => ({
+      step,
+      status: "pending" as StepStatus,
+      message: "",
+      durationMs: 0,
+      issueCount: 0,
+    }));
+
+    addLog(`Test başlatıldı — ${profiles.find(p => p.id === selectedProfileId)?.name ?? selectedProfileId}`);
+
+    let latestData: ShortReadResult | null = null;
+
+    for (let i = 0; i < stepStates.length; i++) {
+      currentStepIndex = i;
+      const ss = stepStates[i];
+      ss.status = "running";
+      ss.message = "Okuma yapılıyor...";
+      stepStates = [...stepStates]; // trigger reactivity
+
+      const t0 = performance.now();
+      addLog(`Adım ${i + 1}/${stepStates.length}: ${ss.step.name}`);
+
+      try {
+        switch (ss.step.mode) {
+          case "short_read": {
+            const data = await readShort();
+            shortReadData = data;
+            latestData = data;
+
+            // Detect meter type
+            const raw = data.rawData || "";
+            let meterType: "single-phase" | "three-phase" | "kombi" = "single-phase";
+            if (raw.includes("52.7.0") || raw.includes("72.7.0")) meterType = "three-phase";
+            meterStore.setShortReadData(data, meterType, false);
+
+            ss.message = `${Object.keys(data).length} alan okundu`;
+            addLog(`  Kısa okuma tamamlandı — Seri: ${data.serialNumber}`);
+            break;
+          }
+
+          case "full_read": {
+            const data = await readFull();
+            fullReadData = data;
+            latestData = data;
+
+            // Re-read FF codes for fresh latch data
+            try {
+              const fresh = await readObisBatch(["F.F.0", "F.F.1"]);
+              if (fresh["F.F.0"]) (data as any).ffCode = fresh["F.F.0"];
+              if (fresh["F.F.1"]) (data as any).gfCode = fresh["F.F.1"];
+            } catch { /* fallback to readFull result */ }
+
+            const raw = data.rawData || "";
+            let meterType: "single-phase" | "three-phase" | "kombi" = "single-phase";
+            if (raw.includes("52.7.0") || raw.includes("72.7.0")) meterType = "three-phase";
+            meterStore.setShortReadData(data, meterType, false);
+
+            const lineCount = raw.split("\n").filter(l => l.trim()).length;
+            ss.message = `${lineCount} OBIS satırı okundu`;
+            addLog(`  Tam okuma tamamlandı — ${lineCount} satır`);
+            break;
+          }
+
+          case "load_profile": {
+            try {
+              const lp = await readLoadProfile(1, null, null);
+              const entryCount = lp.entries?.length ?? 0;
+              ss.message = `${entryCount} kayıt okundu`;
+              addLog(`  Yük profili tamamlandı — ${entryCount} kayıt`);
+              if (lp.entries && lp.entries.length > 0) {
+                meterStore.setLoadProfileData(lp as any);
+              }
+            } catch (e) {
+              // Load profile may not be available on all meters
+              ss.message = `Okunamadı: ${e}`;
+              ss.status = "failed";
+              addLog(`  Yük profili başarısız: ${e}`);
+            }
+            break;
+          }
+
+          case "packet_read": {
+            const pMode = ss.step.packetMode ?? 7;
+            const pResult = await readPacket(pMode);
+            ss.message = `Mode ${pMode}: ${pResult.bytesRead} bayt okundu`;
+            addLog(`  Paket okuma (Mode ${pMode}) tamamlandı — ${pResult.bytesRead} bayt, ${pResult.readDurationMs}ms, BCC: ${pResult.bccValid ? 'OK' : 'FAIL'}`);
+            break;
+          }
+
+          case "obis_read": {
+            const codes = ss.step.obisCodes ?? ["0.9.1", "0.9.2"];
+            const values = await readObisBatch(codes);
+            const readCount = Object.keys(values).length;
+            ss.message = `${readCount}/${codes.length} kod okundu`;
+            addLog(`  OBIS okuma tamamlandı — ${readCount} kod: ${JSON.stringify(values)}`);
+            break;
+          }
+
+          default:
+            ss.message = `Bilinmeyen mod: ${ss.step.mode}`;
+            ss.status = "skipped";
+            addLog(`  Atlandı — bilinmeyen mod: ${ss.step.mode}`);
+        }
+
+        if (ss.status === "running") ss.status = "done";
+      } catch (e) {
+        ss.status = "failed";
+        ss.message = String(e);
+        addLog(`  HATA: ${e}`);
+      }
+
+      ss.durationMs = Math.round(performance.now() - t0);
+      stepStates = [...stepStates];
+    }
+
+    // Run compliance check with the best available data
+    const checkData = latestData ?? fullReadData ?? shortReadData;
+    if (checkData) {
+      addLog("Uyumluluk kontrolü yapılıyor...");
+      try {
+        const res = await checkCompliance(checkData as any, meterPhases);
+        complianceStore.setResult(res);
+
+        // Update step issue counts based on categories
+        // (simplified: distribute total across steps for visual feedback)
+        const totalIssues = res.errorCount + res.warningCount;
+        addLog(`Kontrol tamamlandı — ${res.errorCount} hata, ${res.warningCount} uyarı, ${res.infoCount} bilgi`);
+
+        if (res.errorCount === 0 && res.warningCount === 0) {
+          successToast($t.complianceAllPassed);
+        } else {
+          const parts: string[] = [];
+          if (res.errorCount > 0) parts.push(`${res.errorCount} ${$t.complianceErrors}`);
+          if (res.warningCount > 0) parts.push(`${res.warningCount} ${$t.complianceWarnings}`);
+          warningToast(parts.join(", "));
+        }
+      } catch (e) {
+        complianceStore.setError(String(e));
+        errorToast(String(e));
+        addLog(`Kontrol hatası: ${e}`);
+      }
+    } else {
+      complianceStore.setError("Hiçbir okuma başarılı olmadı");
+      addLog("HATA: Hiçbir okuma başarılı olmadı — kontrol yapılamıyor");
+    }
+
+    currentStepIndex = -1;
+    running = false;
+    addLog("Test tamamlandı.");
+  }
+
+  // ─── Quick check on existing data ────────────────────────────────────────────
+
+  async function runCheckOnly() {
+    const data = fullReadData ?? shortReadData ?? $meterStore.shortReadData ?? $meterStore.fullReadData;
+    if (!data) return;
     complianceStore.setLoading();
     try {
-      const res = await checkCompliance(currentData as any, meterPhases);
+      const res = await checkCompliance(data as any, meterPhases);
       complianceStore.setResult(res);
-      if (res.rulesStatus === "tooOld") {
-        errorToast($t.complianceTooOld);
-      } else if (res.errorCount === 0 && res.warningCount === 0) {
+      if (res.errorCount === 0 && res.warningCount === 0) {
         successToast($t.complianceAllPassed);
-      } else {
-        const parts: string[] = [];
-        if (res.errorCount > 0) parts.push(`${res.errorCount} ${$t.complianceErrors}`);
-        if (res.warningCount > 0) parts.push(`${res.warningCount} ${$t.complianceWarnings}`);
-        warningToast(parts.join(", "));
       }
     } catch (e) {
       complianceStore.setError(String(e));
@@ -264,63 +287,7 @@
     }
   }
 
-  async function openRulesFile() {
-    if (!isTauri()) return;
-    try {
-      const path = await getComplianceRulesPath();
-      const { openPath } = await import("@tauri-apps/plugin-opener");
-      await openPath(path);
-    } catch (e) {
-      errorToast(String(e));
-    }
-  }
-
-  async function reloadRules() {
-    reloading = true;
-    try {
-      const msg = await reloadComplianceRules();
-      successToast(msg);
-      if (currentData) await runCheck();
-    } catch (e) {
-      errorToast(String(e));
-    } finally {
-      reloading = false;
-    }
-  }
-
-  async function updateRulesFromInternet() {
-    showUpdateModal = false;
-    updating = true;
-    try {
-      const msg = await updateComplianceRules();
-      successToast(msg);
-      if (currentData) await runCheck();
-    } catch (e) {
-      errorToast(String(e));
-    } finally {
-      updating = false;
-    }
-  }
-
-  async function updateRulesFromFile() {
-    showUpdateModal = false;
-    const selected = await openFileDialog({
-      filters: [{ name: "TOML", extensions: ["toml"] }],
-      multiple: false,
-    });
-    if (!selected) return;
-    const path = typeof selected === "string" ? selected : selected.path;
-    updating = true;
-    try {
-      const msg = await importComplianceRulesFromFile(path);
-      successToast(msg);
-      if (currentData) await runCheck();
-    } catch (e) {
-      errorToast(String(e));
-    } finally {
-      updating = false;
-    }
-  }
+  // ─── Helpers ─────────────────────────────────────────────────────────────────
 
   function formatTime(iso: string): string {
     try {
@@ -344,23 +311,101 @@
       : "bg-blue-500/10 border-blue-500/20";
   }
 
-  /** "TEDAŞ §5.3 Ek-F / MASS §5.3 Ek-C" → ["TEDAŞ §5.3 Ek-F", "MASS §5.3 Ek-C"] */
   function specSources(specRef: string): string[] {
     return specRef.split(" / ").map(part =>
       part.trim().replace(/^TEDAS(\s|§)/, "TEDAŞ$1")
     );
   }
 
-  /** FF/GF bit kontrolleri için true döner — bu kurallarda ölçülen/beklenen değer anlamlı değil */
-  function isBitCheck(field: string): boolean {
-    return field === "ff_code" || field === "gf_code";
+  function stepIcon(mode: string): string {
+    switch (mode) {
+      case "short_read": return "electric_meter";
+      case "full_read": return "description";
+      case "load_profile": return "bar_chart";
+      case "packet_read": return "inventory_2";
+      case "obis_read": return "schedule";
+      default: return "help";
+    }
   }
 
-  // ─── Kural Ekleme Formu ────────────────────────────────────────────────────
+  function statusIcon(s: StepStatus): string {
+    switch (s) {
+      case "pending": return "radio_button_unchecked";
+      case "running": return "autorenew";
+      case "done": return "check_circle";
+      case "failed": return "error";
+      case "skipped": return "skip_next";
+    }
+  }
 
-  // "date"       → sadece not_empty + not_equals (geçersiz tarih kontrolü)
-  // "datetime"   → sadece not_empty (meter_date/time gibi sürekli değişenler)
-  // "enum"       → equals / not_equals ama hazır seçenekle + not_empty
+  function statusColor(s: StepStatus): string {
+    switch (s) {
+      case "pending": return "text-slate-400";
+      case "running": return "text-primary";
+      case "done": return "text-emerald-500";
+      case "failed": return "text-red-500";
+      case "skipped": return "text-yellow-500";
+    }
+  }
+
+  // ─── Rules management ────────────────────────────────────────────────────────
+
+  async function openRulesFile() {
+    if (!isTauri()) return;
+    try {
+      const path = await getComplianceRulesPath();
+      const { openPath } = await import("@tauri-apps/plugin-opener");
+      await openPath(path);
+    } catch (e) {
+      errorToast(String(e));
+    }
+  }
+
+  async function reloadRules() {
+    reloading = true;
+    try {
+      const msg = await reloadComplianceRules();
+      successToast(msg);
+    } catch (e) {
+      errorToast(String(e));
+    } finally {
+      reloading = false;
+    }
+  }
+
+  async function updateRulesFromInternet() {
+    showUpdateModal = false;
+    updating = true;
+    try {
+      const msg = await updateComplianceRules();
+      successToast(msg);
+    } catch (e) {
+      errorToast(String(e));
+    } finally {
+      updating = false;
+    }
+  }
+
+  async function updateRulesFromFile() {
+    showUpdateModal = false;
+    const selected = await openFileDialog({
+      filters: [{ name: "TOML", extensions: ["toml"] }],
+      multiple: false,
+    });
+    if (!selected) return;
+    updating = true;
+    try {
+      const msg = await importComplianceRulesFromFile(selected);
+      successToast(msg);
+    } catch (e) {
+      errorToast(String(e));
+    } finally {
+      updating = false;
+    }
+  }
+
+  // ─── Rule Add/Edit Modal ────────────────────────────────────────────────────
+
   type FieldType = "numeric" | "text" | "date" | "datetime" | "enum" | "bitfield" | "tariff_sum" | "time_drift";
 
   interface FieldDef {
@@ -368,7 +413,6 @@
     label: string;
     type: FieldType;
     phases?: number;
-    /** "enum" alanları için hazır seçenekler */
     options?: { value: string; label: string }[];
   }
 
@@ -434,13 +478,6 @@
       ],
     },
     {
-      label: "Ayarlar",
-      fields: [
-        { value: "demand_period", label: "Talep Periyodu", type: "text" },
-        { value: "lp_period", label: "Yük Profili Periyodu", type: "text" },
-      ],
-    },
-    {
       label: "Zaman",
       fields: [
         { value: "meter_date", label: "Sayaç Tarihi", type: "datetime" },
@@ -478,16 +515,13 @@
       case "time_drift":
         return [{ value: "time_drift_minutes", label: $t.complianceCheckTimeDrift }];
       case "datetime":
-        // Sürekli değişen alanlar — sadece "boş değil" mantıklı
         return [{ value: "not_empty", label: $t.complianceCheckNotEmpty }];
       case "date":
-        // Üretim/kalibrasyon tarihi — boşluk + geçersiz tarih kontrolü
         return [
           { value: "not_empty", label: $t.complianceCheckNotEmpty },
           { value: "not_equals", label: `${$t.complianceCheckNotEquals} (ör. geçersiz tarih)` },
         ];
       case "enum":
-        // Hazır değerli alanlar
         return [
           { value: "equals", label: $t.complianceCheckEquals },
           { value: "not_equals", label: $t.complianceCheckNotEquals },
@@ -510,9 +544,8 @@
     }
   }
 
-  // ─── Kural Ekle/Düzenle Modal ────────────────────────────────────────────────
   let showAddRule = $state(false);
-  let editMode = $state(false); // true = mevcut kuralı düzenle
+  let editMode = $state(false);
   let saving = $state(false);
 
   let ruleCode = $state("");
@@ -546,13 +579,13 @@
     ruleSeverity = (prefill?.severity as "error"|"warning"|"info") ?? "warning";
     rulePhases = (prefill?.phases as 0|1|3) ?? 0;
     ruleDesc = prefill?.description ?? "";
-    ruleSpecRef = prefill?.spec_ref ?? "";
+    ruleSpecRef = prefill?.specRef ?? "";
     ruleMin = prefill?.min != null ? String(prefill.min) : "";
     ruleMax = prefill?.max != null ? String(prefill.max) : "";
     ruleValue = prefill?.value ?? "";
     ruleBit = prefill?.bit != null ? String(prefill.bit) : "";
     ruleTolerance = prefill?.tolerance != null ? String(prefill.tolerance) : "";
-    ruleMaxDrift = prefill?.max_drift != null ? String(prefill.max_drift) : "";
+    ruleMaxDrift = prefill?.maxDrift != null ? String(prefill.maxDrift) : "";
     showAddRule = true;
   }
 
@@ -561,27 +594,33 @@
     saving = true;
     try {
       if (editMode) {
-        // Struct tabanlı güncelleme
         const rule: ComplianceRuleDef = {
           code: ruleCode.trim(),
-          field: ruleField,
+          category: "obis_value",
           check: ruleCheck,
           severity: ruleSeverity,
           description: ruleDesc.trim(),
-          spec_ref: ruleSpecRef.trim() || null,
-          phases: rulePhases !== 0 ? rulePhases : null,
+          obisCode: null,
+          obisCodes: [],
+          specRef: ruleSpecRef.trim() || null,
+          profile: rulePhases === 3 ? ["three_phase_direct", "three_phase_ct"] : rulePhases === 1 ? ["single_phase"] : [],
+          sessionType: null,
           min: ruleCheck === "range" ? parseFloat(ruleMin) : null,
           max: ruleCheck === "range" ? parseFloat(ruleMax) : null,
           value: (ruleCheck === "equals" || ruleCheck === "not_equals") ? ruleValue : null,
           bit: (ruleCheck === "bit_zero" || ruleCheck === "bit_one") ? parseInt(ruleBit) : null,
           tolerance: ruleCheck === "tariff_balance" ? parseFloat(ruleTolerance) : null,
-          max_drift: ruleCheck === "time_drift_minutes" ? parseInt(ruleMaxDrift) : null,
+          maxDrift: ruleCheck === "time_drift_minutes" ? parseInt(ruleMaxDrift) : null,
+          enabled: true,
+          cause: null,
+          remedy: null,
+          field: ruleField,
+          phases: rulePhases !== 0 ? rulePhases : null,
         };
         await updateComplianceRule(rule);
         successToast($t.complianceRuleUpdated);
         await loadManagedRules();
       } else {
-        // TOML append (yeni kural)
         let toml = `[[rules]]\n`;
         toml += `code = "${ruleCode.trim()}"\n`;
         toml += `field = "${ruleField}"\n`;
@@ -614,7 +653,8 @@
     }
   }
 
-  // ─── Kuralları Yönet Modal ────────────────────────────────────────────────────
+  // ─── Manage Rules Modal ────────────────────────────────────────────────────
+
   let showManageRules = $state(false);
   let managedRules = $state<ComplianceRuleDef[]>([]);
   let loadingRules = $state(false);
@@ -655,69 +695,23 @@
     return s === "error" ? "bg-red-500" : s === "warning" ? "bg-yellow-500" : "bg-blue-400";
   }
 
+  // Computed: total progress
+  const completedSteps = $derived(stepStates.filter(s => s.status === "done" || s.status === "failed" || s.status === "skipped").length);
+  const progressPct = $derived(stepStates.length > 0 ? Math.round((completedSteps / stepStates.length) * 100) : 0);
+
+  // Sorted issues for display
+  const sortedIssues = $derived(
+    result?.issues.slice().sort((a, b) => {
+      const order = { error: 0, warning: 1, info: 2 };
+      return (order[a.severity as keyof typeof order] ?? 3) -
+             (order[b.severity as keyof typeof order] ?? 3);
+    }) ?? []
+  );
 </script>
 
 <div class="space-y-6">
 
-  <!-- Tam okuma bekleme ekranı (tam sayfa overlay) -->
-  {#if fetchingData}
-    <div class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#0a1520] overflow-hidden">
-
-      <!-- Arka plan nabzı — radar/uyarı ışığı -->
-      <div class="absolute inset-0 obis-bg-pulse pointer-events-none"
-           style="background: radial-gradient(ellipse 70% 60% at 50% 50%, rgba(39,158,167,0.22) 0%, rgba(39,158,167,0.06) 50%, transparent 100%);"></div>
-
-      <!-- OBIS parçacık canvas -->
-      <canvas
-        bind:this={rainCanvas}
-        class="absolute inset-0 w-full h-full pointer-events-none"
-      ></canvas>
-
-      <!-- Merkez kart -->
-      <div class="relative z-10 flex flex-col items-center gap-7 px-12 py-10 text-center
-                  rounded-2xl border border-primary/25 bg-[#0a1520]/80 backdrop-blur-lg
-                  shadow-[0_0_60px_rgba(39,158,167,0.15)]">
-
-        <!-- Halka + ikon -->
-        <div class="relative flex items-center justify-center w-28 h-28">
-          <!-- dış halka ping -->
-          <span class="animate-ping absolute inset-0 rounded-full bg-primary/10"></span>
-          <!-- dönen yay (SVG) -->
-          <svg class="absolute inset-0 w-full h-full animate-spin-reverse" style="animation-duration:2s" viewBox="0 0 112 112">
-            <circle cx="56" cy="56" r="50" fill="none" stroke="rgba(39,158,167,0.15)" stroke-width="2"/>
-            <circle cx="56" cy="56" r="50" fill="none" stroke="rgba(39,158,167,0.7)" stroke-width="2"
-              stroke-dasharray="80 235" stroke-linecap="round"/>
-          </svg>
-          <!-- iç daire + ikon -->
-          <span class="relative flex items-center justify-center w-16 h-16 rounded-full
-                       bg-primary/10 border border-primary/30 shadow-[0_0_20px_rgba(39,158,167,0.3)]">
-            <span class="material-symbols-outlined text-4xl text-primary">electric_meter</span>
-          </span>
-        </div>
-
-        <!-- Yazılar -->
-        <div class="space-y-1.5">
-          <p class="text-xl font-bold text-white tracking-wider">Okuma yapılıyor</p>
-          <div class="flex items-center justify-center gap-1">
-            <span class="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style="animation-delay:0ms"></span>
-            <span class="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style="animation-delay:150ms"></span>
-            <span class="w-1.5 h-1.5 rounded-full bg-primary animate-bounce" style="animation-delay:300ms"></span>
-          </div>
-          <p class="text-xs text-primary/60 mt-1">OBIS verileri alınıyor</p>
-        </div>
-
-        <!-- Sayaç bilgisi -->
-        {#if $connectionStore.meterIdentity}
-          <div class="flex items-center gap-2 px-4 py-2 rounded-lg bg-primary/8 border border-primary/20 text-xs text-primary/70">
-            <span class="material-symbols-outlined text-sm text-primary/80">tag</span>
-            <span>{$connectionStore.meterIdentity.manufacturer} · {$connectionStore.meterIdentity.serialNumber}</span>
-          </div>
-        {/if}
-      </div>
-    </div>
-  {:else}
-
-  <!-- Başlık -->
+  <!-- Header -->
   <div class="flex items-start justify-between gap-4 flex-wrap">
     <div>
       <h2 class="text-xl font-bold text-slate-900 dark:text-white">
@@ -728,270 +722,390 @@
       </p>
     </div>
 
-    <div class="flex items-center gap-3">
-      <!-- Faz göstergesi (otomatik tespit) -->
-      <div class="flex items-center gap-1.5 px-3 py-2 rounded-lg border border-slate-200 dark:border-slate-600 text-xs font-medium text-slate-600 dark:text-slate-300">
-        <span class="material-symbols-outlined text-sm text-primary">electric_bolt</span>
-        {meterPhases} Faz
-        <span class="text-slate-400 dark:text-slate-500">(Otomatik)</span>
-      </div>
-
-      <button
-        onclick={runCheck}
-        disabled={!currentData || loading || fetchingData}
-        class="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm transition-all
-          {!currentData || loading || fetchingData
-            ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
-            : 'bg-primary text-white hover:bg-primary/90 active:scale-95'}"
-      >
-        {#if loading}
-          <span class="material-symbols-outlined text-base animate-spin-reverse">autorenew</span>
-          Kontrol ediliyor...
-        {:else}
-          <span class="material-symbols-outlined text-base">verified_user</span>
-          {$t.complianceCheck}
-        {/if}
+    <div class="flex items-center gap-2">
+      <button onclick={openRulesFile}
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
+        <span class="material-symbols-outlined text-sm">open_in_new</span>
+        {$t.complianceOpenRules}
       </button>
-
-      {#if $connectionStore.status === "connected"}
-        <button
-          onclick={refetchAndCheck}
-          disabled={fetchingData || loading}
-          class="flex items-center gap-2 px-4 py-2 rounded-lg font-medium text-sm border transition-all
-            {fetchingData || loading
-              ? 'border-slate-200 dark:border-slate-700 text-slate-400 cursor-not-allowed'
-              : 'border-slate-300 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 active:scale-95'}"
-        >
-          {#if fetchingData}
-            <span class="material-symbols-outlined text-base animate-spin-reverse">autorenew</span>
-            {$t.complianceRefetching}
-          {:else}
-            <span class="material-symbols-outlined text-base">sync</span>
-            {$t.complianceRefetch}
-          {/if}
-        </button>
-      {/if}
-
+      <button onclick={reloadRules} disabled={reloading}
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all disabled:opacity-50">
+        <span class="material-symbols-outlined text-sm {reloading ? 'animate-spin-reverse' : ''}">refresh</span>
+        {reloading ? $t.complianceReloading : $t.complianceReload}
+      </button>
+      <button onclick={() => showUpdateModal = true} disabled={updating}
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all disabled:opacity-50">
+        <span class="material-symbols-outlined text-sm {updating ? 'animate-spin-reverse' : ''}">cloud_download</span>
+        {updating ? $t.complianceUpdating : $t.complianceUpdate}
+      </button>
+      <button onclick={openManageRules}
+        class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
+        <span class="material-symbols-outlined text-sm">rule_settings</span>
+        {$t.complianceManageRules ?? "Kuralları Yönet"}
+      </button>
     </div>
   </div>
 
-  <!-- Veri yok -->
-  {#if !currentData}
-    <div class="rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-8 text-center">
-      <span class="material-symbols-outlined text-4xl text-slate-400 mb-3 block">sensors_off</span>
-      <p class="text-slate-500 dark:text-slate-400 text-sm">{$t.complianceNoData}</p>
+  <!-- Not connected warning -->
+  {#if !$isConnected}
+    <div class="rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-8 text-center space-y-4">
+      <span class="material-symbols-outlined text-5xl text-slate-300 dark:text-slate-600 block">sensors_off</span>
+      <div>
+        <p class="text-slate-600 dark:text-slate-400 font-medium">Sayaca bağlı değilsiniz</p>
+        <p class="text-sm text-slate-500 dark:text-slate-500 mt-1">Uyumluluk testi için önce bir sayaca bağlanın.</p>
+      </div>
+      <button
+        onclick={() => navigationStore.navigate("dashboard")}
+        class="inline-flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white font-bold rounded-lg transition-all"
+      >
+        <span class="material-symbols-outlined text-base">cable</span>
+        Bağlantı Sayfasına Git
+      </button>
     </div>
 
-  {:else if result}
+  {:else}
 
-    <!-- Kurallar çok eski → kilitli -->
-    {#if result.rulesStatus === "tooOld"}
-      <div class="rounded-xl border border-red-500/30 bg-red-500/10 p-6 text-center space-y-3">
-        <span class="material-symbols-outlined text-4xl text-red-500 block">block</span>
-        <p class="font-bold text-red-500">{$t.complianceTooOld}</p>
-        <p class="text-sm text-slate-500 dark:text-slate-400">{$t.complianceTooOldDesc}</p>
-        <p class="text-xs text-slate-400">
-          Yerel: v{result.rulesVersion}
-          {#if result.latestVersion} → Güncel: v{result.latestVersion}{/if}
-        </p>
-        <button
-          onclick={() => showUpdateModal = true}
-          disabled={updating}
-          class="mx-auto flex items-center gap-2 px-4 py-2 rounded-lg bg-red-500 text-white text-sm font-medium hover:bg-red-600 transition-all disabled:opacity-50"
-        >
-          <span class="material-symbols-outlined text-base {updating ? 'animate-spin-reverse' : ''}">cloud_download</span>
-          {updating ? $t.complianceUpdating : $t.complianceUpdate}
-        </button>
-      </div>
-
-    {:else}
-      <!-- Durum bildirimleri -->
-      {#if result.rulesStatus === "offline"}
-        <div class="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-2 flex items-center gap-2 text-sm text-yellow-600 dark:text-yellow-400">
-          <span class="material-symbols-outlined text-base">wifi_off</span>
-          {$t.complianceOffline}
-        </div>
-      {:else if result.latestVersion && result.latestVersion !== result.rulesVersion}
-        <div class="rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-2 flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
-          <span class="material-symbols-outlined text-base">update</span>
-          {$t.complianceOutdated}: v{result.latestVersion}
-          <button onclick={() => showUpdateModal = true} disabled={updating} class="ml-auto text-xs underline disabled:opacity-50">
-            {updating ? $t.complianceUpdating : $t.complianceUpdate}
-          </button>
-        </div>
-      {/if}
-
-      <!-- Meta + araçlar -->
-      <div class="flex items-center gap-3 flex-wrap">
-        <span class="text-xs text-slate-500 dark:text-slate-400">
-          <span class="font-medium">{$t.complianceRulesVersion}:</span> {result.rulesVersion}
-        </span>
-        <span class="text-slate-300 dark:text-slate-600">•</span>
-        <span class="text-xs text-slate-500 dark:text-slate-400">
-          <span class="font-medium">{$t.complianceLastCheck}:</span> {formatTime(result.checkedAt)}
-        </span>
-        <div class="ml-auto flex items-center gap-2">
-          <button onclick={openRulesFile}
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
-            <span class="material-symbols-outlined text-sm">open_in_new</span>
-            {$t.complianceOpenRules}
-          </button>
-          <button onclick={reloadRules} disabled={reloading}
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all disabled:opacity-50">
-            <span class="material-symbols-outlined text-sm {reloading ? 'animate-spin-reverse' : ''}">refresh</span>
-            {reloading ? $t.complianceReloading : $t.complianceReload}
-          </button>
-          <button onclick={() => showUpdateModal = true} disabled={updating}
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all disabled:opacity-50">
-            <span class="material-symbols-outlined text-sm {updating ? 'animate-spin-reverse' : ''}">cloud_download</span>
-            {updating ? $t.complianceUpdating : $t.complianceUpdate}
-          </button>
-        </div>
-      </div>
-
-      <!-- Özet -->
-      <div class="grid grid-cols-2 gap-3">
-        <div class="rounded-xl p-4 border {result.errorCount > 0 ? 'bg-red-500/10 border-red-500/20' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700'}">
+    <!-- Test Runner Card -->
+    <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl shadow-sm overflow-hidden">
+      <!-- Runner Header -->
+      <div class="bg-gradient-to-r from-primary/10 to-emerald-500/10 dark:from-primary/20 dark:to-emerald-500/20 px-6 py-4 border-b border-slate-200 dark:border-[#334a5e]">
+        <div class="flex items-center justify-between">
           <div class="flex items-center gap-3">
-            <span class="material-symbols-outlined text-2xl {result.errorCount > 0 ? 'text-red-500' : 'text-slate-300 dark:text-slate-600'}">
-              {result.errorCount > 0 ? 'cancel' : 'check_circle'}
-            </span>
+            <div class="p-2 bg-primary/10 rounded-lg">
+              <span class="material-symbols-outlined text-primary">play_circle</span>
+            </div>
             <div>
-              <p class="text-2xl font-bold {result.errorCount > 0 ? 'text-red-500' : 'text-slate-400'}">
-                {result.errorCount}
+              <h3 class="text-base font-bold text-slate-900 dark:text-white">Test Çalıştır</h3>
+              <p class="text-xs text-slate-500 dark:text-slate-400">
+                {testSteps.length} adımlı uyumluluk testi
               </p>
-              <p class="text-xs text-slate-500">{$t.complianceErrors}</p>
             </div>
           </div>
-        </div>
-        <div class="rounded-xl p-4 border {result.warningCount > 0 ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700'}">
+
           <div class="flex items-center gap-3">
-            <span class="material-symbols-outlined text-2xl {result.warningCount > 0 ? 'text-yellow-500' : 'text-slate-300 dark:text-slate-600'}">
-              {result.warningCount > 0 ? 'warning' : 'check_circle'}
-            </span>
-            <div>
-              <p class="text-2xl font-bold {result.warningCount > 0 ? 'text-yellow-500' : 'text-slate-400'}">
-                {result.warningCount}
-              </p>
-              <p class="text-xs text-slate-500">{$t.complianceWarnings}</p>
+            <!-- Profile selector -->
+            <div class="flex items-center gap-2">
+              <span class="text-xs text-slate-500">Profil:</span>
+              <select
+                bind:value={selectedProfileId}
+                disabled={running}
+                class="px-3 py-1.5 text-xs font-medium rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-[#1a2632] text-slate-900 dark:text-white focus:border-primary focus:ring-1 focus:ring-primary transition-colors disabled:opacity-50"
+              >
+                {#each profiles as p}
+                  <option value={p.id}>{p.name}</option>
+                {/each}
+              </select>
             </div>
+
+            <!-- Phase indicator -->
+            <div class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-600 text-xs font-medium text-slate-600 dark:text-slate-300">
+              <span class="material-symbols-outlined text-sm text-primary">electric_bolt</span>
+              {meterPhases} Faz
+            </div>
+
+            <!-- Run button -->
+            <button
+              onclick={runFullTest}
+              disabled={running || !$isConnected}
+              class="flex items-center gap-2 px-5 py-2.5 rounded-lg font-bold text-sm transition-all
+                {running
+                  ? 'bg-primary/20 text-primary cursor-wait'
+                  : 'bg-primary text-white hover:bg-primary/90 active:scale-95 shadow-lg shadow-primary/20'}"
+            >
+              {#if running}
+                <span class="material-symbols-outlined text-base animate-spin-reverse">autorenew</span>
+                Test Devam Ediyor...
+              {:else}
+                <span class="material-symbols-outlined text-base">play_arrow</span>
+                Testi Başlat
+              {/if}
+            </button>
           </div>
         </div>
       </div>
 
-      <!-- Tüm kurallar geçti -->
-      {#if result.issues.length === 0}
-        <div class="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-6 text-center">
-          <span class="material-symbols-outlined text-4xl text-emerald-500 mb-2 block">verified</span>
-          <p class="font-bold text-emerald-600 dark:text-emerald-400">{$t.complianceAllPassed}</p>
-          <p class="text-sm text-slate-500 mt-1">{$t.complianceAllPassedDesc}</p>
-        </div>
-      {:else}
-        <!-- İhlaller listesi -->
-        <div class="space-y-2">
-          {#each sortedIssues as issue (issue.code)}
-            <div class="rounded-xl border overflow-hidden {severityBorder(issue.severity)}">
-              <div class="grid grid-cols-2 divide-x divide-slate-200/60 dark:divide-slate-700/60">
-
-                <!-- SOL: kural bilgisi -->
-                <div class="p-4 flex items-start gap-3">
-                  <span class="material-symbols-outlined text-xl mt-0.5 {severityText(issue.severity)} flex-shrink-0">
-                    {severityIcon(issue.severity)}
-                  </span>
-                  <div class="min-w-0">
-                    <!-- Kod + şartname rozetleri -->
-                    <div class="flex items-center gap-1.5 mb-1.5 flex-wrap">
-                      <span class="font-mono text-xs font-bold {severityText(issue.severity)}">{issue.code}</span>
-                      {#if issue.specRef}
-                        {#each specSources(issue.specRef) as src}
-                          <span class="text-[10px] bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-full font-medium">
-                            {src}
-                          </span>
-                        {/each}
-                      {/if}
-                    </div>
-                    {#if issue.specRef}
-                      <p class="text-[10px] text-slate-400 dark:text-slate-500 mb-1">
-                        <span class="font-semibold">{issue.specRef}'e göre:</span>
-                      </p>
-                    {/if}
-                    <p class="text-sm font-medium text-slate-700 dark:text-slate-200 leading-relaxed">
-                      {issue.description}
-                    </p>
-                  </div>
+      <!-- Test Steps -->
+      <div class="p-6">
+        {#if stepStates.length === 0 && !running}
+          <!-- Before first run: show plan -->
+          <div class="space-y-3">
+            {#each testSteps as step, i}
+              <div class="flex items-center gap-4 p-3 rounded-lg bg-slate-50 dark:bg-[#0f1821] border border-slate-200 dark:border-[#334a5e]">
+                <div class="flex items-center justify-center w-8 h-8 rounded-full bg-slate-100 dark:bg-slate-700">
+                  <span class="text-xs font-bold text-slate-500">{i + 1}</span>
                 </div>
-
-                <!-- SAĞ: neden & düzeltme -->
-                <div class="p-4 flex flex-col gap-3 bg-black/[0.02] dark:bg-white/[0.02]">
-                  {#if issue.cause}
-                    <div>
-                      <p class="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
-                        <span class="material-symbols-outlined text-xs">help</span>
-                        Neden
-                      </p>
-                      <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{issue.cause}</p>
-                    </div>
-                  {/if}
-                  {#if issue.remedy}
-                    <div class="border-t border-slate-200/60 dark:border-slate-700/60 pt-3">
-                      <p class="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
-                        <span class="material-symbols-outlined text-xs">build</span>
-                        Düzeltme
-                      </p>
-                      <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{issue.remedy}</p>
-                    </div>
-                  {:else if !issue.cause}
-                    <p class="text-xs text-slate-400 dark:text-slate-500 italic">Bu kural için neden/düzeltme bilgisi tanımlanmamış.</p>
-                  {/if}
+                <span class="material-symbols-outlined text-slate-400">{stepIcon(step.mode)}</span>
+                <div class="flex-1">
+                  <p class="text-sm font-medium text-slate-700 dark:text-slate-200">{step.name}</p>
+                  <p class="text-xs text-slate-400">Zaman aşımı: {step.timeoutSeconds}s</p>
                 </div>
+              </div>
+            {/each}
+          </div>
 
+        {:else}
+          <!-- During / after run: show step status -->
+
+          <!-- Progress bar -->
+          {#if running}
+            <div class="mb-5">
+              <div class="flex items-center justify-between mb-1.5">
+                <span class="text-xs font-medium text-slate-500">İlerleme</span>
+                <span class="text-xs font-bold text-primary">{progressPct}%</span>
+              </div>
+              <div class="w-full h-2 bg-slate-100 dark:bg-slate-700 rounded-full overflow-hidden">
+                <div
+                  class="h-full bg-gradient-to-r from-primary to-emerald-400 rounded-full transition-all duration-500"
+                  style="width: {progressPct}%"
+                ></div>
               </div>
             </div>
-          {/each}
-        </div>
-
-        <!-- Rapor notu (Excel çıktısında da yer alacak) -->
-        <p class="text-xs text-slate-400 dark:text-slate-500 text-right">
-          {$t.complianceReportNote} v{result.rulesVersion}
-          {#if result.latestVersion && result.latestVersion !== result.rulesVersion}
-            · {$t.complianceOutdated}: v{result.latestVersion}
           {/if}
-        </p>
-      {/if}
-    {/if}
 
-  {:else if !loading}
-    <!-- Henüz kontrol yapılmadı -->
-    <div class="rounded-xl border border-dashed border-slate-300 dark:border-slate-600 p-8 text-center space-y-3">
-      <span class="material-symbols-outlined text-4xl text-slate-400 block">policy</span>
-      <p class="text-slate-500 dark:text-slate-400 text-sm">
-        Uyumluluk kontrolü için "Kontrol Et" butonuna tıklayın.
-      </p>
-      <div class="flex items-center justify-center gap-2">
-        <button onclick={openRulesFile}
-          class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">
-          <span class="material-symbols-outlined text-sm">open_in_new</span>
-          {$t.complianceOpenRules}
-        </button>
+          <div class="space-y-2">
+            {#each stepStates as ss, i}
+              <div class="flex items-center gap-4 p-3 rounded-lg border transition-all
+                {ss.status === 'running'
+                  ? 'bg-primary/5 border-primary/20 ring-1 ring-primary/10'
+                  : ss.status === 'done'
+                  ? 'bg-emerald-500/5 border-emerald-500/15'
+                  : ss.status === 'failed'
+                  ? 'bg-red-500/5 border-red-500/15'
+                  : 'bg-slate-50 dark:bg-[#0f1821] border-slate-200 dark:border-[#334a5e]'}">
+                <!-- Step number -->
+                <div class="flex items-center justify-center w-8 h-8 rounded-full flex-shrink-0
+                  {ss.status === 'done' ? 'bg-emerald-500/10' : ss.status === 'failed' ? 'bg-red-500/10' : ss.status === 'running' ? 'bg-primary/10' : 'bg-slate-100 dark:bg-slate-700'}">
+                  <span class="material-symbols-outlined text-base {statusColor(ss.status)} {ss.status === 'running' ? 'animate-spin-reverse' : ''}">
+                    {statusIcon(ss.status)}
+                  </span>
+                </div>
+
+                <!-- Step icon -->
+                <span class="material-symbols-outlined {ss.status === 'running' ? 'text-primary' : 'text-slate-400'}">
+                  {stepIcon(ss.step.mode)}
+                </span>
+
+                <!-- Step info -->
+                <div class="flex-1 min-w-0">
+                  <p class="text-sm font-medium {ss.status === 'running' ? 'text-primary' : 'text-slate-700 dark:text-slate-200'}">
+                    {ss.step.name}
+                  </p>
+                  {#if ss.message}
+                    <p class="text-xs {ss.status === 'failed' ? 'text-red-500' : 'text-slate-400'} truncate">
+                      {ss.message}
+                    </p>
+                  {/if}
+                </div>
+
+                <!-- Duration -->
+                {#if ss.durationMs > 0}
+                  <span class="text-xs font-mono text-slate-400 flex-shrink-0">
+                    {(ss.durationMs / 1000).toFixed(1)}s
+                  </span>
+                {/if}
+              </div>
+            {/each}
+          </div>
+
+          <!-- Run log (collapsible) -->
+          {#if runLog.length > 0}
+            <details class="mt-4">
+              <summary class="text-xs font-medium text-slate-500 cursor-pointer hover:text-primary transition-colors">
+                Test Günlüğü ({runLog.length} satır)
+              </summary>
+              <div class="mt-2 p-3 rounded-lg bg-slate-50 dark:bg-[#0f1821] border border-slate-200 dark:border-[#334a5e] max-h-48 overflow-y-auto font-mono text-[11px] text-slate-500 dark:text-slate-400 space-y-0.5">
+                {#each runLog as line}
+                  <div class="{line.includes('HATA') ? 'text-red-500' : line.includes('tamamlandı') ? 'text-emerald-500' : ''}">{line}</div>
+                {/each}
+              </div>
+            </details>
+          {/if}
+        {/if}
       </div>
     </div>
-  {/if}
+
+    <!-- Results Section (shown after test completes) -->
+    {#if result && !running}
+      <div class="bg-white dark:bg-surface-dark border border-slate-200 dark:border-[#334a5e] rounded-xl shadow-sm overflow-hidden">
+        <!-- Results Header -->
+        <div class="px-6 py-4 border-b border-slate-200 dark:border-[#334a5e]">
+          <div class="flex items-center justify-between">
+            <div class="flex items-center gap-3">
+              <span class="material-symbols-outlined text-xl {result.errorCount > 0 ? 'text-red-500' : result.warningCount > 0 ? 'text-yellow-500' : 'text-emerald-500'}">
+                {result.errorCount > 0 ? 'gpp_bad' : result.warningCount > 0 ? 'gpp_maybe' : 'verified_user'}
+              </span>
+              <div>
+                <h3 class="text-base font-bold text-slate-900 dark:text-white">Kontrol Sonuçları</h3>
+                <span class="text-xs text-slate-500">
+                  v{result.configVersion} · {formatTime(result.checkedAt)} · {result.totalRulesChecked} kural kontrol edildi
+                </span>
+              </div>
+            </div>
+
+            <!-- Re-check button -->
+            <button
+              onclick={runCheckOnly}
+              class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-slate-200 dark:border-slate-600 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
+            >
+              <span class="material-symbols-outlined text-sm">verified_user</span>
+              Tekrar Kontrol
+            </button>
+          </div>
+        </div>
+
+        <div class="p-6 space-y-5">
+          <!-- Rules status warnings -->
+          {#if result.rulesStatus === "tooOld"}
+            <div class="rounded-lg border border-red-500/30 bg-red-500/10 px-4 py-3 flex items-center gap-2 text-sm text-red-500">
+              <span class="material-symbols-outlined text-base">block</span>
+              {$t.complianceTooOld}
+              <button onclick={() => showUpdateModal = true} disabled={updating} class="ml-auto text-xs underline disabled:opacity-50">
+                {$t.complianceUpdate}
+              </button>
+            </div>
+          {:else if result.rulesStatus === "offline"}
+            <div class="rounded-lg border border-yellow-500/30 bg-yellow-500/10 px-4 py-2 flex items-center gap-2 text-sm text-yellow-600 dark:text-yellow-400">
+              <span class="material-symbols-outlined text-base">wifi_off</span>
+              {$t.complianceOffline}
+            </div>
+          {:else if result.latestVersion && result.latestVersion !== result.configVersion}
+            <div class="rounded-lg border border-blue-500/30 bg-blue-500/10 px-4 py-2 flex items-center gap-2 text-sm text-blue-600 dark:text-blue-400">
+              <span class="material-symbols-outlined text-base">update</span>
+              {$t.complianceOutdated}: v{result.latestVersion}
+              <button onclick={() => showUpdateModal = true} disabled={updating} class="ml-auto text-xs underline disabled:opacity-50">
+                {$t.complianceUpdate}
+              </button>
+            </div>
+          {/if}
+
+          <!-- Summary -->
+          <div class="grid grid-cols-3 gap-3">
+            <div class="rounded-xl p-4 border {result.errorCount > 0 ? 'bg-red-500/10 border-red-500/20' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700'}">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-2xl {result.errorCount > 0 ? 'text-red-500' : 'text-slate-300 dark:text-slate-600'}">
+                  {result.errorCount > 0 ? 'cancel' : 'check_circle'}
+                </span>
+                <div>
+                  <p class="text-2xl font-bold {result.errorCount > 0 ? 'text-red-500' : 'text-slate-400'}">{result.errorCount}</p>
+                  <p class="text-xs text-slate-500">{$t.complianceErrors}</p>
+                </div>
+              </div>
+            </div>
+            <div class="rounded-xl p-4 border {result.warningCount > 0 ? 'bg-yellow-500/10 border-yellow-500/20' : 'bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700'}">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-2xl {result.warningCount > 0 ? 'text-yellow-500' : 'text-slate-300 dark:text-slate-600'}">
+                  {result.warningCount > 0 ? 'warning' : 'check_circle'}
+                </span>
+                <div>
+                  <p class="text-2xl font-bold {result.warningCount > 0 ? 'text-yellow-500' : 'text-slate-400'}">{result.warningCount}</p>
+                  <p class="text-xs text-slate-500">{$t.complianceWarnings}</p>
+                </div>
+              </div>
+            </div>
+            <div class="rounded-xl p-4 border bg-slate-50 dark:bg-slate-800/50 border-slate-200 dark:border-slate-700">
+              <div class="flex items-center gap-3">
+                <span class="material-symbols-outlined text-2xl text-blue-400">info</span>
+                <div>
+                  <p class="text-2xl font-bold text-slate-400">{result.infoCount}</p>
+                  <p class="text-xs text-slate-500">Bilgi</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- All passed -->
+          {#if result.issues.length === 0}
+            <div class="rounded-xl border border-emerald-500/20 bg-emerald-500/10 p-6 text-center">
+              <span class="material-symbols-outlined text-4xl text-emerald-500 mb-2 block">verified</span>
+              <p class="font-bold text-emerald-600 dark:text-emerald-400">{$t.complianceAllPassed}</p>
+              <p class="text-sm text-slate-500 mt-1">{$t.complianceAllPassedDesc}</p>
+            </div>
+          {:else}
+            <!-- Issues list -->
+            <div class="space-y-2">
+              {#each sortedIssues as issue (issue.code)}
+                <div class="rounded-xl border overflow-hidden {severityBorder(issue.severity)}">
+                  <div class="grid grid-cols-2 divide-x divide-slate-200/60 dark:divide-slate-700/60">
+
+                    <!-- LEFT: rule info -->
+                    <div class="p-4 flex items-start gap-3">
+                      <span class="material-symbols-outlined text-xl mt-0.5 {severityText(issue.severity)} flex-shrink-0">
+                        {severityIcon(issue.severity)}
+                      </span>
+                      <div class="min-w-0">
+                        <div class="flex items-center gap-1.5 mb-1.5 flex-wrap">
+                          <span class="font-mono text-xs font-bold {severityText(issue.severity)}">{issue.code}</span>
+                          {#if issue.specRef}
+                            {#each specSources(issue.specRef) as src}
+                              <span class="text-[10px] bg-slate-100 dark:bg-slate-700/60 text-slate-500 dark:text-slate-400 px-1.5 py-0.5 rounded-full font-medium">
+                                {src}
+                              </span>
+                            {/each}
+                          {/if}
+                        </div>
+                        {#if issue.specRef}
+                          <p class="text-[10px] text-slate-400 dark:text-slate-500 mb-1">
+                            <span class="font-semibold">{issue.specRef}'e göre:</span>
+                          </p>
+                        {/if}
+                        <p class="text-sm font-medium text-slate-700 dark:text-slate-200 leading-relaxed">
+                          {issue.description}
+                        </p>
+                      </div>
+                    </div>
+
+                    <!-- RIGHT: cause & remedy -->
+                    <div class="p-4 flex flex-col gap-3 bg-black/[0.02] dark:bg-white/[0.02]">
+                      {#if issue.cause}
+                        <div>
+                          <p class="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                            <span class="material-symbols-outlined text-xs">help</span>
+                            Neden
+                          </p>
+                          <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{issue.cause}</p>
+                        </div>
+                      {/if}
+                      {#if issue.remedy}
+                        <div class="border-t border-slate-200/60 dark:border-slate-700/60 pt-3">
+                          <p class="text-[10px] font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wider mb-1 flex items-center gap-1">
+                            <span class="material-symbols-outlined text-xs">build</span>
+                            Düzeltme
+                          </p>
+                          <p class="text-xs text-slate-600 dark:text-slate-300 leading-relaxed">{issue.remedy}</p>
+                        </div>
+                      {:else if !issue.cause}
+                        <p class="text-xs text-slate-400 dark:text-slate-500 italic">Bu kural için neden/düzeltme bilgisi tanımlanmamış.</p>
+                      {/if}
+                    </div>
+
+                  </div>
+                </div>
+              {/each}
+            </div>
+
+            <p class="text-xs text-slate-400 dark:text-slate-500 text-right">
+              {$t.complianceReportNote} v{result.configVersion}
+              {#if result.latestVersion && result.latestVersion !== result.configVersion}
+                · {$t.complianceOutdated}: v{result.latestVersion}
+              {/if}
+            </p>
+          {/if}
+        </div>
+      </div>
+    {/if}
 
   {/if}
 </div>
 
 <!-- ─── Yeni Kural Ekle Modalı ─────────────────────────────────────────────── -->
 {#if showAddRule}
-  <!-- Backdrop -->
   <div
     role="presentation"
     class="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 backdrop-blur-sm"
     onclick={(e) => { if (e.target === e.currentTarget) showAddRule = false; }}
     onkeydown={(e) => { if (e.key === 'Escape') showAddRule = false; }}
   >
-    <!-- Modal panel -->
     <div class="w-full max-w-md bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden">
-      <!-- Header -->
       <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700">
         <div class="flex items-center gap-2">
           <span class="material-symbols-outlined text-primary text-xl">{editMode ? 'edit' : 'add_circle'}</span>
@@ -999,125 +1113,62 @@
             {editMode ? $t.complianceEditRule + ': ' + ruleCode : $t.complianceAddRuleTitle}
           </h3>
         </div>
-        <button
-          onclick={() => showAddRule = false}
-          class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-        >
+        <button onclick={() => showAddRule = false} class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>
-
-      <!-- Body -->
       <div class="px-5 py-4 space-y-4 max-h-[70vh] overflow-y-auto">
-        <!-- Kural Kodu + Şiddet -->
         <div class="grid grid-cols-2 gap-3">
           <div>
-            <label for="rule-code" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-              {$t.complianceRuleCode} *
-            </label>
-            <input
-              id="rule-code"
-              type="text"
-              bind:value={ruleCode}
-              placeholder="EL-005"
-              class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50"
-            />
+            <label for="rule-code" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{$t.complianceRuleCode} *</label>
+            <input id="rule-code" type="text" bind:value={ruleCode} placeholder="EL-005"
+              class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50" />
           </div>
           <div>
-            <label for="rule-severity" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-              {$t.complianceRuleSeverity}
-            </label>
-            <select
-              id="rule-severity"
-              bind:value={ruleSeverity}
-              class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
-              <option value="error">⛔ {$t.complianceSeverityError}</option>
-              <option value="warning">⚠️ {$t.complianceSeverityWarning}</option>
-              <option value="info">ℹ️ {$t.complianceSeverityInfo}</option>
+            <label for="rule-severity" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{$t.complianceRuleSeverity}</label>
+            <select id="rule-severity" bind:value={ruleSeverity}
+              class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
+              <option value="error">{$t.complianceSeverityError}</option>
+              <option value="warning">{$t.complianceSeverityWarning}</option>
+              <option value="info">{$t.complianceSeverityInfo}</option>
             </select>
           </div>
         </div>
-
-        <!-- Faz -->
         <fieldset class="border-0 p-0 m-0">
-          <legend class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-            {$t.complianceRulePhases}
-          </legend>
+          <legend class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{$t.complianceRulePhases}</legend>
           <div class="flex items-center rounded-lg border border-slate-200 dark:border-slate-600 overflow-hidden text-xs font-medium w-fit">
-            <button
-              type="button"
-              onclick={() => rulePhases = 0}
-              class="px-3 py-2 transition-colors {rulePhases === 0
-                ? 'bg-primary text-white'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}"
-            >
-              {$t.compliancePhasesAll}
-            </button>
-            <button
-              type="button"
-              onclick={() => rulePhases = 1}
-              class="px-3 py-2 transition-colors {rulePhases === 1
-                ? 'bg-primary text-white'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}"
-            >
-              1 Faz
-            </button>
-            <button
-              type="button"
-              onclick={() => rulePhases = 3}
-              class="px-3 py-2 transition-colors {rulePhases === 3
-                ? 'bg-primary text-white'
-                : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}"
-            >
-              3 Faz
-            </button>
+            <button type="button" onclick={() => rulePhases = 0}
+              class="px-3 py-2 transition-colors {rulePhases === 0 ? 'bg-primary text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}">{$t.compliancePhasesAll}</button>
+            <button type="button" onclick={() => rulePhases = 1}
+              class="px-3 py-2 transition-colors {rulePhases === 1 ? 'bg-primary text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}">1 Faz</button>
+            <button type="button" onclick={() => rulePhases = 3}
+              class="px-3 py-2 transition-colors {rulePhases === 3 ? 'bg-primary text-white' : 'text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700'}">3 Faz</button>
           </div>
         </fieldset>
-
-        <!-- Ayırıcı -->
         <div class="border-t border-slate-100 dark:border-slate-700 pt-1">
           <p class="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-3">Kontrol</p>
-
-          <!-- Alan -->
           <div class="mb-3">
-            <label for="rule-field" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-              {$t.complianceRuleField}
-            </label>
-            <select
-              id="rule-field"
-              bind:value={ruleField}
-              class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
+            <label for="rule-field" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{$t.complianceRuleField}</label>
+            <select id="rule-field" bind:value={ruleField}
+              class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
               {#each FIELD_GROUPS as group}
                 <optgroup label={group.label}>
                   {#each group.fields as field}
-                    <option value={field.value}>
-                      {field.label}{field.phases ? ` (${field.phases} faz)` : ""}
-                    </option>
+                    <option value={field.value}>{field.label}{field.phases ? ` (${field.phases} faz)` : ""}</option>
                   {/each}
                 </optgroup>
               {/each}
             </select>
           </div>
-
-          <!-- Kontrol Tipi -->
           <div class="mb-3">
-            <label for="rule-check" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-              {$t.complianceRuleCheck}
-            </label>
-            <select
-              id="rule-check"
-              bind:value={ruleCheck}
-              class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
-            >
+            <label for="rule-check" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{$t.complianceRuleCheck}</label>
+            <select id="rule-check" bind:value={ruleCheck}
+              class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
               {#each availableChecks as chk}
                 <option value={chk.value}>{chk.label}</option>
               {/each}
             </select>
           </div>
-
-          <!-- Dinamik parametreler -->
           {#if ruleCheck === "range"}
             <div class="grid grid-cols-2 gap-3">
               <div>
@@ -1135,21 +1186,15 @@
             <div>
               <label for="rule-value" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{$t.complianceRuleValue}</label>
               {#if getFieldDef(ruleField)?.type === "enum" && getFieldDef(ruleField)?.options}
-                <!-- Hazır seçenekler — battery_status, relay_status gibi alanlar -->
-                <select
-                  id="rule-value"
-                  bind:value={ruleValue}
-                  class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50"
-                >
+                <select id="rule-value" bind:value={ruleValue}
+                  class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50">
                   {#each getFieldDef(ruleField)!.options! as opt}
                     <option value={opt.value}>{opt.label}</option>
                   {/each}
                 </select>
               {:else if getFieldDef(ruleField)?.type === "date"}
-                <!-- Tarih alanı — geçersiz tarih formatı ipucu -->
                 <input id="rule-value" type="text" bind:value={ruleValue} placeholder="00.00.0000"
                   class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50" />
-                <p class="text-xs text-slate-400 mt-1">İpucu: Geçersiz/boş tarihi kontrol etmek için <span class="font-mono">00.00.0000</span> girin</p>
               {:else}
                 <input id="rule-value" type="text" bind:value={ruleValue} placeholder="15"
                   class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50" />
@@ -1157,7 +1202,7 @@
             </div>
           {:else if ruleCheck === "bit_zero" || ruleCheck === "bit_one"}
             <div>
-              <label for="rule-bit" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{$t.complianceRuleBit} (0–63)</label>
+              <label for="rule-bit" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{$t.complianceRuleBit} (0-63)</label>
               <input id="rule-bit" type="number" bind:value={ruleBit} placeholder="0" min="0" max="63"
                 class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white focus:outline-none focus:ring-2 focus:ring-primary/50" />
             </div>
@@ -1175,48 +1220,30 @@
             </div>
           {/if}
         </div>
-
-        <!-- Ayırıcı -->
         <div class="border-t border-slate-100 dark:border-slate-700 pt-1">
           <p class="text-xs font-semibold text-slate-400 dark:text-slate-500 uppercase tracking-wide mb-3">Açıklama</p>
-
           <div class="space-y-3">
             <div>
-              <label for="rule-desc" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                {$t.complianceRuleDesc} *
-              </label>
-              <input id="rule-desc" type="text" bind:value={ruleDesc}
-                placeholder="Kural açıklaması..."
+              <label for="rule-desc" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{$t.complianceRuleDesc} *</label>
+              <input id="rule-desc" type="text" bind:value={ruleDesc} placeholder="Kural açıklaması..."
                 class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50" />
             </div>
             <div>
-              <label for="rule-specref" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">
-                {$t.complianceRuleSpecRef}
-              </label>
-              <input id="rule-specref" type="text" bind:value={ruleSpecRef}
-                placeholder="TEDAŞ Şartname 2.2.2 / MASS Şartname 2.2.2"
+              <label for="rule-specref" class="block text-xs font-medium text-slate-600 dark:text-slate-400 mb-1">{$t.complianceRuleSpecRef}</label>
+              <input id="rule-specref" type="text" bind:value={ruleSpecRef} placeholder="TEDAŞ Şartname 2.2.2 / MASS Şartname 2.2.2"
                 class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 dark:border-slate-600 bg-white dark:bg-slate-700 text-slate-900 dark:text-white placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-primary/50" />
             </div>
           </div>
         </div>
       </div>
-
-      <!-- Footer -->
       <div class="flex items-center justify-end gap-3 px-5 py-4 border-t border-slate-200 dark:border-slate-700">
-        <button
-          onclick={() => showAddRule = false}
-          class="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all"
-        >
-          {$t.complianceRuleCancel}
-        </button>
-        <button
-          onclick={saveRule}
-          disabled={saving || !ruleCode.trim() || !ruleDesc.trim()}
+        <button onclick={() => showAddRule = false}
+          class="px-4 py-2 rounded-lg text-sm font-medium text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 transition-all">{$t.complianceRuleCancel}</button>
+        <button onclick={saveRule} disabled={saving || !ruleCode.trim() || !ruleDesc.trim()}
           class="flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-medium transition-all
             {saving || !ruleCode.trim() || !ruleDesc.trim()
               ? 'bg-slate-200 dark:bg-slate-700 text-slate-400 cursor-not-allowed'
-              : 'bg-primary text-white hover:bg-primary/90 active:scale-95'}"
-        >
+              : 'bg-primary text-white hover:bg-primary/90 active:scale-95'}">
           {#if saving}
             <span class="material-symbols-outlined text-base animate-spin-reverse">autorenew</span>
             Kaydediliyor...
@@ -1239,7 +1266,6 @@
     onkeydown={(e) => { if (e.key === 'Escape') showManageRules = false; }}
   >
     <div class="w-full max-w-2xl bg-white dark:bg-slate-800 rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col max-h-[85vh]">
-      <!-- Header -->
       <div class="flex items-center justify-between px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex-shrink-0">
         <div class="flex items-center gap-2">
           <span class="material-symbols-outlined text-primary text-xl">manage_accounts</span>
@@ -1249,23 +1275,16 @@
           {/if}
         </div>
         <div class="flex items-center gap-2">
-          <button
-            onclick={() => { showManageRules = false; openAddRuleModal(); }}
-            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-primary/40 text-primary hover:bg-primary/10 transition-all"
-          >
+          <button onclick={() => { showManageRules = false; openAddRuleModal(); }}
+            class="flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border border-primary/40 text-primary hover:bg-primary/10 transition-all">
             <span class="material-symbols-outlined text-sm">add_circle</span>
             {$t.complianceAddNew}
           </button>
-          <button
-            onclick={() => showManageRules = false}
-            class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-          >
+          <button onclick={() => showManageRules = false} class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
             <span class="material-symbols-outlined">close</span>
           </button>
         </div>
       </div>
-
-      <!-- Body -->
       <div class="overflow-y-auto flex-1 divide-y divide-slate-100 dark:divide-slate-700">
         {#if loadingRules}
           <div class="py-12 text-center">
@@ -1286,19 +1305,12 @@
                 <p class="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">{rule.description}</p>
               </div>
               <div class="flex items-center gap-1 flex-shrink-0 opacity-0 group-hover:opacity-100 transition-opacity">
-                <button
-                  onclick={() => { showManageRules = false; openAddRuleModal(rule); }}
-                  class="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/10 transition-all"
-                  title={$t.complianceEditRule}
-                >
+                <button onclick={() => { showManageRules = false; openAddRuleModal(rule); }}
+                  class="p-1.5 rounded-lg text-slate-400 hover:text-primary hover:bg-primary/10 transition-all" title={$t.complianceEditRule}>
                   <span class="material-symbols-outlined text-sm">edit</span>
                 </button>
-                <button
-                  onclick={() => confirmDelete(rule.code)}
-                  disabled={deletingCode === rule.code}
-                  class="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-500/10 transition-all disabled:opacity-50"
-                  title={$t.complianceDeleteRule}
-                >
+                <button onclick={() => confirmDelete(rule.code)} disabled={deletingCode === rule.code}
+                  class="p-1.5 rounded-lg text-slate-400 hover:text-red-500 hover:bg-red-500/10 transition-all disabled:opacity-50" title={$t.complianceDeleteRule}>
                   <span class="material-symbols-outlined text-sm {deletingCode === rule.code ? 'animate-spin-reverse' : ''}">
                     {deletingCode === rule.code ? 'autorenew' : 'delete'}
                   </span>
@@ -1326,28 +1338,21 @@
           <span class="material-symbols-outlined text-primary text-xl">cloud_download</span>
           <h3 class="font-bold text-slate-900 dark:text-white">{$t.complianceUpdateModalTitle}</h3>
         </div>
-        <button
-          onclick={() => showUpdateModal = false}
-          class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-        >
+        <button onclick={() => showUpdateModal = false} class="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
           <span class="material-symbols-outlined">close</span>
         </button>
       </div>
       <div class="p-4 flex flex-col gap-3">
-        <button
-          onclick={updateRulesFromInternet}
-          class="flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-600 hover:border-primary hover:bg-primary/5 transition-all text-left"
-        >
+        <button onclick={updateRulesFromInternet}
+          class="flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-600 hover:border-primary hover:bg-primary/5 transition-all text-left">
           <span class="material-symbols-outlined text-primary text-3xl">cloud_download</span>
           <div>
             <p class="font-semibold text-slate-900 dark:text-white text-sm">{$t.complianceUpdateFromInternet}</p>
             <p class="text-xs text-slate-500 dark:text-slate-400 mt-0.5">{$t.complianceUpdateFromInternetDesc}</p>
           </div>
         </button>
-        <button
-          onclick={updateRulesFromFile}
-          class="flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-600 hover:border-primary hover:bg-primary/5 transition-all text-left"
-        >
+        <button onclick={updateRulesFromFile}
+          class="flex items-center gap-4 p-4 rounded-xl border border-slate-200 dark:border-slate-600 hover:border-primary hover:bg-primary/5 transition-all text-left">
           <span class="material-symbols-outlined text-primary text-3xl">folder_open</span>
           <div>
             <p class="font-semibold text-slate-900 dark:text-white text-sm">{$t.complianceUpdateFromFile}</p>

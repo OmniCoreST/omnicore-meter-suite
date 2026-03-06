@@ -1,20 +1,20 @@
-//! Kural dosyası otomatik güncelleme kontrolü
+//! Config file auto-update checker
 
-use super::rules::{get_rules_path, load_rules};
+use super::config::{get_config_path, load_config, ComplianceConfig};
 use serde::Deserialize;
 
-/// GitHub'dan dönen versiyon JSON yapısı
+/// Version info from update server
 #[derive(Deserialize, Debug, Clone)]
 pub struct VersionInfo {
     pub version: String,
     pub url: String,
 }
 
-/// Sunucudan güncel versiyon bilgisini çeker.
-/// Bağlanamazsa None döner (sessizce).
+/// Fetch latest version info from update server.
+/// Returns None silently if unavailable.
 pub async fn fetch_latest_version() -> Option<VersionInfo> {
-    let rules = load_rules().ok()?;
-    let update_url = rules.update_url.as_deref()?.trim().to_string();
+    let config = load_config().ok()?;
+    let update_url = config.update_url.as_deref()?.trim().to_string();
     if update_url.is_empty() {
         return None;
     }
@@ -32,8 +32,8 @@ pub async fn fetch_latest_version() -> Option<VersionInfo> {
     response.json::<VersionInfo>().await.ok()
 }
 
-/// Yeni kural dosyasını URL'den indirir ve mevcut dosyanın üzerine yazar.
-/// Döner: yeni versiyon string'i
+/// Download new config file from URL and overwrite local copy.
+/// Returns new version string.
 pub async fn download_rules(url: &str) -> Result<String, String> {
     let client = reqwest::Client::builder()
         .timeout(std::time::Duration::from_secs(30))
@@ -50,13 +50,13 @@ pub async fn download_rules(url: &str) -> Result<String, String> {
     let content = response.text().await
         .map_err(|e| format!("İçerik okunamadı: {}", e))?;
 
-    // Geçerli TOML mi kontrol et
-    let parsed: super::rules::RulesFile = toml::from_str(&content)
+    // Validate TOML
+    let parsed: ComplianceConfig = toml::from_str(&content)
         .map_err(|e| format!("İndirilen dosya geçerli TOML değil: {}", e))?;
 
-    let new_version = parsed.rules_version.clone();
+    let new_version = parsed.config_version.clone();
 
-    let path = get_rules_path();
+    let path = get_config_path();
     std::fs::write(&path, &content)
         .map_err(|e| format!("Dosya yazılamadı: {}", e))?;
 

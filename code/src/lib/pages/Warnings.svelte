@@ -271,7 +271,7 @@
               </thead>
               <tbody>
                 {#each warningsData.voltage.records as record}
-                  <tr class="border-b border-amber-100 dark:border-amber-900/30" class:bg-amber-50={record.id === 0} class:dark:bg-amber-900/20={record.id === 0}>
+                  <tr class="border-b border-amber-100 dark:border-amber-900/30 {record.id === 0 ? 'bg-amber-50 dark:bg-amber-900/20' : ''}">
                     <td class="px-4 py-2 font-mono text-slate-600 dark:text-slate-400">
                       {#if record.id === 0}
                         <span class="px-2 py-0.5 bg-amber-500 text-white text-xs rounded-full font-bold">Aktif</span>
@@ -321,7 +321,7 @@
               </thead>
               <tbody>
                 {#each warningsData.current.records as record}
-                  <tr class="border-b border-blue-100 dark:border-blue-900/30" class:bg-blue-50={record.id === 0} class:dark:bg-blue-900/20={record.id === 0}>
+                  <tr class="border-b border-blue-100 dark:border-blue-900/30 {record.id === 0 ? 'bg-blue-50 dark:bg-blue-900/20' : ''}">
                     <td class="px-4 py-2 font-mono text-slate-600 dark:text-slate-400">
                       {#if record.id === 0}
                         <span class="px-2 py-0.5 bg-blue-500 text-white text-xs rounded-full font-bold">Aktif</span>
@@ -378,7 +378,7 @@
               </thead>
               <tbody>
                 {#each warningsData.magnetic.records as record}
-                  <tr class="border-b border-red-100 dark:border-red-900/30" class:bg-red-50={record.id === 0} class:dark:bg-red-900/20={record.id === 0}>
+                  <tr class="border-b border-red-100 dark:border-red-900/30 {record.id === 0 ? 'bg-red-50 dark:bg-red-900/20' : ''}">
                     <td class="px-4 py-2 font-mono text-slate-600 dark:text-slate-400">
                       {#if record.id === 0}
                         <span class="px-2 py-0.5 bg-red-500 text-white text-xs rounded-full font-bold">Aktif</span>

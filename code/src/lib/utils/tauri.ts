@@ -389,35 +389,37 @@ export async function deleteSessionFile(filename: string): Promise<void> {
   return invoke("delete_session_file", { filename });
 }
 
-// ─── Uyumluluk ────────────────────────────────────────────────────────────────
+// ─── Uyumluluk (Compliance) v3 ────────────────────────────────────────────────
 
-export interface ComplianceIssue {
-  code: string;
-  severity: "error" | "warning" | "info";
-  field: string;
-  expected: string;
-  actual: string;
-  description: string;
-  specRef?: string;
-}
+import type {
+  ComplianceResult,
+  ComplianceProfile,
+  TestPlan,
+  CommunicationLog,
+} from "$lib/stores/compliance";
 
-export type RulesStatus = "ok" | "offline" | "tooOld";
+export type { ComplianceResult, ComplianceProfile, TestPlan, CommunicationLog };
 
-export interface ComplianceResult {
-  issues: ComplianceIssue[];
-  errorCount: number;
-  warningCount: number;
-  infoCount: number;
-  rulesVersion: string;
-  latestVersion: string | null;
-  rulesStatus: RulesStatus;
-  checkedAt: string;
-  rulesFilePath: string;
-}
-
+// Legacy v2 compatibility: check compliance from ShortReadResult
 export async function checkCompliance(data: ShortReadResult, meterPhases: number = 3): Promise<ComplianceResult> {
   if (!isTauri()) throw new Error("Tauri bağlamı bulunamadı");
   return invoke<ComplianceResult>("check_compliance", { data, meterPhases });
+}
+
+// v3 API: check compliance from CommunicationLog
+export async function checkComplianceV3(log: CommunicationLog, profileId: string): Promise<ComplianceResult> {
+  if (!isTauri()) throw new Error("Tauri bağlamı bulunamadı");
+  return invoke<ComplianceResult>("check_compliance_v3", { log, profileId });
+}
+
+export async function getComplianceProfiles(): Promise<ComplianceProfile[]> {
+  if (!isTauri()) return [];
+  return invoke<ComplianceProfile[]>("get_compliance_profiles");
+}
+
+export async function getComplianceTestPlan(): Promise<TestPlan | null> {
+  if (!isTauri()) return null;
+  return invoke<TestPlan | null>("get_compliance_test_plan");
 }
 
 export async function getComplianceRulesPath(): Promise<string> {
@@ -447,20 +449,27 @@ export async function addComplianceRule(ruleToml: string): Promise<string> {
 
 export interface ComplianceRuleDef {
   code: string;
-  field: string;
+  category: string;
   check: string;
   severity: string;
   description: string;
+  obisCode: string | null;
+  obisCodes: string[];
   min: number | null;
   max: number | null;
   value: string | null;
   bit: number | null;
   tolerance: number | null;
-  max_drift: number | null;
-  phases: number | null;
-  spec_ref: string | null;
+  maxDrift: number | null;
+  profile: string[];
+  sessionType: string | null;
+  specRef: string | null;
   cause: string | null;
   remedy: string | null;
+  enabled: boolean;
+  // Legacy v2
+  field: string | null;
+  phases: number | null;
 }
 
 export async function listComplianceRules(): Promise<ComplianceRuleDef[]> {
