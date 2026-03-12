@@ -23,7 +23,26 @@
       "Bash(netstat:*)",
       "Bash(cmd:*)",
       "Bash(\"../target/debug/omnicore-meter-suite.exe\":*)",
-      "WebFetch(domain:www.meterisk.com)"
+      "WebFetch(domain:www.meterisk.com)",
+      "Bash(npx kill-port:*)",
+      "Read(//c/Users/ardaa_zor4d85/OneDrive/Masaüstü/Projects/omnicore-meter-suite/Local/omnicore-meter-suite/**)",
+      "Read(//c/Users/ardaa_zor4d85/OneDrive/Masaüstü/Projects/omnicore-meter-suite/$APPDATA/omnicore-meter-suite/**)",
+      "Read(//c/Users/ardaa_zor4d85/OneDrive/Masaüstü/Projects/omnicore-meter-suite/**)",
+      "Bash(wc -l /c/Users/ardaa_zor4d85/AppData/Roaming/com.omnicore.meter-suite/comm_logs/comm_20260309_10*.txt)",
+      "Bash(\"$PDFTOTEXT\":*)",
+      "Bash(sed:*)",
+      "Bash(sort:*)",
+      "Bash(echo Exit: $?:*)",
+      "Bash(python:*)",
+      "Bash(tasklist:*)",
+      "Bash(grep -rn \"invoke\\\\|readPacket\\\\|readObisBatch\\\\|readLoadProfile\\\\|runCompliance\\\\|tauri\" \"C:\\\\Users\\\\ardaa_zor4d85\\\\OneDrive\\\\Masaüstü\\\\Projeler\\\\omnicore-meter-suite\\\\code\\\\src\\\\lib\\\\pages\\\\Compliance.svelte\" --include=\"*.svelte\" | grep -v \"import\" | head -20\ngrep -n \"setReading\\\\|isMeterReading\" \"C:\\\\Users\\\\ardaa_zor4d85\\\\OneDrive\\\\Masaüstü\\\\Projeler\\\\omnicore-meter-suite\\\\code\\\\src\\\\lib\\\\pages\\\\LoadProfile.svelte\" | head -10\ngrep -n \"setReading\\\\|isMeterReading\" \"C:\\\\Users\\\\ardaa_zor4d85\\\\OneDrive\\\\Masaüstü\\\\Projeler\\\\omnicore-meter-suite\\\\code\\\\src\\\\lib\\\\pages\\\\ObisReader.svelte\" | head -10)",
+      "Bash(grep -n \"async function\\\\|meterStore\\\\|import.*stores\" \"C:\\\\Users\\\\ardaa_zor4d85\\\\OneDrive\\\\Masaüstü\\\\Projeler\\\\omnicore-meter-suite\\\\code\\\\src\\\\lib\\\\pages\\\\Compliance.svelte\" | head -15\ngrep -n \"async function\\\\|meterStore\\\\|import.*stores\" \"C:\\\\Users\\\\ardaa_zor4d85\\\\OneDrive\\\\Masaüstü\\\\Projeler\\\\omnicore-meter-suite\\\\code\\\\src\\\\lib\\\\pages\\\\LoadProfile.svelte\" | head -15\ngrep -n \"async function\\\\|meterStore\\\\|import.*stores\" \"C:\\\\Users\\\\ardaa_zor4d85\\\\OneDrive\\\\Masaüstü\\\\Projeler\\\\omnicore-meter-suite\\\\code\\\\src\\\\lib\\\\pages\\\\ObisReader.svelte\" | head -10)",
+      "Bash(grep -rn \"Kontrol Et\\\\|kontrol_et\\\\|runTest\\\\|compliance\" \"C:\\\\Users\\\\ardaa_zor4d85\\\\OneDrive\\\\Masaüstü\\\\Projeler\\\\omnicore-meter-suite\\\\code\\\\src\\\\lib\\\\pages\\\\Home.svelte\" | grep -v \"import\\\\|//\" | head -15)",
+      "Bash(netstat -ano | findstr :1422)",
+      "Bash(type \"C:\\\\Users\\\\ARDAA_~1\\\\AppData\\\\Local\\\\Temp\\\\claude\\\\C--Users-ardaa-zor4d85-OneDrive-Masa-st--Projeler-omnicore-meter-suite\\\\tasks\\\\b6gin5st4.output\" | findstr /i \"error\")",
+      "Bash(grep -r \"errorToast\\\\|successToast\" \"C:/Users/ardaa_zor4d85/OneDrive/Masaüstü/Projeler/omnicore-meter-suite/code/src\" --include=\"*.ts\" --include=\"*.svelte\" -l 2>/dev/null | head -5)",
+      "Bash(grep -r \"export.*errorToast\\\\|export.*successToast\\\\|export.*warningToast\\\\|export.*infoToast\" \"C:/Users/ardaa_zor4d85/OneDrive/Masaüstü/Projeler/omnicore-meter-suite/code/src\" --include=\"*.ts\" --include=\"*.svelte\" 2>/dev/null | head -10)",
+      "Bash(grep -l \"exportToPdf\\\\|exportToExcel\" \"c:/Users/ardaa_zor4d85/OneDrive/Masaüstü/Projeler/omnicore-meter-suite/code/src/lib/pages\"/*.svelte)"
     ]
   }
 }

@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, addLog, isConnected } from "$lib/stores";
+  import { t, addLog, isConnected, meterStore, isMeterReading } from "$lib/stores";
   import { readObisBatch } from "$lib/utils/tauri";
 
   interface ObisRow {
@@ -77,7 +77,7 @@
   }
 
   async function readSelectedCodes() {
-    if (isReading) return;
+    if (isReading || $isMeterReading) return;
 
     const selectedRows = rows.filter(r => r.checked && r.code.trim());
     if (selectedRows.length === 0) {
@@ -86,6 +86,7 @@
     }
 
     isReading = true;
+    meterStore.setReading(true);
 
     // Set loading state for selected rows
     rows = rows.map(r => ({
@@ -122,6 +123,7 @@
     }
 
     isReading = false;
+    meterStore.setReading(false);
   }
 
   function toggleRow(id: number) {
@@ -146,10 +148,10 @@
         <p class="text-sm text-slate-500 dark:text-slate-400">{$t.obisReaderDescription}</p>
       </div>
       <button
-        onclick={readSelectedCodes}
-        disabled={isReading || !$isConnected || !rows.some(r => r.checked && r.code.trim())}
-        class="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
-      >
+          onclick={readSelectedCodes}
+          disabled={isReading || $isMeterReading || !$isConnected || !rows.some(r => r.checked && r.code.trim())}
+          class="flex items-center gap-2 px-5 py-2.5 bg-primary hover:bg-primary/90 text-white font-bold rounded-xl shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
+        >
         {#if isReading}
           <Icon name="sync" class="animate-spin-reverse" />
           {$t.reading}

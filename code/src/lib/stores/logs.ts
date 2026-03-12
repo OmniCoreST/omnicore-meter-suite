@@ -1,6 +1,6 @@
 import { writable, derived } from "svelte/store";
 
-export type LogType = "info" | "warn" | "success" | "error" | "tx" | "rx";
+export type LogType = "info" | "warn" | "success" | "error" | "tx" | "rx" | "section";
 
 export interface LogEntry {
   id: number;

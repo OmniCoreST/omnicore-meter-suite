@@ -175,6 +175,30 @@ mod compliance_commands {
         Ok(compliance::config::get_config_path().display().to_string())
     }
 
+    /// Kural dosyasını varsayılan metin düzenleyicide açar
+    #[tauri::command]
+    pub async fn open_compliance_rules_file() -> Result<(), String> {
+        let path = compliance::config::get_config_path();
+        if !path.exists() {
+            return Err(format!("Dosya bulunamadı: {}", path.display()));
+        }
+        #[cfg(target_os = "windows")]
+        {
+            std::process::Command::new("notepad")
+                .arg(&path)
+                .spawn()
+                .map_err(|e| format!("Notepad açılamadı: {}", e))?;
+        }
+        #[cfg(not(target_os = "windows"))]
+        {
+            std::process::Command::new("xdg-open")
+                .arg(&path)
+                .spawn()
+                .map_err(|e| format!("Dosya açılamadı: {}", e))?;
+        }
+        Ok(())
+    }
+
     /// Kural dosyasını diskten yeniden yükler (geçerliliği test eder)
     #[tauri::command]
     pub async fn reload_compliance_rules() -> Result<String, String> {
@@ -333,6 +357,7 @@ pub fn run() {
             compliance_commands::get_compliance_profiles,
             compliance_commands::get_compliance_test_plan,
             compliance_commands::get_compliance_rules_path,
+            compliance_commands::open_compliance_rules_file,
             compliance_commands::reload_compliance_rules,
             compliance_commands::update_compliance_rules,
             compliance_commands::list_compliance_rules,

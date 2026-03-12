@@ -1,10 +1,10 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Icon from "$lib/components/common/Icon.svelte";
   import { t, isConnected, meterStore, isMeterReading, addLog } from "$lib/stores";
   import { exportToExcel } from "$lib/utils/export";
   import { readPacket } from "$lib/utils/tauri";
 
-  let modeRawData = $state<string | null>(null);
   let isReadingMode = $state(false);
 
   async function readModePacket() {
@@ -14,7 +14,7 @@
     try {
       addLog("info", "Mod 9 (Kesintiler) paketi okunuyor...");
       const result = await readPacket(9);
-      modeRawData = result.rawData;
+      meterStore.setMode9RawData(result.rawData);
       addLog("success", `Mod 9 okuma tamamlandı: ${result.bytesRead} byte, ${(result.readDurationMs / 1000).toFixed(1)}s`);
     } catch (e) {
       addLog("error", `Mod 9 okuma hatası: ${e}`);
@@ -23,6 +23,18 @@
       meterStore.setReading(false);
     }
   }
+
+  onMount(() => {
+    if ($isConnected && !$meterStore.mode9RawData) {
+      if ($isMeterReading) {
+        const unsub = isMeterReading.subscribe((reading) => {
+          if (!reading) { unsub(); readModePacket(); }
+        });
+      } else {
+        readModePacket();
+      }
+    }
+  });
 
   let activePhase = $state<"three" | "l1" | "l2" | "l3">("three");
 
@@ -54,7 +66,7 @@
   let outagesData = $derived.by(() => {
     const data = $meterStore.shortReadData;
     // @ts-ignore
-    const raw: string | null = modeRawData || (data && data.rawData) || null;
+    const raw: string | null = $meterStore.mode9RawData || (data && data.rawData) || null;
     if (!raw) {
       return {
         threePhase: { long: { count: 0, records: [] }, short: { count: 0, records: [] } },
@@ -186,14 +198,14 @@
         {#if $isConnected}
           <button
             onclick={readModePacket}
-            disabled={isReadingMode}
+            disabled={isReadingMode || $isMeterReading}
             class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-colors"
           >
             <Icon name="sync" size="sm" class={isReadingMode ? "animate-spin-reverse" : ""} />
             {isReadingMode ? $t.readingPacket : $t.readOutages}
           </button>
         {/if}
-        {#if $meterStore.shortReadData || modeRawData}
+        {#if $meterStore.shortReadData || $meterStore.mode9RawData}
           <button
             onclick={handleExport}
             class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors"
@@ -204,7 +216,7 @@
         {/if}
       </div>
     </div>
-    {#if modeRawData}
+    {#if $meterStore.mode9RawData}
       <div class="text-xs text-primary font-medium mt-2">{$t.dataSourceMode9}</div>
     {/if}
   </div>

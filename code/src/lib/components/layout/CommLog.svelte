@@ -123,15 +123,16 @@
   }
 
   function getTypeLabel(type: LogType): string {
-    const labels: Record<LogType, keyof typeof import("$lib/i18n/tr").tr> = {
-      info: "logInfo",
-      warn: "logWarn",
-      success: "logSuccess",
-      error: "logError",
-      tx: "logTx",
-      rx: "logRx",
+    const labels: Record<LogType, string> = {
+      info: $t.logInfo,
+      warn: $t.logWarn,
+      success: $t.logSuccess,
+      error: $t.logError,
+      tx: $t.logTx,
+      rx: $t.logRx,
+      section: "",
     };
-    return $t[labels[type]];
+    return labels[type];
   }
 
   function getTypeClass(type: LogType): string {
@@ -142,6 +143,7 @@
       error: "text-red-600 dark:text-red-500",
       tx: "text-violet-600 dark:text-violet-400",
       rx: "text-emerald-600 dark:text-emerald-500",
+      section: "",
     };
     return classes[type];
   }
@@ -285,6 +287,13 @@
         <!-- Log Entries -->
         <div class="flex flex-col">
           {#each $logsStore as log (log.id)}
+            {#if log.type === "section"}
+              <div class="col-span-3 flex items-center gap-2 px-4 py-1 mt-1 bg-slate-200/60 dark:bg-[#1a2a38] border-y border-slate-300 dark:border-[#334a5e]/60 sticky top-[29px] z-[5]">
+                <span class="text-[10px] text-slate-400 dark:text-slate-500 shrink-0">[{formatTime(log.timestamp)}]</span>
+                <span class="text-[10px] font-bold uppercase tracking-wider text-primary/80 dark:text-primary/70">{log.message}</span>
+                <div class="flex-1 h-px bg-slate-300 dark:bg-[#334a5e]/60"></div>
+              </div>
+            {:else}
             <div
               class="grid grid-cols-[100px_100px_1fr] gap-0 hover:bg-white dark:hover:bg-white/5 transition-colors border-b border-slate-200 dark:border-[#334a5e]/20 last:border-0 group"
             >
@@ -306,6 +315,7 @@
                 {/if}
               </div>
             </div>
+            {/if}
           {:else}
             <div class="px-4 py-4 text-center text-slate-400 dark:text-slate-600">
               No log entries

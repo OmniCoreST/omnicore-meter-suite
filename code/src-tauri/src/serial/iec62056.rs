@@ -32,6 +32,9 @@ pub mod control {
 pub enum ProtocolMode {
     Readout = 0,        // Full readout (Mode 0)
     Programming = 1,    // Programming mode (Mode 1)
+    Mode2 = 2,          // Manufacturer-specific (some meters: selective read, no auth)
+    Mode3 = 3,          // Manufacturer-specific
+    Mode4 = 4,          // Manufacturer-specific
     TechQuality = 5,    // Technical quality (Packet 5)
     ShortRead = 6,      // Short read (Packet 6)
     Historical = 7,     // Historical data (Packet 7)
@@ -44,6 +47,9 @@ impl ProtocolMode {
         match self {
             ProtocolMode::Readout => '0',
             ProtocolMode::Programming => '1',
+            ProtocolMode::Mode2 => '2',
+            ProtocolMode::Mode3 => '3',
+            ProtocolMode::Mode4 => '4',
             ProtocolMode::TechQuality => '5',
             ProtocolMode::ShortRead => '6',
             ProtocolMode::Historical => '7',
@@ -286,6 +292,29 @@ pub fn build_password_command(password: &str) -> Vec<u8> {
     build_password_command_with_level(password, 1)
 }
 
+/// Build P1 password command WITHOUT parentheses around the password.
+/// Some meter firmware expects: SOH P1 STX PASSWORD ETX BCC (no parens).
+pub fn build_password_command_no_parens(password: &str, level: u8) -> Vec<u8> {
+    let level_char = match level {
+        1 => b'1',
+        2 => b'2',
+        3 => b'3',
+        _ => b'1',
+    };
+    let mut msg = Vec::new();
+    msg.push(control::SOH);
+    msg.push(b'P');
+    msg.push(level_char);
+    msg.push(control::STX);
+    msg.extend_from_slice(password.as_bytes());
+    msg.push(control::ETX);
+
+    let bcc_data = &msg[1..];
+    let bcc = calculate_bcc(bcc_data);
+    msg.push(bcc);
+    msg
+}
+
 /// Build encrypted password command for programming mode (challenge-response)
 /// Format: SOH P2 STX (HEX_ENCODED_RESULT) ETX BCC
 /// Per IEC 62056-21: P2 = result of secure algorithm (encrypted response)
@@ -449,6 +478,25 @@ pub fn build_p3_password_command(hmac_result: &[u8]) -> Vec<u8> {
     build_hmac_password_command(hmac_result, 3)
 }
 
+/// Build generic read command with explicit type byte (R1/R2/R5 etc.)
+/// Format: SOH Rx STX OBIS(param) ETX BCC
+pub fn build_read_command_typed(cmd_type: u8, obis: &str, param: &str) -> Vec<u8> {
+    let mut msg = Vec::new();
+    msg.push(control::SOH);
+    msg.push(b'R');
+    msg.push(cmd_type);
+    msg.push(control::STX);
+    msg.extend_from_slice(obis.as_bytes());
+    msg.push(b'(');
+    msg.extend_from_slice(param.as_bytes());
+    msg.push(b')');
+    msg.push(control::ETX);
+    let bcc_data = &msg[1..];
+    let bcc = calculate_bcc(bcc_data);
+    msg.push(bcc);
+    msg
+}
+
 /// Build OBIS read command
 /// Format: SOH R2 STX OBIS() ETX BCC
 pub fn build_read_command(obis: &str) -> Vec<u8> {
@@ -521,11 +569,11 @@ pub fn build_break_command() -> Vec<u8> {
 /// - "yy-mm-dd,hh:mm;" for start-only range
 /// - ";yy-mm-dd,hh:mm" for end-only range
 /// Note: R1 per MMS manufacturer program (ReadLP uses ExeCmd="R1")
-pub fn build_load_profile_command(profile_number: u8, start_time: Option<&str>, end_time: Option<&str>) -> Vec<u8> {
+pub fn build_load_profile_command_r(profile_number: u8, start_time: Option<&str>, end_time: Option<&str>, r_type: u8) -> Vec<u8> {
     let mut msg = Vec::new();
     msg.push(control::SOH);
     msg.push(b'R');
-    msg.push(b'1');
+    msg.push(r_type);
     msg.push(control::STX);
 
     // Profile identifier: P.01, P.02, P.03
@@ -536,13 +584,11 @@ pub fn build_load_profile_command(profile_number: u8, start_time: Option<&str>, 
     // Add parameter based on date range
     match (start_time, end_time) {
         (Some(start), Some(end)) if !start.is_empty() && !end.is_empty() => {
-            // Date range format: yy-mm-dd,hh:mm;yy-mm-dd,hh:mm
             msg.extend_from_slice(start.as_bytes());
             msg.push(b';');
             msg.extend_from_slice(end.as_bytes());
         }
         _ => {
-            // Read all data
             msg.push(b';');
         }
     }
@@ -557,15 +603,31 @@ pub fn build_load_profile_command(profile_number: u8, start_time: Option<&str>, 
     msg
 }
 
+/// Build load profile read command (defaults to R2)
+pub fn build_load_profile_command(profile_number: u8, start_time: Option<&str>, end_time: Option<&str>) -> Vec<u8> {
+    build_load_profile_command_r(profile_number, start_time, end_time, b'2')
+}
+
 /// Parse the meter identification message
 /// Format: /XXXZ<generation>YYYYY(MODEL)\r\n
 /// Example: /MKS5<2>ADM(M550.2251)
 pub fn parse_identification(response: &str) -> Option<MeterIdent> {
-    if !response.starts_with('/') {
+    // the meter is supposed to reply with a string that begins with '/'.
+    // in the wild we've seen meters that are already streaming data when
+    // we send the request, causing the first bytes to be junk (e.g. a
+    // comma) and the actual identification later on.  rather than failing
+    // outright, skip any leading characters until the first '/'.
+    let resp = if let Some(idx) = response.find('/') {
+        &response[idx..]
+    } else {
+        response
+    };
+
+    if !resp.starts_with('/') {
         return None;
     }
 
-    let content = response.trim_start_matches('/').trim();
+    let content = resp.trim_start_matches('/').trim();
 
     // Extract manufacturer code (3 chars)
     if content.len() < 4 {
@@ -773,6 +835,16 @@ mod tests {
         assert_eq!(ident.edas_id, "ADM");
         assert_eq!(ident.model, "M550.2251");
         assert_eq!(ident.max_baud_rate, 9600);
+    }
+
+    #[test]
+    fn test_parse_identification_with_leading_garbage() {
+        // simulate a meter that starts emitting data before the identification
+        let response = ",000000.001,000000.000)\r\n/MKS5<2>ADM(M550.2251)\r\n";
+        let result = parse_identification(response);
+        assert!(result.is_some());
+        let ident = result.unwrap();
+        assert_eq!(ident.manufacturer, "MKS");
     }
 
     #[test]

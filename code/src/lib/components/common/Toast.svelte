@@ -31,10 +31,18 @@
 <div class="fixed top-4 right-4 z-[9999] flex flex-col gap-2 pointer-events-none">
   {#each $toastStore as toast (toast.id)}
     <div
-      class="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg backdrop-blur-sm animate-in slide-in-from-right duration-300 min-w-[300px] max-w-[400px] {getColorClasses(toast.type)}"
+      class="pointer-events-auto flex items-center gap-3 px-4 py-3 rounded-lg border shadow-lg backdrop-blur-sm animate-in slide-in-from-right duration-300 min-w-[300px] max-w-[500px] {getColorClasses(toast.type)}"
     >
-      <Icon name={getIcon(toast.type)} size="sm" />
-      <span class="flex-1 text-sm font-medium">{toast.message}</span>
+      <Icon name={getIcon(toast.type)} size="sm" class="flex-shrink-0" />
+      <span class="flex-1 text-sm font-medium break-all">{toast.message}</span>
+      {#if toast.action}
+        <button
+          onclick={() => { toast.action?.onClick(); toastStore.dismiss(toast.id); }}
+          class="hover:bg-white/20 rounded px-2 py-1 text-xs font-bold whitespace-nowrap border border-white/30 transition-colors"
+        >
+          {toast.action.label}
+        </button>
+      {/if}
       <button
         onclick={() => toastStore.dismiss(toast.id)}
         class="hover:bg-white/20 rounded p-1 transition-colors"

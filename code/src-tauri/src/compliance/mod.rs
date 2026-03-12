@@ -8,11 +8,6 @@ pub mod config;
 pub mod engine;
 pub mod updater;
 
-// Re-export legacy types under old names for backward compatibility in lib.rs
-pub mod rules {
-    pub use super::config::{Rule, ComplianceConfig as RulesFile, get_config_path as get_rules_path, load_config as load_rules, save_config as save_rules};
-}
-
 pub use types::*;
 
 /// Main entry point: run compliance check on a CommunicationLog.
@@ -39,6 +34,7 @@ pub fn run_check(
                     cause: None,
                     remedy: None,
                     session_type: None,
+                    obis_code: None,
                 }],
                 session_results: vec![],
                 error_count: 1,

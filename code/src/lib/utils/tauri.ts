@@ -168,12 +168,13 @@ export async function readLoadProfile(
   profileNumber: number,
   startTime: string | null,
   endTime: string | null,
-  password?: string
+  password?: string,
+  passwordLevel?: number
 ): Promise<LoadProfileResult> {
   if (!isTauri()) {
     throw new Error("Tauri bağlamı bulunamadı - uygulamayı yeniden başlatın");
   }
-  return invoke<LoadProfileResult>("read_load_profile", { profileNumber, startTime, endTime, password: password || null });
+  return invoke<LoadProfileResult>("read_load_profile", { profileNumber, startTime, endTime, password: password || null, passwordLevel: passwordLevel || 1 });
 }
 
 // Mode-specific packet read (Modes 5, 7, 8, 9)
@@ -425,6 +426,11 @@ export async function getComplianceTestPlan(): Promise<TestPlan | null> {
 export async function getComplianceRulesPath(): Promise<string> {
   if (!isTauri()) return "";
   return invoke<string>("get_compliance_rules_path");
+}
+
+export async function openComplianceRulesFile(): Promise<void> {
+  if (!isTauri()) return;
+  return invoke<void>("open_compliance_rules_file");
 }
 
 export async function reloadComplianceRules(): Promise<string> {

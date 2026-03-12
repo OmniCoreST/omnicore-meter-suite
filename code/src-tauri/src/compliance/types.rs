@@ -160,6 +160,8 @@ pub struct ComplianceIssue {
     pub remedy: Option<String>,
     /// Which session type this issue was found in
     pub session_type: Option<String>,
+    /// OBIS code(s) used for this check (e.g. "32.7.0" or "1.8.1, 1.8.2")
+    pub obis_code: Option<String>,
 }
 
 /// Result of a single session's compliance check

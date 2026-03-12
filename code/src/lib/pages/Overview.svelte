@@ -1,6 +1,7 @@
 <script lang="ts">
+  import { onDestroy } from "svelte";
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, isConnected, connectionStore, meterStore } from "$lib/stores";
+  import { t, isConnected, connectionStore, meterStore, isMeterReading } from "$lib/stores";
   import { readObisBatch } from "$lib/utils/tauri";
 
   // Parse FF code to determine health status
@@ -27,8 +28,9 @@
   let isRefreshing = $state(false);
 
   async function refreshHealth() {
-    if (isRefreshing) return;
+    if (isRefreshing || $isMeterReading) return;
     isRefreshing = true;
+    meterStore.setReading(true);
     try {
       // F.F.0 is a read-and-clear latch: first read clears it, second read shows true state
       await readObisBatch(["F.F.0"]);
@@ -39,6 +41,7 @@
       // silently ignore, keep showing previous value
     } finally {
       isRefreshing = false;
+      meterStore.setReading(false);
     }
   }
 
@@ -68,6 +71,31 @@
     }
   });
   let driftWarning = $derived(Math.abs(timeDriftSeconds) > 30);
+
+  // ─── Live meter clock: extrapolate from read time ───
+  let liveTick = $state(Date.now());
+  const clockInterval = setInterval(() => { liveTick = Date.now(); }, 1000);
+  onDestroy(() => clearInterval(clockInterval));
+
+  let liveTime = $derived.by(() => {
+    void liveTick; // trigger reactivity every second
+    const data = $meterStore.shortReadData;
+    if (!data?.meterDate || !data?.meterTime) return null;
+    try {
+      const fullDate = toFullYear(data.meterDate);
+      const meterDateTime = new Date(`${fullDate}T${data.meterTime}`);
+      if (isNaN(meterDateTime.getTime())) return null;
+      const readAt = data.timeOf09xRead || Date.now();
+      const elapsed = Date.now() - readAt;
+      const estimated = new Date(meterDateTime.getTime() + elapsed);
+      return {
+        time: estimated.toLocaleTimeString("tr-TR", { hour: "2-digit", minute: "2-digit", second: "2-digit", hour12: false }),
+        date: data.meterDate,
+      };
+    } catch {
+      return null;
+    }
+  });
 
   // Parse DST status from raw meter data (96.90.0 OBIS code)
   let dstEnabled = $derived.by(() => {
@@ -187,12 +215,13 @@
         {#if $meterStore.shortReadData}
           {@const data = $meterStore.shortReadData}
           <div class="space-y-4">
-            <!-- Large Clock Display -->
+            <!-- Large Clock Display (live extrapolated) -->
             <div class="p-6 bg-gradient-to-br from-slate-900 to-slate-800 dark:from-[#0f1821] dark:to-[#1a2632] rounded-xl text-center">
+              <div class="text-[10px] uppercase tracking-widest text-slate-500 mb-1">Sayaç Saati</div>
               <div class="text-4xl font-mono font-bold text-white tracking-wider mb-2">
-                {data.meterTime}
+                {liveTime?.time ?? data.meterTime}
               </div>
-              <div class="text-lg text-slate-300">{data.meterDate}</div>
+              <div class="text-lg text-slate-300">{liveTime?.date ?? data.meterDate}</div>
             </div>
 
             <!-- DST Status -->
@@ -232,7 +261,7 @@
           </h4>
           <button
             onclick={refreshHealth}
-            disabled={isRefreshing || !$isConnected}
+            disabled={isRefreshing || !$isConnected || $isMeterReading}
             class="flex items-center gap-1 px-2 py-1 text-xs font-bold text-primary border border-primary/30 rounded-lg hover:bg-primary/10 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
             <Icon name="sync" size="sm" class={isRefreshing ? "animate-spin-reverse" : ""} />

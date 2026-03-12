@@ -2,23 +2,23 @@
 # OmniCore Meter Suite - Compliance Configuration v3.0.0
 # =============================================================================
 #
-# Bu dosya sayac uyumluluk denetiminin tum ayarlarini icerir:
-#   - Sayac profilleri (tek faz, uc faz, akim trafolu vb.)
-#   - Denetim test plani (hangi okuma modlari calistirilacak)
-#   - Uyumluluk kurallari (OBIS varlik, format, deger, protokol vb.)
+# Bu dosya sayaç uyumluluk denetiminin tüm ayarlarını içerir:
+#   - Sayaç profilleri (tek faz, üç faz, akım trafolu vb.)
+#   - Denetim test planı (hangi okuma modları çalıştırılacak)
+#   - Uyumluluk kuralları (OBIS varlık, format, değer, protokol vb.)
 #
-# Dosya formati: TOML (https://toml.io)
+# Dosya formatı: TOML (https://toml.io)
 # Kodlama: UTF-8
 #
 # Kural kategorileri:
-#   obis_existence    - Zorunlu OBIS kodlarinin varligi
-#   obis_format       - OBIS degerlerinin format kontrolu
-#   obis_value        - OBIS degerlerinin sayisal/mantiksal kontrolu
-#   cross_value       - Birden fazla OBIS degeri arasi kontrol
-#   protocol          - IEC 62056-21 protokol uyumlulugu
-#   session           - Okuma/yazma oturumlarinin basarisi
-#   load_profile      - Yuk profili yapisal kontrolleri
-#   full_read         - Tam okuma veri yapisi kontrolleri
+#   obis_existence    - Zorunlu OBIS kodlarının varlığı
+#   obis_format       - OBIS değerlerinin format kontrolü
+#   obis_value        - OBIS değerlerinin sayısal/mantıksal kontrolü
+#   cross_value       - Birden fazla OBIS değeri arası kontrol
+#   protocol          - IEC 62056-21 protokol uyumluluğu
+#   session           - Okuma/yazma oturumlarının başarısı
+#   load_profile      - Yük profili yapısal kontrolleri
+#   full_read         - Tam okuma veri yapısı kontrolleri
 #
 # =============================================================================
 
@@ -26,71 +26,71 @@ config_version = "3.0.0"
 update_url = ""
 
 # =============================================================================
-# SAYAC PROFILLERI
+# SAYAÇ PROFİLLERİ
 # =============================================================================
 #
-# Her profil bir sayac tipini tanimlar. Kurallar "profile" alani ile
-# hangi profillere uygulanacagini belirler.
+# Her profil bir sayaç tipini tanımlar. Kurallar "profile" alanı ile
+# hangi profillere uygulanacağını belirler.
 #
-# Bir kural "profile" belirtmezse TUM profillerde calisir.
+# Bir kural "profile" belirtmezse TÜM profillerde çalışır.
 # Bir kural profile = ["three_phase_direct", "three_phase_ct"] derse
-# sadece o profillerde calisir.
+# sadece o profillerde çalışır.
 
 [[profiles]]
 id = "single_phase"
-name = "Tek Fazli Sayac"
+name = "Tek Fazlı Sayaç"
 phases = 1
 connection = "direct"           # direct | ct
-description = "Tek fazli direkt baglanti sayaci (monofaze)"
+description = "Tek fazlı direkt bağlantı sayacı (monofaze)"
 
 [[profiles]]
 id = "three_phase_direct"
-name = "Uc Fazli Direkt Baglanti"
+name = "Üç Fazlı Direkt Bağlantı"
 phases = 3
 connection = "direct"
-description = "Uc fazli direkt baglanti sayaci (trifaze)"
+description = "Üç fazlı direkt bağlantı sayacı (trifaze)"
 
 [[profiles]]
 id = "three_phase_ct"
-name = "Uc Fazli Akim Trafolu"
+name = "Üç Fazlı Akım Trafolu"
 phases = 3
 connection = "ct"
-description = "Uc fazli akim trafosu baglantili sayac"
+description = "Üç fazlı akım trafosu bağlantılı sayaç"
 
 
 # =============================================================================
 # TEST PLANI
 # =============================================================================
 #
-# Uyumluluk denetimi sirasinda hangi islemlerin yapilacagini belirler.
-# Her test_plan bir sayac profili grubuna uygulanabilir.
-# enabled = false yaparak bir adimi devre disi birakabilirsiniz.
+# Uyumluluk denetimi sırasında hangi işlemlerin yapılacağını belirler.
+# Her test_plan bir sayaç profili grubuna uygulanabilir.
+# enabled = false yaparak bir adımı devre dışı bırakabilirsiniz.
 #
-# Desteklenen adimlar:
-#   short_read    - Kisa okuma (Mode 6)
+# Desteklenen adımlar:
+#   short_read    - Kısa okuma (Mode 6)
 #   full_read     - Tam okuma (Mode 0)
-#   load_profile  - Yuk profili okuma (Mode 1 + P.01)
+#   load_profile  - Yük profili okuma (Mode 1 + P.01)
 #   packet_read   - Paket okuma (Mode 7/8/9) — packet_mode ile belirtilir
-#   obis_read     - Belirli OBIS kodlarini tekil okuma (Mode 1 + R1)
+#   obis_read     - Belirli OBIS kodlarını tekil okuma (Mode 1 + R1)
 #
-# TEDAS Okuma Modlari:
-#   Mode 0  - Uzun Okuma Modu (Tum Bilgiler)
+# TEDAŞ Okuma Modları:
+#   Mode 0  - Uzun Okuma Modu (Tüm Bilgiler)
 #   Mode 1  - Programlama Modu
-#   Mode 6  - Kisa Okuma Paketi
-#   Mode 7  - Gecmis Bilgiler Paketi
-#   Mode 8  - Uyari Paketi
-#   Mode 9  - Kesinti Kayitlari Paketi (Son 10 Kesinti Bilgileri)
+#   Mode 6  - Kısa Okuma Paketi
+#   Mode 7  - Geçmiş Bilgiler Paketi
+#   Mode 8  - Uyarı Paketi
+#   Mode 9  - Kesinti Kayıtları Paketi (Son 10 Kesinti Bilgileri)
 #
-# Adimlar yukaridan asagiya sirayla calistirilir.
-# Bir adim basarisiz olursa sonraki adimlar yine calisir (bagimsiz).
+# Adımlar yukarıdan aşağıya sırayla çalıştırılır.
+# Bir adım başarısız olursa sonraki adımlar yine çalışır (bağımsız).
 
 [test_plan]
-name = "TEDAS Tam Uyumluluk Testi"
-description = "TEDAS sartnamesi kapsaminda tum okuma modlarini test eder"
+name = "TEDAŞ Tam Uyumluluk Testi"
+description = "TEDAŞ şartnamesi kapsamında tüm okuma modlarını test eder"
 
 [[test_plan.steps]]
 id = "short_read"
-name = "Kisa Okuma (Mode 6)"
+name = "Kısa Okuma (Mode 6)"
 mode = "short_read"
 enabled = true
 timeout_seconds = 30
@@ -106,7 +106,7 @@ retry_count = 1
 
 [[test_plan.steps]]
 id = "load_profile"
-name = "Yuk Profili Okuma"
+name = "Yük Profili Okuma"
 mode = "load_profile"
 enabled = true
 timeout_seconds = 180
@@ -114,7 +114,7 @@ retry_count = 1
 
 [[test_plan.steps]]
 id = "history_packet"
-name = "Gecmis Bilgiler Paketi (Mode 7)"
+name = "Geçmiş Bilgiler Paketi (Mode 7)"
 mode = "packet_read"
 packet_mode = 7
 enabled = true
@@ -123,7 +123,7 @@ retry_count = 1
 
 [[test_plan.steps]]
 id = "warning_packet"
-name = "Uyari Paketi (Mode 8)"
+name = "Uyarı Paketi (Mode 8)"
 mode = "packet_read"
 packet_mode = 8
 enabled = true
@@ -132,7 +132,7 @@ retry_count = 1
 
 [[test_plan.steps]]
 id = "outage_packet"
-name = "Kesinti Kayitlari Paketi (Mode 9)"
+name = "Kesinti Kayıtları Paketi (Mode 9)"
 mode = "packet_read"
 packet_mode = 9
 enabled = true
@@ -141,7 +141,7 @@ retry_count = 1
 
 [[test_plan.steps]]
 id = "time_check"
-name = "Saat Kontrolu"
+name = "Saat Kontrolü"
 mode = "obis_read"
 obis_codes = ["0.9.1", "0.9.2"]
 enabled = true
@@ -153,33 +153,33 @@ retry_count = 1
 # KURALLAR
 # =============================================================================
 #
-# --- Ortak alanlar (tum kural kategorileri icin) ---
+# --- Ortak alanlar (tüm kural kategorileri için) ---
 #
-#   code          Benzersiz kural kodu (orn. "OBIS-001")
-#   category      Kural kategorisi (asagidaki listeden)
-#   check         Kontrol tipi (kategoriye gore degisir)
+#   code          Benzersiz kural kodu (örn. "OBIS-001")
+#   category      Kural kategorisi (aşağıdaki listeden)
+#   check         Kontrol tipi (kategoriye göre değişir)
 #   severity      "error" | "warning" | "info"
-#   description   Uyumsuzluk aciklamasi
-#   spec_ref      Sartname referansi (istege bagli)
-#   cause         Sorunun olasi nedeni (istege bagli)
-#   remedy        Onerilen duzeltme (istege bagli)
-#   profile       Hangi profillerde calisir (istege bagli, belirtilmezse hepsinde)
-#   session_type  Hangi okuma tipinde calisir (istege bagli):
+#   description   Uyumsuzluk açıklaması
+#   spec_ref      Şartname referansı (isteğe bağlı)
+#   cause         Sorunun olası nedeni (isteğe bağlı)
+#   remedy        Önerilen düzeltme (isteğe bağlı)
+#   profile       Hangi profillerde çalışır (isteğe bağlı, belirtilmezse hepsinde)
+#   session_type  Hangi okuma tipinde çalışır (isteğe bağlı):
 #                   "short_read" | "full_read" | "load_profile" | "any"
 #                 Belirtilmezse "any" kabul edilir.
-#   enabled       true | false (varsayilan: true)
+#   enabled       true | false (varsayılan: true)
 #
 
 
 # =============================================================================
-# KATEGORI 1: OBIS VARLIK KONTROLLERI (obis_existence)
+# KATEGORİ 1: OBIS VARLIK KONTROLLERİ (obis_existence)
 # =============================================================================
 #
-# Sayacin belirli OBIS kodlarini dondurup dondurmedigi kontrol edilir.
-# Kisa okumada bazi OBIS kodlari gelmeyebilir, bu yuzden session_type onemli.
+# Sayacın belirli OBIS kodlarını döndürüp döndürmediği kontrol edilir.
+# Kısa okumada bazı OBIS kodları gelmeyebilir, bu yüzden session_type önemli.
 #
-# Ozel alanlar:
-#   obis_codes    Kontrol edilecek OBIS kod listesi (hepsi mevcut olmali)
+# Özel alanlar:
+#   obis_codes    Kontrol edilecek OBIS kod listesi (hepsi mevcut olmalı)
 
 [[rules]]
 code = "OBIS-001"
@@ -187,16 +187,18 @@ category = "obis_existence"
 check = "must_exist"
 session_type = "short_read"
 obis_codes = [
-    "0.0.0",                               # Seri numarasi
+    "0.0.0",                               # Seri numarası
     "0.9.1", "0.9.2",                      # Saat ve tarih
-    "32.7.0", "31.7.0",                    # Anlik gerilim ve akim (L1)
+    "32.7.0", "31.7.0",                    # Anlık gerilim ve akım (L1)
     "14.7.0",                              # Frekans
     "1.8.0", "1.8.1", "1.8.2", "1.8.3",   # Aktif enerji (T0-T3)
     "F.F.0",                               # FF hata kodu
 ]
 severity = "error"
-description = "Kisa okumada zorunlu OBIS kodlari eksik"
-spec_ref = "TEDAS Sartname 3.2 / MASS Sartname 3.2"
+description = "Kısa okumada zorunlu OBIS kodları eksik"
+spec_ref = "TEDAŞ Şartname Ek-C Kısa Okuma Paketi (6) / MASS Şartname Ek-C"
+cause = "Sayaç firmware'i kısa okuma paketinde zorunlu OBIS kodlarını döndürmüyor."
+remedy = "Sayaç firmware güncellemesi gerekebilir. Üretici ile iletişime geçin."
 
 [[rules]]
 code = "OBIS-002"
@@ -207,7 +209,7 @@ obis_codes = [
     # Kimlik
     "0.0.0", "0.9.1", "0.9.2", "0.2.0", "0.2.1",
     "96.1.3",
-    # Anlik olcumler
+    # Anlık ölçümler
     "32.7.0", "31.7.0", "91.7.0", "33.7.0", "14.7.0",
     "15.7.0", "131.7.0",
     # Enerji endeksleri
@@ -216,18 +218,20 @@ obis_codes = [
     "5.8.0", "6.8.0", "7.8.0", "8.8.0",
     # Demant
     "1.6.0", "2.6.0",
-    # Durum kodlari
+    # Durum kodları
     "F.F.0", "F.F.1", "F.A.0",
-    # Yapilandirma
+    # Yapılandırma
     "0.8.0", "96.3.10", "96.3.12", "96.3.13",
-    # Yuk profili kanal tanimlari
+    # Yük profili kanal tanımları
     "97.1.0", "97.2.0",
-    # Kesinti kayitlari (en az ilk giris)
+    # Kesinti kayıtları (en az ilk giriş)
     "96.2.2",
 ]
 severity = "error"
-description = "Tam okumada zorunlu OBIS kodlari eksik"
-spec_ref = "TEDAS Sartname Ek-A / MASS Sartname Ek-A"
+description = "Tam okumada zorunlu OBIS kodları eksik"
+spec_ref = "TEDAŞ Şartname Ek-C / MASS Şartname Ek-C"
+cause = "Sayaç tam okumada TEDAŞ/MASS şartnamesinin gerektirdiği tüm OBIS kodlarını döndürmüyor."
+remedy = "Sayaç firmware'inin TEDAŞ Ek-C'deki zorunlu OBIS kod listesini desteklediğinden emin olun. Firmware güncellemesi veya üretici desteği gerekebilir."
 
 [[rules]]
 code = "OBIS-003"
@@ -237,24 +241,26 @@ session_type = "full_read"
 profile = ["three_phase_direct", "three_phase_ct"]
 obis_codes = [
     "52.7.0", "72.7.0",                   # L2, L3 gerilim
-    "51.7.0", "71.7.0",                    # L2, L3 akim
-    "53.7.0", "73.7.0",                    # L2, L3 guc faktoru
+    "51.7.0", "71.7.0",                    # L2, L3 akım
+    "53.7.0", "73.7.0",                    # L2, L3 güç faktörü
 ]
 severity = "error"
-description = "Uc fazli sayaclarda L2/L3 OBIS kodlari zorunlu"
-spec_ref = "TEDAS Sartname Ek-A"
+description = "Üç fazlı sayaçlarda L2/L3 OBIS kodları zorunlu"
+spec_ref = "TEDAŞ Şartname Ek-C / MASS Şartname Ek-C"
+cause = "Üç fazlı sayaç olarak seçilmiş ancak L2/L3 faz verileri tam okumada bulunmuyor."
+remedy = "Sayaç profil seçimini kontrol edin. Eğer sayaç gerçekten üç fazlıysa firmware güncellemesi gerekebilir."
 
 
 # =============================================================================
-# KATEGORI 2: OBIS FORMAT KONTROLLERI (obis_format)
+# KATEGORİ 2: OBIS FORMAT KONTROLLERİ (obis_format)
 # =============================================================================
 #
-# OBIS degerlerinin beklenen formatta olup olmadigini kontrol eder.
-# Regex deseni kullanilir.
+# OBIS değerlerinin beklenen formatta olup olmadığını kontrol eder.
+# Regex deseni kullanılır.
 #
-# Ozel alanlar:
+# Özel alanlar:
 #   obis_code     Kontrol edilecek tek OBIS kodu
-#   pattern       Beklenen regex deseni (deger kismina uygulanir)
+#   pattern       Beklenen regex deseni (değer kısmına uygulanır)
 
 [[rules]]
 code = "FMT-001"
@@ -263,8 +269,10 @@ check = "value_format"
 obis_code = "1.8.0"
 pattern = '^\d{6}\.\d{3}\*kWh$'
 severity = "warning"
-description = "Aktif enerji degeri XXXXXX.XXX*kWh formatinda olmali"
-spec_ref = "TEDAS Sartname 4.2"
+description = "Aktif enerji değeri XXXXXX.XXX*kWh formatında olmalı"
+spec_ref = "TEDAŞ Şartname 4.2"
+cause = "Sayaç aktif enerji değerini standart dışı formatta döndürüyor."
+remedy = "Sayaç üreticisine başvurun. Enerji endeks formatı TEDAŞ şartnamesine uygun olmalıdır."
 
 [[rules]]
 code = "FMT-002"
@@ -273,8 +281,10 @@ check = "value_format"
 obis_code = "F.F.0"
 pattern = '^[01]{64}$'
 severity = "error"
-description = "FF hata kodu 64 bitlik binary string olmali"
-spec_ref = "TEDAS Sartname 5.3"
+description = "FF hata kodu 64 bitlik binary string olmalı"
+spec_ref = "TEDAŞ Şartname 5.3"
+cause = "F.F.0 hata/durum kodu 64 bitlik ikili (binary) formatta değil."
+remedy = "Sayaç firmware'i F.F.0 kodunu 64 bit binary string olarak döndürmelidir. Üretici ile iletişime geçin."
 
 [[rules]]
 code = "FMT-003"
@@ -283,7 +293,10 @@ check = "value_format"
 obis_code = "0.9.2"
 pattern = '^\d{2}-\d{2}-\d{2}$'
 severity = "warning"
-description = "Tarih YY-MM-DD formatinda olmali"
+description = "Tarih YY-MM-DD formatında olmalı"
+spec_ref = "IEC 62056-21 Annex A"
+cause = "Sayaç tarih bilgisini standart YY-MM-DD formatında döndürmüyor."
+remedy = "Sayaç tarih formatı ayarını kontrol edin. IEC 62056-21 standardına uygun olmalıdır."
 
 [[rules]]
 code = "FMT-004"
@@ -292,7 +305,10 @@ check = "value_format"
 obis_code = "0.9.1"
 pattern = '^\d{2}:\d{2}:\d{2}$'
 severity = "warning"
-description = "Saat HH:MM:SS formatinda olmali"
+description = "Saat HH:MM:SS formatında olmalı"
+spec_ref = "IEC 62056-21 Annex A"
+cause = "Sayaç saat bilgisini standart HH:MM:SS formatında döndürmüyor."
+remedy = "Sayaç saat formatı ayarını kontrol edin. IEC 62056-21 standardına uygun olmalıdır."
 
 [[rules]]
 code = "FMT-005"
@@ -301,7 +317,10 @@ check = "value_format"
 obis_code = "32.7.0"
 pattern = '^\d+\.\d+\*V$'
 severity = "warning"
-description = "Gerilim degeri XXX.XX*V formatinda olmali"
+description = "Gerilim değeri XXX.XX*V formatında olmalı"
+spec_ref = "TEDAŞ Şartname Ek-A"
+cause = "Gerilim ölçüm değeri beklenen birim formatında (V) döndürülmüyor."
+remedy = "Sayaç üreticisine başvurun. Gerilim değeri sayısal*V formatında olmalıdır."
 
 [[rules]]
 code = "FMT-006"
@@ -310,7 +329,10 @@ check = "value_format"
 obis_code = "31.7.0"
 pattern = '^\d+\.\d+\*A$'
 severity = "warning"
-description = "Akim degeri XXX.XXX*A formatinda olmali"
+description = "Akım değeri XXX.XXX*A formatında olmalı"
+spec_ref = "TEDAŞ Şartname Ek-A"
+cause = "Akım ölçüm değeri beklenen birim formatında (A) döndürülmüyor."
+remedy = "Sayaç üreticisine başvurun. Akım değeri sayısal*A formatında olmalıdır."
 
 [[rules]]
 code = "FMT-007"
@@ -319,7 +341,10 @@ check = "value_format"
 obis_code = "14.7.0"
 pattern = '^\d+\.\d+\*Hz$'
 severity = "warning"
-description = "Frekans degeri XX.X*Hz formatinda olmali"
+description = "Frekans değeri XX.X*Hz formatında olmalı"
+spec_ref = "TEDAŞ Şartname Ek-A"
+cause = "Frekans ölçüm değeri beklenen birim formatında (Hz) döndürülmüyor."
+remedy = "Sayaç üreticisine başvurun. Frekans değeri sayısal*Hz formatında olmalıdır."
 
 [[rules]]
 code = "FMT-008"
@@ -328,34 +353,37 @@ check = "value_format"
 obis_code = "1.6.0"
 pattern = '^\d{3}\.\d{3}\*kW$'
 severity = "warning"
-description = "Maksimum demant degeri XXX.XXX*kW formatinda olmali"
+description = "Maksimum demant değeri XXX.XXX*kW formatında olmalı"
+spec_ref = "TEDAŞ Şartname 4.3"
+cause = "Maksimum demant değeri beklenen birim formatında (kW) döndürülmüyor."
+remedy = "Sayaç üreticisine başvurun. Demant değeri XXX.XXX*kW formatında olmalıdır."
 
 
 # =============================================================================
-# KATEGORI 3: OBIS DEGER KONTROLLERI (obis_value)
+# KATEGORİ 3: OBIS DEĞER KONTROLLERİ (obis_value)
 # =============================================================================
 #
-# OBIS degerlerinin sayisal/mantiksal kontrolu.
-# Deger, OBIS satirindan otomatik olarak parse edilir.
+# OBIS değerlerinin sayısal/mantıksal kontrolü.
+# Değer, OBIS satırından otomatik olarak parse edilir.
 #
 # Desteklenen check tipleri:
-#   range         - Sayisal aralik (min, max)
-#   equals        - Tam esitlik (value)
-#   not_equals    - Esit olmamali (value)
-#   not_empty     - Bos olmamali
-#   bit_zero      - Belirtilen bit 0 olmali (bit)
-#   bit_one       - Belirtilen bit 1 olmali (bit)
-#   regex_match   - Deger regex'e uymali (pattern)
+#   range         - Sayısal aralık (min, max)
+#   equals        - Tam eşitlik (value)
+#   not_equals    - Eşit olmamalı (value)
+#   not_empty     - Boş olmamalı
+#   bit_zero      - Belirtilen bit 0 olmalı (bit)
+#   bit_one       - Belirtilen bit 1 olmalı (bit)
+#   regex_match   - Değer regex'e uymalı (pattern)
 #
-# Ozel alanlar:
+# Özel alanlar:
 #   obis_code     Kontrol edilecek OBIS kodu
-#   min           Alt sinir (range icin)
-#   max           Ust sinir (range icin)
-#   value         Beklenen deger (equals/not_equals icin)
-#   bit           Bit numarasi, 0'dan baslar (bit_zero/bit_one icin)
-#   pattern       Regex deseni (regex_match icin)
+#   min           Alt sınır (range için)
+#   max           Üst sınır (range için)
+#   value         Beklenen değer (equals/not_equals için)
+#   bit           Bit numarası, 0'dan başlar (bit_zero/bit_one için)
+#   pattern       Regex deseni (regex_match için)
 #   unit_strip    true ise birim otomatik soyulur: "224.79*V" -> "224.79"
-#                 Varsayilan: true
+#                 Varsayılan: true
 
 # --- Kimlik ---
 
@@ -365,10 +393,10 @@ category = "obis_value"
 check = "not_empty"
 obis_code = "0.0.0"
 severity = "error"
-description = "Seri numarasi bos - sayac kimligi okunamiyor"
-spec_ref = "TEDAS Sartname 3.1 / MASS Sartname 3.1"
-cause = "Sayac hafizasinda seri numarasi kaydi bulunmuyor veya 0.0.0 OBIS kodu yanit vermiyor."
-remedy = "Sayaci servise gonderin. Fabrika ayarlarinda seri numarasi programlanmalidir."
+description = "Seri numarası kısa okumada 0.0.0 üzerinden boş - sayaç kimliği okunamıyor"
+spec_ref = "TEDAŞ Şartname 3.1 / MASS Şartname 3.1"
+cause = "Sayaç kısa okuma paketinde 0.0.0 OBIS kodunu dönmüyor. (Bağlantı handshake'inden elde edilmiş bir seri numarası olabilir.)"
+remedy = "Sayaç firmware versiyonunu kontrol edin; 0.0.0 kodu short read paketinde zorunludur. Firmware güncellemesi veya üretici desteği gerekebilir."
 
 [[rules]]
 code = "ID-002"
@@ -376,8 +404,10 @@ category = "obis_value"
 check = "not_empty"
 obis_code = "0.2.0"
 severity = "warning"
-description = "Program versiyonu bos"
-spec_ref = "TEDAS Sartname 3.1 / MASS Sartname 3.1"
+description = "Program versiyonu boş"
+spec_ref = "TEDAŞ Şartname 3.1 / MASS Şartname 3.1"
+cause = "Sayaç firmware versiyon bilgisini (0.2.0) döndürmüyor veya boş döndürüyor."
+remedy = "Sayaç firmware'inin versiyon bilgisi programlanmış olmalıdır. Üretici ile iletişime geçin."
 
 # --- Elektriksel Parametreler ---
 
@@ -389,10 +419,10 @@ obis_code = "32.7.0"
 min = 90.0
 max = 265.0
 severity = "error"
-description = "L1 (R faz) gerilimi calisma araligi disinda (90-265 V)"
-spec_ref = "TEDAS Sartname 2.2.2 Cizelge 4 / MASS Sartname 2.2.2"
-cause = "Sebeke gerilimi normal sinirlar disinda."
-remedy = "Dagitim sirketi ile iletisime gecin. Trafo cikis gerilimini kontrol edin."
+description = "L1 (R faz) gerilimi çalışma aralığı dışında (90-265 V)"
+spec_ref = "TEDAŞ Şartname 2.2.2 Çizelge 4 / MASS Şartname 2.2.2"
+cause = "Şebeke gerilimi normal sınırlar dışında."
+remedy = "Dağıtım şirketi ile iletişime geçin. Trafo çıkış gerilimini kontrol edin."
 
 [[rules]]
 code = "EL-002"
@@ -403,8 +433,10 @@ min = 90.0
 max = 265.0
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "error"
-description = "L2 (S faz) gerilimi calisma araligi disinda (90-265 V)"
-spec_ref = "TEDAS Sartname 2.2.2 Cizelge 4 / MASS Sartname 2.2.2"
+description = "L2 (S faz) gerilimi çalışma aralığı dışında (90-265 V)"
+spec_ref = "TEDAŞ Şartname 2.2.2 Çizelge 4 / MASS Şartname 2.2.2"
+cause = "S fazı şebeke gerilimi normal çalışma sınırları dışında."
+remedy = "Dağıtım şirketi ile iletişime geçin. Trafo çıkış gerilimini ve faz bağlantılarını kontrol edin."
 
 [[rules]]
 code = "EL-003"
@@ -415,8 +447,10 @@ min = 90.0
 max = 265.0
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "error"
-description = "L3 (T faz) gerilimi calisma araligi disinda (90-265 V)"
-spec_ref = "TEDAS Sartname 2.2.2 Cizelge 4 / MASS Sartname 2.2.2"
+description = "L3 (T faz) gerilimi çalışma aralığı dışında (90-265 V)"
+spec_ref = "TEDAŞ Şartname 2.2.2 Çizelge 4 / MASS Şartname 2.2.2"
+cause = "T fazı şebeke gerilimi normal çalışma sınırları dışında."
+remedy = "Dağıtım şirketi ile iletişime geçin. Trafo çıkış gerilimini ve faz bağlantılarını kontrol edin."
 
 [[rules]]
 code = "EL-004"
@@ -426,10 +460,12 @@ obis_code = "14.7.0"
 min = 49.0
 max = 51.0
 severity = "warning"
-description = "Sebeke frekansi 50 Hz +/-%2 araliginda degil (49-51 Hz)"
-spec_ref = "TEDAS Sartname 1.4 Cizelge 2 / MASS Sartname 1.4"
+description = "Şebeke frekansı 50 Hz +/-%2 aralığında değil (49-51 Hz)"
+spec_ref = "TEDAŞ Şartname 1.4 Çizelge 2 / MASS Şartname 1.4"
+cause = "Şebeke frekansı nominal 50 Hz değerinden sapma gösteriyor."
+remedy = "Geçici bir şebeke dalgalanması olabilir. Sorun devam ederse dağıtım şirketi ile iletişime geçin."
 
-# --- Yapilandirma ---
+# --- Yapılandırma ---
 
 [[rules]]
 code = "DEM-001"
@@ -438,24 +474,33 @@ check = "equals"
 obis_code = "0.8.0"
 value = "15"
 severity = "warning"
-description = "Demant olcum periyodu 15 dakika olmali"
-spec_ref = "TEDAS Sartname 4.3 madde 91 / MASS Sartname 4.3 madde 80"
+description = "Demant ölçüm periyodu 15 dakika olmalı"
+spec_ref = "TEDAŞ Şartname 4.3 madde 91 / MASS Şartname 4.3 madde 80"
+cause = "Sayaçtaki demant (maksimum güç) ölçüm entegrasyon periyodu 15 dakika olarak ayarlanmamış."
+remedy = "Sayaç programlama modunda 0.8.0 OBIS kodunu 15 dakika olarak ayarlayın."
 
 [[rules]]
 code = "DEM-002"
 category = "obis_value"
-check = "equals"
+check = "range"
 obis_code = "0.8.4"
-value = "15"
+# TEDAŞ Madde 104: "Yük profili 15-30-60 dakikalık aralıklarla kaydedilecektir.
+# Modüler sayaçlarda teknik kalite kayıtları talep edilmesi durumunda 1 dakika da olabilir."
+# Bu nedenle equals="15" yerine range 1-60 dk kullanıldı.
+# MASS Madde 91: Aynı şekilde 15-30-60 dk. Varsayılan 15 dk.
+min = 1
+max = 60
 severity = "warning"
-description = "Yuk profili kayit periyodu 15 dakika olmali"
-spec_ref = "TEDAS Sartname 4.3"
+description = "Yük profili kayıt periyodu 1-60 dakika aralığında olmalı (nominal 15 dk)"
+spec_ref = "TEDAŞ Şartname 4.5 madde 104 / MASS Şartname 4.5 madde 91"
+cause = "Sayaçtaki yük profili kayıt aralığı (0.8.4) geçerli sınırlar dışında ayarlanmış."
+remedy = "Normal kurulum için 15 dakika ayarlayın. Modüler sayaçlarda teknik kalite talebi varsa 1 dk da geçerlidir."
 
 # --- FF Hata/Durum Kodu (F.F.0) ---
-# Her bit ayri kural olarak tanimlanir.
-# bit_zero: ilgili bit 1 ise uyumsuzluk uretir (0 olmali).
+# Her bit ayrı kural olarak tanımlanır.
+# bit_zero: ilgili bit 1 ise uyumsuzluk üretir (0 olmalı).
 
-# Donanim Hatalari (Bit 0-4)
+# Donanım Hataları (Bit 0-4)
 [[rules]]
 code = "FF-001"
 category = "obis_value"
@@ -463,10 +508,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 0
 severity = "error"
-description = "RTC (Saat Modulu) Arizasi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
-cause = "Gercek zamanli saat calismiyor."
-remedy = "Sayaci servise gonderin."
+description = "RTC (Saat Modülü) Arızası"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Gerçek zamanlı saat (RTC) modülü çalışmıyor veya arızalı."
+remedy = "Sayacı servise gönderin. RTC modülü veya pili değiştirilmelidir."
 
 [[rules]]
 code = "FF-002"
@@ -475,8 +520,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 1
 severity = "error"
-description = "Olcum Entegresi Arizasi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Ölçüm Entegresi Arızası"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Ölçüm entegre devresi (metering IC) arızalı veya yanıt vermiyor."
+remedy = "Sayacı servise gönderin. Ölçüm donanımı değiştirilmelidir."
 
 [[rules]]
 code = "FF-003"
@@ -485,8 +532,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 2
 severity = "error"
-description = "Kritik Olcum Hatasi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Kritik Ölçüm Hatası"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Sayaçta kritik bir ölçüm hatası tespit edildi. Ölçüm sonuçları güvenilir olmayabilir."
+remedy = "Sayacı servise gönderin. Kalibrasyon ve donanım kontrolü yapılmalıdır."
 
 [[rules]]
 code = "FF-004"
@@ -495,8 +544,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 3
 severity = "warning"
-description = "RS-485 Port Hatasi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "RS-485 Port Hatası"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "RS-485 haberleşme portu arızalı veya iletişim kurulamıyor."
+remedy = "RS-485 kablo bağlantılarını ve terminasyonu kontrol edin. Sorun devam ederse sayacı servise gönderin."
 
 [[rules]]
 code = "FF-005"
@@ -505,10 +556,12 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 4
 severity = "error"
-description = "Kalibrasyon Yapilmamis"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Kalibrasyon Yapılmamış"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Sayaç fabrika kalibrasyonu tamamlanmamış veya kalibrasyon verileri bozulmuş."
+remedy = "Sayacı üretici servise gönderin. Yeniden kalibrasyon yapılmalıdır."
 
-# Fiziksel Mudahale (Bit 5-7)
+# Fiziksel Müdahale (Bit 5-7)
 [[rules]]
 code = "FF-006"
 category = "obis_value"
@@ -516,8 +569,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 5
 severity = "warning"
-description = "Klemens Kapagi Acik"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Klemens Kapağı Açık"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Sayacın klemens (bağlantı) kapağı açık durumda veya daha önce açılmış."
+remedy = "Klemens kapağını kapatın ve mühürleyin. Yetkisiz müdahale şüphesi varsa tutanak düzenleyin."
 
 [[rules]]
 code = "FF-007"
@@ -526,8 +581,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 6
 severity = "warning"
-description = "Ust Kapak Acik"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Üst Kapak Açık"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Sayacın üst kapağı açık durumda veya daha önce açılmış."
+remedy = "Üst kapağı kapatın ve mühürleyin. Yetkisiz müdahale şüphesi varsa tutanak düzenleyin."
 
 [[rules]]
 code = "FF-008"
@@ -536,10 +593,12 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 7
 severity = "info"
-description = "Ust Kapak Acilma Bilgisi Mevcut"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Üst Kapak Açılma Bilgisi Mevcut"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Sayaç geçmişte en az bir kez üst kapak açılması algılamış."
+remedy = "Bilgi amaçlıdır. Kesinti kayıtlarından açılma tarih/saatini kontrol edin."
 
-# Akim Var / Gerilim Yok (Bit 8-10)
+# Akım Var / Gerilim Yok (Bit 8-10)
 [[rules]]
 code = "FF-009"
 category = "obis_value"
@@ -547,8 +606,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 8
 severity = "error"
-description = "R Fazi - Akim Var, Gerilim Yok"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "R Fazı - Akım Var, Gerilim Yok"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "R fazında akım akıyor ancak gerilim algılanmıyor. Kaçak kullanım veya bağlantı hatası olabilir."
+remedy = "Sayaç bağlantılarını kontrol edin. Gerilim kablosunun doğru bağlandığından emin olun. Kaçak şüphesi varsa müfettiş gönderin."
 
 [[rules]]
 code = "FF-010"
@@ -558,8 +619,10 @@ obis_code = "F.F.0"
 bit = 9
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "error"
-description = "S Fazi - Akim Var, Gerilim Yok"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "S Fazı - Akım Var, Gerilim Yok"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "S fazında akım akıyor ancak gerilim algılanmıyor. Kaçak kullanım veya bağlantı hatası olabilir."
+remedy = "Sayaç bağlantılarını kontrol edin. Gerilim kablosunun doğru bağlandığından emin olun."
 
 [[rules]]
 code = "FF-011"
@@ -569,10 +632,12 @@ obis_code = "F.F.0"
 bit = 10
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "error"
-description = "T Fazi - Akim Var, Gerilim Yok"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "T Fazı - Akım Var, Gerilim Yok"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "T fazında akım akıyor ancak gerilim algılanmıyor. Kaçak kullanım veya bağlantı hatası olabilir."
+remedy = "Sayaç bağlantılarını kontrol edin. Gerilim kablosunun doğru bağlandığından emin olun."
 
-# Manyetik Alan Mudahalesi (Bit 11-13)
+# Manyetik Alan Müdahalesi (Bit 11-13)
 [[rules]]
 code = "FF-012"
 category = "obis_value"
@@ -580,8 +645,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 11
 severity = "error"
-description = "R Fazi - Manyetik Alan >400 mT"
-spec_ref = "TEDAS 4.10 madde 141 / MASS 4.10 madde 128"
+description = "R Fazı - Manyetik Alan >400 mT"
+spec_ref = "TEDAŞ Şartname 4.10 madde 141 / MASS Şartname 4.10 madde 128"
+cause = "R fazı yakınında 400 mT üzerinde manyetik alan tespit edildi. Mıknatısla müdahale girişimi olabilir."
+remedy = "Sayaç çevresini kontrol edin. Harici manyetik kaynak varsa uzaklaştırın. Kaçak şüphesi varsa tutanak düzenleyin."
 
 [[rules]]
 code = "FF-013"
@@ -591,8 +658,10 @@ obis_code = "F.F.0"
 bit = 12
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "error"
-description = "S Fazi - Manyetik Alan >400 mT"
-spec_ref = "TEDAS 4.10 madde 141 / MASS 4.10 madde 128"
+description = "S Fazı - Manyetik Alan >400 mT"
+spec_ref = "TEDAŞ Şartname 4.10 madde 141 / MASS Şartname 4.10 madde 128"
+cause = "S fazı yakınında 400 mT üzerinde manyetik alan tespit edildi."
+remedy = "Sayaç çevresini kontrol edin. Harici manyetik kaynak varsa uzaklaştırın."
 
 [[rules]]
 code = "FF-014"
@@ -602,10 +671,12 @@ obis_code = "F.F.0"
 bit = 13
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "error"
-description = "T Fazi - Manyetik Alan >400 mT"
-spec_ref = "TEDAS 4.10 madde 141 / MASS 4.10 madde 128"
+description = "T Fazı - Manyetik Alan >400 mT"
+spec_ref = "TEDAŞ Şartname 4.10 madde 141 / MASS Şartname 4.10 madde 128"
+cause = "T fazı yakınında 400 mT üzerinde manyetik alan tespit edildi."
+remedy = "Sayaç çevresini kontrol edin. Harici manyetik kaynak varsa uzaklaştırın."
 
-# Endeks Durgunlugu (Bit 14-16)
+# Endeks Durgunluğu (Bit 14-16)
 [[rules]]
 code = "FF-015"
 category = "obis_value"
@@ -613,8 +684,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 14
 severity = "warning"
-description = "Akim >20 mA - T1 Endeksi Duragan"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Akım >20 mA - T1 Endeksi Durağan"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "20 mA üzerinde akım geçmesine rağmen T1 tarife endeksi ilerlemiyor. Ölçüm hatası veya müdahale olabilir."
+remedy = "Sayaç ölçüm doğruluğunu test edin. Akım trafolu bağlantılarda CT oranını ve yönünü kontrol edin."
 
 [[rules]]
 code = "FF-016"
@@ -623,8 +696,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 15
 severity = "warning"
-description = "Akim >20 mA - T2 Endeksi Duragan"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Akım >20 mA - T2 Endeksi Durağan"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "20 mA üzerinde akım geçmesine rağmen T2 tarife endeksi ilerlemiyor."
+remedy = "Tarife programlamasını ve saat ayarlarını kontrol edin. T2 tarife dilimi aktif olmalıdır."
 
 [[rules]]
 code = "FF-017"
@@ -633,10 +708,12 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 16
 severity = "warning"
-description = "Akim >20 mA - T3 Endeksi Duragan"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Akım >20 mA - T3 Endeksi Durağan"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "20 mA üzerinde akım geçmesine rağmen T3 tarife endeksi ilerlemiyor."
+remedy = "Tarife programlamasını ve saat ayarlarını kontrol edin. T3 tarife dilimi aktif olmalıdır."
 
-# Faz Endeks Ilerleyisi Sifir (Bit 17-19)
+# Faz Endeks İlerleyişi Sıfır (Bit 17-19)
 [[rules]]
 code = "FF-018"
 category = "obis_value"
@@ -644,8 +721,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 17
 severity = "warning"
-description = "R Faz Endeksi Iki Aydir Ilerlemedi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "R Faz Endeksi İki Aydır İlerlemedi"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "R fazında son iki aydır enerji tüketimi kaydedilmemiş. Sayaç veya bağlantı arızası olabilir."
+remedy = "Sayaç bağlantılarını ve R faz akım yolunu kontrol edin. Abone tüketim yapmıyor olabilir."
 
 [[rules]]
 code = "FF-019"
@@ -655,8 +734,10 @@ obis_code = "F.F.0"
 bit = 18
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "warning"
-description = "S Faz Endeksi Iki Aydir Ilerlemedi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "S Faz Endeksi İki Aydır İlerlemedi"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "S fazında son iki aydır enerji tüketimi kaydedilmemiş."
+remedy = "S faz bağlantılarını ve akım yolunu kontrol edin."
 
 [[rules]]
 code = "FF-020"
@@ -666,8 +747,10 @@ obis_code = "F.F.0"
 bit = 19
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "warning"
-description = "T Faz Endeksi Iki Aydir Ilerlemedi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "T Faz Endeksi İki Aydır İlerlemedi"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "T fazında son iki aydır enerji tüketimi kaydedilmemiş."
+remedy = "T faz bağlantılarını ve akım yolunu kontrol edin."
 
 # Faz Kesilmesi (Bit 20-23)
 [[rules]]
@@ -678,7 +761,9 @@ obis_code = "F.F.0"
 bit = 20
 severity = "warning"
 description = "R Faz Kesilmesi Devam Ediyor"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "R fazında gerilim kesilmesi devam ediyor. Sigorta atmış veya hat arızası olabilir."
+remedy = "R faz sigortasını ve hat bağlantılarını kontrol edin."
 
 [[rules]]
 code = "FF-022"
@@ -689,7 +774,9 @@ bit = 21
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "warning"
 description = "S Faz Kesilmesi Devam Ediyor"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "S fazında gerilim kesilmesi devam ediyor."
+remedy = "S faz sigortasını ve hat bağlantılarını kontrol edin."
 
 [[rules]]
 code = "FF-023"
@@ -700,7 +787,9 @@ bit = 22
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "warning"
 description = "T Faz Kesilmesi Devam Ediyor"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "T fazında gerilim kesilmesi devam ediyor."
+remedy = "T faz sigortasını ve hat bağlantılarını kontrol edin."
 
 [[rules]]
 code = "FF-024"
@@ -710,9 +799,11 @@ obis_code = "F.F.0"
 bit = 23
 severity = "warning"
 description = "3 Faz Birden Kesilmesi Devam Ediyor"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Tüm fazlarda aynı anda gerilim kesilmesi yaşanıyor. Genel elektrik kesintisi veya ana sigorta arızası."
+remedy = "Ana sigortayı ve şebeke bağlantısını kontrol edin. Bölgesel kesinti olabilir."
 
-# Sonlanmamis Uyarilar (Bit 24-25)
+# Sonlanmamış Uyarılar (Bit 24-25)
 [[rules]]
 code = "FF-025"
 category = "obis_value"
@@ -720,8 +811,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 24
 severity = "warning"
-description = "Akim Hata Uyarisi Aktif"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Akım Hata Uyarısı Aktif"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Sayaç akım ölçümünde bir anomali tespit etmiş ve uyarı henüz sonlanmamış."
+remedy = "Akım bağlantılarını ve CT oranlarını kontrol edin. Sayaç ölçüm doğruluğunu test edin."
 
 [[rules]]
 code = "FF-026"
@@ -730,8 +823,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 25
 severity = "warning"
-description = "Gerilim Hata Uyarisi Aktif"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Gerilim Hata Uyarısı Aktif"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Sayaç gerilim ölçümünde bir anomali tespit etmiş ve uyarı henüz sonlanmamış."
+remedy = "Gerilim bağlantılarını kontrol edin. Şebeke geriliminin normal sınırlarda olduğunu doğrulayın."
 
 # Endeks Gerilemesi (Bit 26-28)
 [[rules]]
@@ -742,7 +837,9 @@ obis_code = "F.F.0"
 bit = 26
 severity = "error"
 description = "R Faz Enerji Endeksi Geriledi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "R fazı enerji endeksi azalmış. Sayaç hafızası bozulmuş veya yetkisiz müdahale yapılmış olabilir."
+remedy = "Sayacı servise gönderin. Endeks gerilemesi ciddi bir anomalidir, tutanak düzenleyin."
 
 [[rules]]
 code = "FF-028"
@@ -753,7 +850,9 @@ bit = 27
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "error"
 description = "S Faz Enerji Endeksi Geriledi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "S fazı enerji endeksi azalmış. Hafıza bozulması veya müdahale olabilir."
+remedy = "Sayacı servise gönderin. Tutanak düzenleyin."
 
 [[rules]]
 code = "FF-029"
@@ -764,7 +863,9 @@ bit = 28
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "error"
 description = "T Faz Enerji Endeksi Geriledi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "T fazı enerji endeksi azalmış. Hafıza bozulması veya müdahale olabilir."
+remedy = "Sayacı servise gönderin. Tutanak düzenleyin."
 
 # Demant Anomalisi (Bit 29-31)
 [[rules]]
@@ -774,8 +875,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 29
 severity = "warning"
-description = "Aktif Guc Varken Maks. Demant Ilerlemedi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Aktif Güç Varken Maks. Demant İlerlemedi"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Aktif güç tüketimi olmasına rağmen maksimum demant değeri güncellenmemiş."
+remedy = "Demant ölçüm periyodu ayarını kontrol edin (0.8.0 = 15 dk olmalı). Sayaç servise gönderilmesi gerekebilir."
 
 [[rules]]
 code = "FF-031"
@@ -784,8 +887,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 30
 severity = "warning"
-description = "T0 ile T1+T2+T3+T4 Farki >200 W"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "T0 ile T1+T2+T3+T4 Farkı >200 W"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Toplam enerji (T0) ile tarife dilimlerinin toplamı (T1+T2+T3+T4) arasında 200 W'tan fazla fark var."
+remedy = "Tarife programlamasını kontrol edin. Tüm zaman dilimleri bir tarifeye atanmış olmalıdır."
 
 [[rules]]
 code = "FF-032"
@@ -795,9 +900,11 @@ obis_code = "F.F.0"
 bit = 31
 severity = "info"
 description = "T4 Tarifesinde Endeks Var"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "T4 tarife diliminde enerji tüketimi kaydedilmiş. Türkiye'de genellikle 3 tarife kullanılır."
+remedy = "Bilgi amaçlıdır. T4 tarifesi kullanılıyorsa normaldir. Aksi halde tarife programlamasını kontrol edin."
 
-# Tarife Bozukluklari (Bit 32-34)
+# Tarife Bozuklukları (Bit 32-34)
 [[rules]]
 code = "FF-033"
 category = "obis_value"
@@ -805,8 +912,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 32
 severity = "error"
-description = "Tarife Dilimi / Saat Ayarlari Arizali"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Tarife Dilimi / Saat Ayarları Arızalı"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Sayaçtaki tarife dilimi veya saat ayarları bozulmuş. Tarife geçişleri doğru çalışmıyor olabilir."
+remedy = "Sayacın saat ve tarife ayarlarını yeniden programlayın. Saat senkronizasyonu yapın."
 
 [[rules]]
 code = "FF-034"
@@ -815,8 +924,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 33
 severity = "warning"
-description = "Tarife Degisiklik Yili != Uretim Yili"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Tarife Değişiklik Yılı != Üretim Yılı"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Tarife programlama tarihi, sayacın üretim yılından farklı. Yeniden programlama yapılmış olabilir."
+remedy = "Bilgilendirme amaçlıdır. Tarife güncelleme kaydını kontrol edin."
 
 [[rules]]
 code = "FF-035"
@@ -825,10 +936,12 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 34
 severity = "warning"
-description = "Uretim Yili != Kalibrasyon Yili"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Üretim Yılı != Kalibrasyon Yılı"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Sayacın kalibrasyon yılı üretim yılından farklı. Yeniden kalibrasyon yapılmış olabilir."
+remedy = "Kalibrasyon sertifikasını kontrol edin. Yeniden kalibrasyon normal bir prosedürdür."
 
-# Uzun Sureli Anomaliler (Bit 35-38)
+# Uzun Süreli Anomaliler (Bit 35-38)
 [[rules]]
 code = "FF-036"
 category = "obis_value"
@@ -837,7 +950,9 @@ obis_code = "F.F.0"
 bit = 35
 severity = "warning"
 description = "Son 3 Ayda Sabit Maks. Demant"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Son 3 aydır maksimum demant değeri hiç değişmemiş. Ölçüm arızası veya düşük tüketim olabilir."
+remedy = "Demant ölçüm fonksiyonunu ve periyot ayarını kontrol edin."
 
 [[rules]]
 code = "FF-037"
@@ -846,8 +961,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 36
 severity = "error"
-description = "Iki Bellek Bolgesi Hatasi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "İki Bellek Bölgesi Hatası"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Sayaçtaki çift bellek (dual memory) bölgeleri arasında tutarsızlık tespit edildi. Hafıza bozulması olabilir."
+remedy = "Sayacı servise gönderin. Flash/EEPROM kontrolü yapılmalıdır."
 
 [[rules]]
 code = "FF-038"
@@ -856,8 +973,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 37
 severity = "warning"
-description = "Sistem Pili Zayif"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Sistem Pili Zayıf"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Sayacın sistem yedek pili zayıflamış. Elektrik kesildiğinde veri kaybı riski var."
+remedy = "Sayaç pilini en kısa sürede değiştirin veya sayacı servise gönderin."
 
 [[rules]]
 code = "FF-039"
@@ -866,10 +985,15 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 38
 severity = "warning"
-description = "RTC Pili Zayif"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "RTC Pili Zayıf"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Gerçek zamanlı saat (RTC) pili zayıflamış. Elektrik kesildiğinde saat durabilir."
+remedy = "RTC pilini değiştirin veya sayacı servise gönderin. Pil değişimi sonrası saat senkronizasyonu yapın."
 
-# Sik Alarm Durumlari (Bit 39-43)
+# Sık Alarm Durumları (Bit 39-43)
+# TEDAŞ Ek-F: Bit 39=R faz sık kesinti, 40=S faz sık kesinti, 41=T faz sık kesinti,
+#              42=sık akım uyarısı, 43=sık gerilim uyarısı
+# Önceki tanımlar yanlıştı (bit→açıklama eşleşmesi hatalıydı). Düzeltildi.
 [[rules]]
 code = "FF-040"
 category = "obis_value"
@@ -877,8 +1001,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 39
 severity = "warning"
-description = "Sik Kesinti Alarmi (>20 kesinti/saat)"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "R Fazı Saat İçinde 20'den Fazla Kesinti"
+spec_ref = "TEDAŞ Şartname Ek-F Bit 39 / MASS Şartname Ek-C Bit 39"
+cause = "Aynı saat içinde R fazı 20 kereden fazla kesilmiş. Gevşek bağlantı veya şebeke kalite sorunu olabilir."
+remedy = "R faz bağlantı klemenslerini sıkıştırın. Şebeke kalitesini kontrol edin."
 
 [[rules]]
 code = "FF-041"
@@ -886,9 +1012,12 @@ category = "obis_value"
 check = "bit_zero"
 obis_code = "F.F.0"
 bit = 40
+profile = ["three_phase_direct", "three_phase_ct"]
 severity = "warning"
-description = "Genel Sik Uyari Alarmi Aktif"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "S Fazı Saat İçinde 20'den Fazla Kesinti"
+spec_ref = "TEDAŞ Şartname Ek-F Bit 40 / MASS Şartname Ek-C Bit 40"
+cause = "Aynı saat içinde S fazı 20 kereden fazla kesilmiş."
+remedy = "S faz bağlantı klemenslerini sıkıştırın. Şebeke kalitesini kontrol edin."
 
 [[rules]]
 code = "FF-042"
@@ -896,9 +1025,12 @@ category = "obis_value"
 check = "bit_zero"
 obis_code = "F.F.0"
 bit = 41
+profile = ["three_phase_direct", "three_phase_ct"]
 severity = "warning"
-description = "R Faz Sik Uyari Alarmi Aktif"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "T Fazı Saat İçinde 20'den Fazla Kesinti"
+spec_ref = "TEDAŞ Şartname Ek-F Bit 41 / MASS Şartname Ek-C Bit 41"
+cause = "Aynı saat içinde T fazı 20 kereden fazla kesilmiş."
+remedy = "T faz bağlantı klemenslerini sıkıştırın. Şebeke kalitesini kontrol edin."
 
 [[rules]]
 code = "FF-043"
@@ -906,10 +1038,11 @@ category = "obis_value"
 check = "bit_zero"
 obis_code = "F.F.0"
 bit = 42
-profile = ["three_phase_direct", "three_phase_ct"]
 severity = "warning"
-description = "S Faz Sik Uyari Alarmi Aktif"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Saat İçinde 20'den Fazla Akım Uyarısı"
+spec_ref = "TEDAŞ Şartname Ek-F Bit 42 / MASS Şartname Ek-C Bit 42"
+cause = "Aynı saat içinde 20 kereden fazla akım bağlantı hatası uyarısı verilmiş."
+remedy = "Akım bağlantılarını ve CT oranlarını kontrol edin. Sık tekrarlayan akım anomalisi donanım sorununa işaret edebilir."
 
 [[rules]]
 code = "FF-044"
@@ -917,12 +1050,13 @@ category = "obis_value"
 check = "bit_zero"
 obis_code = "F.F.0"
 bit = 43
-profile = ["three_phase_direct", "three_phase_ct"]
 severity = "warning"
-description = "T Faz Sik Uyari Alarmi Aktif"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Saat İçinde 20'den Fazla Gerilim Uyarısı"
+spec_ref = "TEDAŞ Şartname Ek-F Bit 43 / MASS Şartname Ek-C Bit 43"
+cause = "Aynı saat içinde 20 kereden fazla gerilim uyarısı verilmiş."
+remedy = "Gerilim bağlantılarını ve şebeke kalitesini kontrol edin."
 
-# Guc ve Gerilim Asimlari (Bit 44-55)
+# Güç ve Gerilim Aşımları (Bit 44-55)
 [[rules]]
 code = "FF-045"
 category = "obis_value"
@@ -930,8 +1064,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 44
 severity = "info"
-description = "Yuksek Maks. Demant Asimi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Yüksek Maks. Demant Aşımı"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Sözleşme gücünü aşan maksimum demant kaydedilmiş."
+remedy = "Bilgi amaçlıdır. Abonenin sözleşme gücü yeterliliğini değerlendirin."
 
 [[rules]]
 code = "FF-046"
@@ -940,8 +1076,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 45
 severity = "warning"
-description = "R Faz Yuksek Gerilim Asimi (>253 V)"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "R Faz Yüksek Gerilim Aşımı (>253 V)"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "R fazında 253 V üzerinde yüksek gerilim tespit edildi."
+remedy = "Dağıtım şirketi ile iletişime geçin. Trafo çıkış gerilimini kontrol ettirin."
 
 [[rules]]
 code = "FF-047"
@@ -951,8 +1089,10 @@ obis_code = "F.F.0"
 bit = 46
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "warning"
-description = "S Faz Yuksek Gerilim Asimi (>253 V)"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "S Faz Yüksek Gerilim Aşımı (>253 V)"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "S fazında 253 V üzerinde yüksek gerilim tespit edildi."
+remedy = "Dağıtım şirketi ile iletişime geçin. Trafo çıkış gerilimini kontrol ettirin."
 
 [[rules]]
 code = "FF-048"
@@ -962,8 +1102,10 @@ obis_code = "F.F.0"
 bit = 47
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "warning"
-description = "T Faz Yuksek Gerilim Asimi (>253 V)"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "T Faz Yüksek Gerilim Aşımı (>253 V)"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "T fazında 253 V üzerinde yüksek gerilim tespit edildi."
+remedy = "Dağıtım şirketi ile iletişime geçin. Trafo çıkış gerilimini kontrol ettirin."
 
 [[rules]]
 code = "FF-049"
@@ -972,8 +1114,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 48
 severity = "warning"
-description = "R Faz Dusuk Gerilim Asimi (<195.5 V)"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "R Faz Düşük Gerilim Aşımı (<195.5 V)"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "R fazında 195.5 V altında düşük gerilim tespit edildi."
+remedy = "Dağıtım şirketi ile iletişime geçin. Hat kesitini ve mesafesini değerlendirin."
 
 [[rules]]
 code = "FF-050"
@@ -983,8 +1127,10 @@ obis_code = "F.F.0"
 bit = 49
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "warning"
-description = "S Faz Dusuk Gerilim Asimi (<195.5 V)"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "S Faz Düşük Gerilim Aşımı (<195.5 V)"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "S fazında 195.5 V altında düşük gerilim tespit edildi."
+remedy = "Dağıtım şirketi ile iletişime geçin. Hat kesitini ve mesafesini değerlendirin."
 
 [[rules]]
 code = "FF-051"
@@ -994,8 +1140,10 @@ obis_code = "F.F.0"
 bit = 50
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "warning"
-description = "T Faz Dusuk Gerilim Asimi (<195.5 V)"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "T Faz Düşük Gerilim Aşımı (<195.5 V)"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "T fazında 195.5 V altında düşük gerilim tespit edildi."
+remedy = "Dağıtım şirketi ile iletişime geçin. Hat kesitini ve mesafesini değerlendirin."
 
 [[rules]]
 code = "FF-052"
@@ -1004,8 +1152,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 51
 severity = "warning"
-description = "R Faz Yuksek Akim Asimi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "R Faz Yüksek Akım Aşımı"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "R fazında sayacın nominal akım değerini aşan yüksek akım tespit edildi."
+remedy = "Abonenin yükünü kontrol edin. Sözleşme gücü ve sayaç akım sınıfı uyumluluğunu değerlendirin."
 
 [[rules]]
 code = "FF-053"
@@ -1015,8 +1165,10 @@ obis_code = "F.F.0"
 bit = 52
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "warning"
-description = "S Faz Yuksek Akim Asimi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "S Faz Yüksek Akım Aşımı"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "S fazında sayacın nominal akım değerini aşan yüksek akım tespit edildi."
+remedy = "Abonenin yükünü ve faz dengesini kontrol edin."
 
 [[rules]]
 code = "FF-054"
@@ -1026,10 +1178,12 @@ obis_code = "F.F.0"
 bit = 53
 profile = ["three_phase_direct", "three_phase_ct"]
 severity = "warning"
-description = "T Faz Yuksek Akim Asimi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "T Faz Yüksek Akım Aşımı"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "T fazında sayacın nominal akım değerini aşan yüksek akım tespit edildi."
+remedy = "Abonenin yükünü ve faz dengesini kontrol edin."
 
-# Dengesizlik ve Role (Bit 54-55)
+# Dengesizlik ve Röle (Bit 54-55)
 [[rules]]
 code = "FF-055"
 category = "obis_value"
@@ -1037,8 +1191,10 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 54
 severity = "warning"
-description = "Notr-Faz Akim Dengesizligi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Nötr-Faz Akım Dengesizliği"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Nötr hattındaki akım ile faz akımları arasında anormal dengesizlik tespit edildi. Kaçak akım olabilir."
+remedy = "Nötr bağlantısını ve topraklama sistemini kontrol edin. Kaçak akım rölesi testi yapın."
 
 [[rules]]
 code = "FF-056"
@@ -1047,31 +1203,33 @@ check = "bit_zero"
 obis_code = "F.F.0"
 bit = 55
 severity = "error"
-description = "Acma-Kesme Rolesi Arizasi"
-spec_ref = "TEDAS Ek-F, MASS Ek-C"
+description = "Açma-Kesme Rölesi Arızası"
+spec_ref = "TEDAŞ Şartname Ek-F / MASS Şartname Ek-C"
+cause = "Sayaç dahili açma-kesme (disconnect) rölesi arızalı veya yanıt vermiyor."
+remedy = "Sayacı servise gönderin. Röle mekanizması kontrol edilmeli veya değiştirilmelidir."
 
 
 # =============================================================================
-# KATEGORI 4: CAPRAZ DEGER KONTROLLERI (cross_value)
+# KATEGORİ 4: ÇAPRAZ DEĞER KONTROLLERİ (cross_value)
 # =============================================================================
 #
-# Birden fazla OBIS degerini karsilastiran kontroller.
+# Birden fazla OBIS değerini karşılaştıran kontroller.
 #
 # Desteklenen check tipleri:
 #   tariff_balance      - T1+T2+T3+T4 = toplam (tolerance)
-#   time_drift_minutes  - Sayac saati vs sistem saati (max_drift)
-#   value_compare       - Iki OBIS degerini karsilastir (op: gt, lt, eq, gte, lte)
+#   time_drift_minutes  - Sayaç saati vs sistem saati (max_drift)
+#   value_compare       - İki OBIS değerini karşılaştır (op: gt, lt, eq, gte, lte)
 #
-# Ozel alanlar:
-#   obis_total       Toplam degerin OBIS kodu (tariff_balance)
-#   obis_parts       Parcalarin OBIS kodlari (tariff_balance)
-#   tolerance        Izin verilen sapma (tariff_balance)
+# Özel alanlar:
+#   obis_total       Toplam değerin OBIS kodu (tariff_balance)
+#   obis_parts       Parçaların OBIS kodları (tariff_balance)
+#   tolerance        İzin verilen sapma (tariff_balance)
 #   obis_date        Tarih OBIS kodu (time_drift_minutes)
 #   obis_time        Saat OBIS kodu (time_drift_minutes)
 #   max_drift        Maks sapma dakika (time_drift_minutes)
-#   obis_left        Sol deger OBIS kodu (value_compare)
-#   obis_right       Sag deger OBIS kodu (value_compare)
-#   op               Karsilastirma operatoru (value_compare)
+#   obis_left        Sol değer OBIS kodu (value_compare)
+#   obis_right       Sağ değer OBIS kodu (value_compare)
+#   op               Karşılaştırma operatörü (value_compare)
 
 [[rules]]
 code = "TRF-001"
@@ -1081,8 +1239,10 @@ obis_total = "1.8.0"
 obis_parts = ["1.8.1", "1.8.2", "1.8.3", "1.8.4"]
 tolerance = 0.01
 severity = "info"
-description = "Tarife toplami 0.01 kWh toleransla uyumsuz"
-spec_ref = "TEDAS Sartname 4.2 / MASS Sartname 4.2"
+description = "Tarife toplamı 0.01 kWh toleransla uyumsuz"
+spec_ref = "TEDAŞ Şartname 4.2 / MASS Şartname 4.2"
+cause = "Aktif enerji toplam endeksi (1.8.0) ile tarife dilimlerinin toplamı (T1+T2+T3+T4) arasında fark var."
+remedy = "Küçük farklar yuvarlama kaynaklı olabilir. Büyük farklar tarife programlama hatasını gösterir."
 
 [[rules]]
 code = "TRF-002"
@@ -1092,8 +1252,10 @@ obis_total = "2.8.0"
 obis_parts = ["2.8.1", "2.8.2", "2.8.3", "2.8.4"]
 tolerance = 0.01
 severity = "info"
-description = "Ihrac tarife toplami 0.01 kWh toleransla uyumsuz"
-spec_ref = "TEDAS Sartname 4.2 / MASS Sartname 4.2"
+description = "İhraç tarife toplamı 0.01 kWh toleransla uyumsuz"
+spec_ref = "TEDAŞ Şartname 4.2 / MASS Şartname 4.2"
+cause = "İhraç enerji toplam endeksi (2.8.0) ile tarife dilimlerinin toplamı arasında fark var."
+remedy = "Küçük farklar yuvarlama kaynaklı olabilir. Büyük farklar tarife programlama hatasını gösterir."
 
 [[rules]]
 code = "TIME-001"
@@ -1103,26 +1265,26 @@ obis_date = "0.9.2"
 obis_time = "0.9.1"
 max_drift = 5
 severity = "error"
-description = "Sayac saati 5 dakikadan fazla sapiyor"
-spec_ref = "TEDAS Sartname 2.1.11 madde 47 / MASS Sartname 2.1.11"
-cause = "Sayac dahili saati sistem saatiyle senkronize degil."
-remedy = "Zaman senkronizasyonu yapin (Saat Ayarlari sayfasindan)."
+description = "Sayaç saati 5 dakikadan fazla sapıyor"
+spec_ref = "TEDAŞ Şartname 2.1.11 madde 47 / MASS Şartname 2.1.11"
+cause = "Sayaç dahili saati sistem saatiyle senkronize değil. RTC kayması veya pil zayıflığı olabilir."
+remedy = "Zaman senkronizasyonu yapın (Saat Ayarları sayfasından). RTC pil durumunu kontrol edin."
 
 
 # =============================================================================
-# KATEGORI 5: PROTOKOL KONTROLLERI (protocol)
+# KATEGORİ 5: PROTOKOL KONTROLLERİ (protocol)
 # =============================================================================
 #
-# IEC 62056-21 protokol davranisini kontrol eder.
-# Bu kurallar iletisim loglarindan otomatik degerlendirilir.
+# IEC 62056-21 protokol davranışını kontrol eder.
+# Bu kurallar iletişim loglarından otomatik değerlendirilir.
 #
 # Desteklenen check tipleri:
-#   handshake_complete       - El sikisma tamami basarili olmali
-#   identification_format    - Kimlik yaniti /XXX formatinda olmali
-#   baud_negotiation         - Baud degisimi basarili olmali
-#   bcc_valid                - BCC (Block Check) gecerli olmali
-#   response_time            - Yanit suresi sinir icinde olmali (max_ms)
-#   etx_present              - Veri blogu ETX ile bitmeli
+#   handshake_complete       - El sıkışma tamamı başarılı olmalı
+#   identification_format    - Kimlik yanıtı /XXX formatında olmalı
+#   baud_negotiation         - Baud değişimi başarılı olmalı
+#   bcc_valid                - BCC (Block Check) geçerli olmalı
+#   response_time            - Yanıt süresi sınır içinde olmalı (max_ms)
+#   etx_present              - Veri bloğu ETX ile bitmeli
 #   mode_supported           - Belirtilen modlar desteklenmeli (modes)
 
 [[rules]]
@@ -1130,8 +1292,10 @@ code = "PROTO-001"
 category = "protocol"
 check = "handshake_complete"
 severity = "error"
-description = "IEC 62056-21 el sikisma protokolu basarili olmali"
+description = "IEC 62056-21 el sıkışma protokolü başarılı olmalı"
 spec_ref = "IEC 62056-21 6.3"
+cause = "Sayaç ile optik port üzerinden IEC 62056-21 el sıkışması tamamlanamadı."
+remedy = "Optik okuma kafasının doğru konumlandığından emin olun. Baud hızı ve parite ayarlarını kontrol edin (7E1, 300 baud başlangıç)."
 
 [[rules]]
 code = "PROTO-002"
@@ -1139,24 +1303,30 @@ category = "protocol"
 check = "identification_format"
 pattern = '^/[A-Z]{3}\d'
 severity = "error"
-description = "Kimlik yaniti /XXXb... formatinda olmali (X=harf, b=baud karakteri)"
+description = "Kimlik yanıtı /XXXb... formatında olmalı (X=harf, b=baud karakteri)"
 spec_ref = "IEC 62056-21 6.3.2"
+cause = "Sayacın kimlik yanıtı IEC 62056-21 standardına uygun formatta değil."
+remedy = "Sayaç firmware'inin IEC 62056-21 uyumlu olduğundan emin olun. Üretici ile iletişime geçin."
 
 [[rules]]
 code = "PROTO-003"
 category = "protocol"
 check = "baud_negotiation"
 severity = "error"
-description = "Baud rate degisimi basarili olmali"
+description = "Baud rate değişimi başarılı olmalı"
 spec_ref = "IEC 62056-21 6.3.3"
+cause = "Başlangıç baud hızından (300) hedef baud hızına geçiş başarısız oldu."
+remedy = "Optik okuma kafası kalitesini kontrol edin. Daha düşük bir baud hızı ile denemeyi düşünün."
 
 [[rules]]
 code = "PROTO-004"
 category = "protocol"
 check = "bcc_valid"
 severity = "error"
-description = "Veri blogu BCC (Block Check Character) kontrolu gecerli olmali"
+description = "Veri bloğu BCC (Block Check Character) kontrolü geçerli olmalı"
 spec_ref = "IEC 62056-21 6.3.2"
+cause = "Alınan veri bloğunun BCC (checksum) değeri hesaplanan değerle eşleşmiyor. Veri bozulması olabilir."
+remedy = "Optik okuma kafası bağlantısını kontrol edin. Gürültülü ortamlarda baud hızını düşürmeyi deneyin."
 
 [[rules]]
 code = "PROTO-005"
@@ -1164,16 +1334,20 @@ category = "protocol"
 check = "response_time"
 max_ms = 1500
 severity = "warning"
-description = "Sayac kimlik yaniti 1.5 saniye icinde gelmeli"
+description = "Sayaç kimlik yanıtı 1.5 saniye içinde gelmeli"
 spec_ref = "IEC 62056-21 6.3.2"
+cause = "Sayaç kimlik isteğine 1.5 saniye içinde yanıt vermedi."
+remedy = "Optik okuma kafasının doğru konumlandığından emin olun. Sayacın optik portu aktif olmalıdır."
 
 [[rules]]
 code = "PROTO-006"
 category = "protocol"
 check = "etx_present"
 severity = "error"
-description = "Veri blogu ETX (0x03) ile sonlanmali"
+description = "Veri bloğu ETX (0x03) ile sonlanmalı"
 spec_ref = "IEC 62056-21 6.3"
+cause = "Veri bloğu beklenen ETX (End of Text) karakteri ile sonlanmamış. İletişim kesilmiş olabilir."
+remedy = "İletişimi tekrar deneyin. Optik okuma kafasının sabit durduğundan emin olun."
 
 [[rules]]
 code = "PROTO-007"
@@ -1181,8 +1355,10 @@ category = "protocol"
 check = "mode_supported"
 modes = ["0", "6"]
 severity = "error"
-description = "Sayac Mode 0 (tam okuma) ve Mode 6 (kisa okuma) desteklemeli"
-spec_ref = "TEDAS Sartname 3.2 / IEC 62056-21"
+description = "Sayaç Mode 0 (tam okuma) ve Mode 6 (kısa okuma) desteklemeli"
+spec_ref = "TEDAŞ Şartname 3.2 / IEC 62056-21"
+cause = "Sayaç TEDAŞ şartnamesinin zorunlu kıldığı Mode 0 ve/veya Mode 6 okuma modlarını desteklemiyor."
+remedy = "Sayaç firmware'inin TEDAŞ uyumlu olduğundan emin olun. Üretici ile iletişime geçin."
 
 [[rules]]
 code = "PROTO-008"
@@ -1190,19 +1366,21 @@ category = "protocol"
 check = "mode_supported"
 modes = ["1"]
 severity = "warning"
-description = "Sayac Mode 1 (programlama modu) desteklemeli"
-spec_ref = "TEDAS Sartname 3.2 / IEC 62056-21"
+description = "Sayaç Mode 1 (programlama modu) desteklemeli"
+spec_ref = "TEDAŞ Şartname 3.2 / IEC 62056-21"
+cause = "Sayaç Mode 1 (programlama modu) desteklemiyor. Uzaktan parametre değişikliği yapılamayabilir."
+remedy = "Sayaç üreticisine başvurun. Mode 1 desteği saha programlaması için gereklidir."
 
 
 # =============================================================================
-# KATEGORI 6: OTURUM KONTROLLERI (session)
+# KATEGORİ 6: OTURUM KONTROLLERİ (session)
 # =============================================================================
 #
-# Her okuma/yazma oturumunun basariyla tamamlanip tamamlanmadigini kontrol eder.
+# Her okuma/yazma oturumunun başarıyla tamamlanıp tamamlanmadığını kontrol eder.
 #
 # Desteklenen check tipleri:
-#   must_succeed   - Belirtilen oturum tipi basarili olmali
-#   data_received  - Oturumda en az N satir veri alinmali (min_lines)
+#   must_succeed   - Belirtilen oturum tipi başarılı olmalı
+#   data_received  - Oturumda en az N satır veri alınmalı (min_lines)
 
 [[rules]]
 code = "SESS-001"
@@ -1210,8 +1388,10 @@ category = "session"
 check = "must_succeed"
 session_type = "short_read"
 severity = "error"
-description = "Kisa okuma (Mode 6) basarili tamamlanmali"
-spec_ref = "TEDAS Sartname 3.2"
+description = "Kısa okuma (Mode 6) başarılı tamamlanmalı"
+spec_ref = "TEDAŞ Şartname 3.2"
+cause = "Kısa okuma (Mode 6) oturumu başarısız oldu. İletişim hatası veya sayaç yanıt vermemiş olabilir."
+remedy = "Optik okuma kafasını kontrol edip tekrar deneyin. Sayacın Mode 6 desteklediğinden emin olun."
 
 [[rules]]
 code = "SESS-002"
@@ -1219,8 +1399,10 @@ category = "session"
 check = "must_succeed"
 session_type = "full_read"
 severity = "error"
-description = "Tam okuma (Mode 0) basarili tamamlanmali"
-spec_ref = "TEDAS Sartname 3.2"
+description = "Tam okuma (Mode 0) başarılı tamamlanmalı"
+spec_ref = "TEDAŞ Şartname 3.2"
+cause = "Tam okuma (Mode 0) oturumu başarısız oldu. İletişim zaman aşımı veya veri bozulması olabilir."
+remedy = "Optik okuma kafasını kontrol edip tekrar deneyin. Tam okuma süresi uzun olabilir, zaman aşımı ayarını artırın."
 
 [[rules]]
 code = "SESS-003"
@@ -1228,8 +1410,10 @@ category = "session"
 check = "must_succeed"
 session_type = "load_profile"
 severity = "error"
-description = "Yuk profili okumasi basarili tamamlanmali"
-spec_ref = "TEDAS Sartname 4.3"
+description = "Yük profili okuması başarılı tamamlanmalı"
+spec_ref = "TEDAŞ Şartname 4.5 / MASS Şartname 4.5"
+cause = "Yük profili okuma oturumu başarısız oldu. Şifre gereksinimi veya iletişim hatası olabilir."
+remedy = "Sayaç şifre istiyorsa P1 şifresini girin. Bağlantıyı kontrol edip tekrar deneyin."
 
 [[rules]]
 code = "SESS-004"
@@ -1238,8 +1422,10 @@ check = "data_received"
 session_type = "full_read"
 min_lines = 100
 severity = "warning"
-description = "Tam okumada en az 100 satir OBIS verisi bekleniyor"
-spec_ref = "TEDAS Sartname Ek-A"
+description = "Tam okumada en az 100 satır OBIS verisi bekleniyor"
+spec_ref = "TEDAŞ Şartname Ek-A"
+cause = "Tam okumada beklenen minimum veri miktarına ulaşılamamış. İletişim erken kesilmiş olabilir."
+remedy = "Okumayı tekrar deneyin. Optik bağlantı kalitesini kontrol edin."
 
 [[rules]]
 code = "SESS-005"
@@ -1248,20 +1434,23 @@ check = "data_received"
 session_type = "short_read"
 min_lines = 10
 severity = "warning"
-description = "Kisa okumada en az 10 satir OBIS verisi bekleniyor"
+description = "Kısa okumada en az 10 satır OBIS verisi bekleniyor"
+spec_ref = "TEDAŞ Şartname 3.2"
+cause = "Kısa okumada beklenen minimum veri miktarına ulaşılamamış."
+remedy = "Okumayı tekrar deneyin. Sayaç firmware'inin kısa okuma paketini doğru oluşturduğundan emin olun."
 
 
 # =============================================================================
-# KATEGORI 7: YUK PROFILI KONTROLLERI (load_profile)
+# KATEGORİ 7: YÜK PROFİLİ KONTROLLERİ (load_profile)
 # =============================================================================
 #
-# Yuk profili verisinin yapisal ve icerik kontrolu.
+# Yük profili verisinin yapısal ve içerik kontrolü.
 #
 # Desteklenen check tipleri:
-#   period_equals     - Kayit periyodu beklenen degerde olmali (expected_minutes)
-#   channels_exist    - Kanal tanim OBIS kodlari mevcut olmali (obis_codes)
-#   min_entries       - En az N adet yuk profili kaydi olmali (min_count)
-#   continuity        - Ardisik bos periyot sayisi sinir icinde (max_gap)
+#   period_equals     - Kayıt periyodu beklenen değerde olmalı (expected_minutes)
+#   channels_exist    - Kanal tanım OBIS kodları mevcut olmalı (obis_codes)
+#   min_entries       - En az N adet yük profili kaydı olmalı (min_count)
+#   continuity        - Ardışık boş periyot sayısı sınır içinde (max_gap)
 
 [[rules]]
 code = "LP-001"
@@ -1270,8 +1459,10 @@ check = "period_equals"
 obis_code = "0.8.0"
 expected_minutes = 15
 severity = "error"
-description = "Yuk profili kayit periyodu 15 dakika olmali"
-spec_ref = "TEDAS Sartname 4.3"
+description = "Yük profili kayıt periyodu 15 dakika olmalı"
+spec_ref = "TEDAŞ Şartname 4.5 madde 104 / MASS Şartname 4.5 madde 91"
+cause = "Yük profili kayıt aralığı (0.8.0) 15 dakika olarak ayarlanmamış."
+remedy = "Sayaç programlama modunda yük profili periyodunu (0.8.0) 15 dakika olarak ayarlayın."
 
 [[rules]]
 code = "LP-002"
@@ -1279,8 +1470,10 @@ category = "load_profile"
 check = "channels_exist"
 obis_codes = ["97.1.0", "97.2.0"]
 severity = "error"
-description = "Yuk profili kanal tanimlari (97.1.0, 97.2.0) mevcut olmali"
-spec_ref = "TEDAS Sartname 4.3"
+description = "Yük profili kanal tanımları (97.1.0, 97.2.0) mevcut olmalı"
+spec_ref = "TEDAŞ Şartname 4.3"
+cause = "Yük profili kanal tanım OBIS kodları (97.1.0, 97.2.0) sayaçtan okunamadı."
+remedy = "Sayaç firmware'inin yük profili kanal tanımlarını döndürdüğünden emin olun. Üretici ile iletişime geçin."
 
 [[rules]]
 code = "LP-003"
@@ -1288,21 +1481,24 @@ category = "load_profile"
 check = "continuity"
 max_gap = 4
 severity = "warning"
-description = "Yuk profilinde ardisik 4'ten fazla bos periyot olmamali"
+description = "Yük profilinde ardışık 4'ten fazla boş periyot olmamalı"
+spec_ref = "TEDAŞ Şartname 4.3"
+cause = "Yük profilinde ardışık 4'ten fazla boş (eksik) kayıt periyodu tespit edildi. Uzun süreli kesinti veya veri kaybı olabilir."
+remedy = "Kesinti kayıtlarını kontrol edin. Uzun süreli elektrik kesintisi bu duruma neden olabilir."
 
 
 # =============================================================================
-# KATEGORI 8: TAM OKUMA YAPI KONTROLLERI (full_read)
+# KATEGORİ 8: TAM OKUMA YAPI KONTROLLERİ (full_read)
 # =============================================================================
 #
-# Tam okumada beklenen veri yapisi kontrolleri.
+# Tam okumada beklenen veri yapısı kontrolleri.
 #
 # Desteklenen check tipleri:
-#   history_series    - Aylik gecmis serisi mevcut olmali
-#                       obis_pattern: "1.8.0*{n}" seklinde, n yerine 1..count
-#                       min_count: en az kac ay mevcut olmali
-#   outage_log        - Kesinti kayitlari
-#   billing_periods   - Fatura donemleri
+#   history_series    - Aylık geçmiş serisi mevcut olmalı
+#                       obis_pattern: "1.8.0*{n}" şeklinde, n yerine 1..count
+#                       min_count: en az kaç ay mevcut olmalı
+#   outage_log        - Kesinti kayıtları
+#   billing_periods   - Fatura dönemleri
 
 [[rules]]
 code = "FULL-001"
@@ -1311,8 +1507,10 @@ check = "history_series"
 obis_pattern = "1.8.0*{n}"
 min_count = 12
 severity = "warning"
-description = "Son 12 aylik aktif enerji gecmisi tam okumada mevcut olmali"
-spec_ref = "TEDAS Sartname 4.2"
+description = "Son 12 aylık aktif enerji geçmişi tam okumada mevcut olmalı"
+spec_ref = "TEDAŞ Şartname 4.2"
+cause = "Tam okumada son 12 aylık aktif enerji endeks geçmişi bulunamadı. Sayaç yeni takılmış olabilir."
+remedy = "Sayaç 12 aydan kısa süredir çalışıyorsa normaldir. Aksi halde firmware'i kontrol edin."
 
 [[rules]]
 code = "FULL-002"
@@ -1321,8 +1519,10 @@ check = "history_series"
 obis_pattern = "2.8.0*{n}"
 min_count = 12
 severity = "warning"
-description = "Son 12 aylik ihrac enerji gecmisi mevcut olmali"
-spec_ref = "TEDAS Sartname 4.2"
+description = "Son 12 aylık ihraç enerji geçmişi mevcut olmalı"
+spec_ref = "TEDAŞ Şartname 4.2"
+cause = "Tam okumada son 12 aylık ihraç (reaktif) enerji endeks geçmişi bulunamadı."
+remedy = "Sayaç 12 aydan kısa süredir çalışıyorsa normaldir. Aksi halde firmware'i kontrol edin."
 
 [[rules]]
 code = "FULL-003"
@@ -1331,8 +1531,10 @@ check = "history_series"
 obis_pattern = "1.6.0*{n}"
 min_count = 12
 severity = "warning"
-description = "Son 12 aylik maks. demant gecmisi mevcut olmali"
-spec_ref = "TEDAS Sartname 4.3"
+description = "Son 12 aylık maks. demant geçmişi mevcut olmalı"
+spec_ref = "TEDAŞ Şartname 4.3"
+cause = "Tam okumada son 12 aylık maksimum demant geçmişi bulunamadı."
+remedy = "Sayaç 12 aydan kısa süredir çalışıyorsa normaldir. Demant kayıt fonksiyonunu kontrol edin."
 
 [[rules]]
 code = "FULL-004"
@@ -1341,8 +1543,13 @@ check = "history_series"
 obis_pattern = "96.2.2*{n}"
 min_count = 10
 severity = "warning"
-description = "En az 10 adet kesinti kaydi (96.2.2*1..10) mevcut olmali"
-spec_ref = "TEDAS Sartname 4.8"
+description = "En az 10 adet tarife bilgi değişikliği kaydı (96.2.2*1..10) mevcut olmalı"
+# DÜZELTME: 96.2.2 "Tarife Bilgi Değişikliği Tarihi"dir (TEDAŞ Ek-C: Uyarı Paketi + Geçmiş Bilgiler Paketi).
+# Kesinti kayıtları için 96.7.10*n (3 faz), 96.7.11*n (L1), 96.7.12*n (L2), 96.7.13*n (L3) kullanılır.
+# Bu kural tarife değişikliği geçmişini kontrol etmektedir.
+spec_ref = "TEDAŞ Şartname Ek-C (96.2.2 Geçmiş Bilgiler Paketi)"
+cause = "Sayaçta en az 10 tarife bilgi değişikliği kaydı bulunamadı. Tarife hiç güncellenmemiş veya sayaç yeni olabilir."
+remedy = "Yeni takılan sayaçlarda normaldir. Tarife değişiklik geçmişi izleme için bilgi amaçlıdır."
 
 [[rules]]
 code = "FULL-005"
@@ -1351,4 +1558,272 @@ check = "history_series"
 obis_pattern = "0.1.2*{n}"
 min_count = 12
 severity = "info"
-description = "Son 12 aylik fatura donemi kayitlari mevcut olmali"
+description = "Son 12 aylık fatura dönemi kayıtları mevcut olmalı"
+spec_ref = "TEDAŞ Şartname 4.2"
+cause = "Tam okumada son 12 aylık fatura dönemi (billing period) kayıtları bulunamadı."
+remedy = "Sayaç 12 aydan kısa süredir çalışıyorsa normaldir. Fatura dönemi kayıt fonksiyonunu kontrol edin."
+
+
+# =============================================================================
+# KATEGORİ A: OBIS VARLIK — KISA OKUMA EKSİKLERİ (obis_existence, short_read)
+# =============================================================================
+# Aşağıdaki OBIS kodları TEDAŞ şartnamesine göre kısa okumada (Mode 6)
+# zorunlu olup OBIS-001 kuralına henüz eklenmemiş olanlardır.
+
+[[rules]]
+code = "OBIS-004"
+category = "obis_existence"
+check = "must_exist"
+session_type = "short_read"
+obis_codes = [
+    "96.92.0",    # Model kodu — TEDAŞ Ek-C: Kısa Okuma Paketi (6)
+    "0.2.0",      # Yazılım versiyonu — TEDAŞ Ek-C: Kısa Okuma Paketi (6)
+    "0.2.1",      # Yazılım kontrol numarası (CRC) — TEDAŞ Ek-C: Kısa Okuma Paketi (6)
+    "0.9.5",      # Haftanın günü — TEDAŞ Ek-C: Kısa Okuma Paketi (6)
+    "1.8.4",      # Aktif enerji T4 — TEDAŞ Ek-C: Kısa Okuma Paketi (6)
+    "2.8.0",      # İhraç aktif enerji toplam — TEDAŞ Ek-C: Kısa Okuma Paketi (6)
+    "1.6.0",      # Maks. aktif güç demant — TEDAŞ Ek-C: Kısa Okuma Paketi (6)
+    "2.6.0",      # İhraç maks. aktif güç — TEDAŞ Ek-C: Kısa Okuma Paketi (6)
+    "5.8.0",      # Reaktif endüktif enerji (+) — TEDAŞ Ek-C: Kısa Okuma Paketi (6)
+    "6.8.0",      # Reaktif kapasitif enerji (+) — TEDAŞ Ek-C: Kısa Okuma Paketi (6)
+    "7.8.0",      # Reaktif endüktif enerji (-) — TEDAŞ Ek-C: Kısa Okuma Paketi (6)
+    "8.8.0",      # Reaktif kapasitif enerji (-) — TEDAŞ Ek-C: Kısa Okuma Paketi (6)
+    "91.7.0",     # Nötr Irms — TEDAŞ Ek-C: Kısa Okuma Paketi (6); sadece nötr ölçümlü sayaçlarda (Madde 6.7)
+    "33.7.0",     # Cos φ L1 — TEDAŞ Ek-C: Kısa Okuma Paketi (6)
+    "97.1.0",     # Yük profili 1 içerik tanımı — TEDAŞ Ek-C: Kısa Okuma Paketi (6)
+    "97.2.0",     # Yük profili 2 içerik tanımı — TEDAŞ Ek-C: Kısa Okuma Paketi (6); sadece reaktif/kombi sayaçlarda
+    # NOT: F.A.0 (Anlık Bildirim Aktivasyonu) TEDAŞ Ek-C'de kısa okuma paketi
+    # annotasyonu olmadan yer alıyor — kısa okuma paketine zorunlu dahil değil,
+    # sadece RS-485 anlık bildirim için geçerli (Madde 5.3 / Ek-L). Buradan kaldırıldı.
+    # "F.A.0",
+]
+severity = "error"
+description = "Kısa okumada zorunlu OBIS kodları eksik (genişletilmiş liste)"
+# TEDAŞ Ek-C: Kısa Okuma Paketi (6) sütununda listelenen tüm zorunlu kodlar.
+# 91.7.0 yalnızca nötr ölçüm özellikli sayaçlarda (opsiyonel, Madde 6.7).
+# 97.2.0 yalnızca reaktif/kombi sayaçlarda zorunlu.
+spec_ref = "TEDAŞ Şartname Ek-C Kısa Okuma Paketi (6) / MASS Şartname Ek-C"
+cause = "Sayaç firmware'i kısa okuma paketinde TEDAŞ Ek-C'nin gerektirdiği tüm OBIS kodlarını döndürmüyor."
+remedy = "Sayaç firmware güncellemesi gerekebilir. Üretici ile iletişime geçin."
+enabled = true
+
+[[rules]]
+code = "OBIS-005"
+category = "obis_existence"
+check = "must_exist"
+session_type = "short_read"
+profile = ["three_phase_direct", "three_phase_ct"]
+obis_codes = [
+    "52.7.0",    # L2 Vrms
+    "72.7.0",    # L3 Vrms
+    "51.7.0",    # L2 Irms
+    "71.7.0",    # L3 Irms
+    "53.7.0",    # Cos φ L2
+    "73.7.0",    # Cos φ L3
+]
+severity = "error"
+description = "Üç fazlı sayaçlarda L2/L3 OBIS kodları kısa okumada zorunlu"
+spec_ref = "TEDAŞ Şartname Ek-C Kısa Okuma Paketi (6) / MASS Şartname Ek-C"
+cause = "Üç fazlı sayaç olarak seçilmiş ancak L2/L3 faz verileri kısa okumada bulunmuyor."
+remedy = "Sayaç profil seçimini kontrol edin. Firmware güncellemesi gerekebilir."
+enabled = true
+
+
+# =============================================================================
+# KATEGORİ B: OLAY/UYARI KAYITLARI (obis_existence)
+# =============================================================================
+# Olay ve uyarı sayaçları (packet_read / full_read) zorunlu OBIS kodları.
+
+[[rules]]
+code = "OBIS-006"
+category = "obis_existence"
+check = "must_exist"
+session_type = "full_read"
+obis_codes = [
+    "96.20.0",    # Üst kapak açılma toplam sayısı
+    "96.20.5",    # Klemens kapağı açılma toplam sayısı
+    "96.7.0",     # 3 faz kesinti sayısı
+    "96.11.0",    # Toplam reset sayısı
+    "96.77.2",    # Gerilim uyarı sayısı
+    "96.77.3",    # Akım uyarı sayısı
+    "96.20.15",   # Manyetik alan uyarı sayısı
+]
+severity = "warning"
+description = "Tam okumada olay/uyarı kayıt OBIS kodları eksik"
+spec_ref = "TEDAŞ Şartname 4.8 / MASS Şartname 4.8"
+cause = "Sayaç olay ve uyarı sayaç değerlerini (kapak açılma, kesinti, reset, uyarı sayıları) döndürmüyor."
+remedy = "Sayaç firmware'inin olay kayıt fonksiyonunu desteklediğinden emin olun. Üretici ile iletişime geçin."
+enabled = true
+
+[[rules]]
+code = "OBIS-007"
+category = "obis_existence"
+check = "must_exist"
+session_type = "full_read"
+profile = ["three_phase_direct", "three_phase_ct"]
+obis_codes = [
+    "96.7.1",    # L1 faz kesinti sayısı
+    "96.7.2",    # L2 faz kesinti sayısı
+    "96.7.3",    # L3 faz kesinti sayısı
+]
+severity = "warning"
+description = "Üç fazlı sayaçlarda faz bazlı kesinti sayaçları zorunlu"
+spec_ref = "TEDAŞ Şartname 4.8 / MASS Şartname 4.8"
+cause = "Üç fazlı sayaçta L1/L2/L3 faz bazlı kesinti sayıları bulunamadı."
+remedy = "Sayaç firmware'inin faz bazlı kesinti kayıtlarını desteklediğinden emin olun."
+enabled = true
+
+
+# =============================================================================
+# KATEGORİ C: AKIM ARALIK KONTROLLERİ (obis_value, range)
+# =============================================================================
+
+[[rules]]
+code = "EL-005"
+category = "obis_value"
+check = "range"
+obis_code = "31.7.0"
+min = 0.0
+max = 80.0
+session_type = "full_read"
+profile = ["single_phase"]
+severity = "warning"
+description = "L1 akım 0-80 A aralığı dışında (tek fazlı direkt bağlantı)"
+# MASS Çizelge 2.2.3: Tek fazlı sayaçlar için Imax = 80A
+# TEDAŞ Çizelge 5: Tek fazlı için Imax = 100A — iki şartname çelişiyor.
+# Daha kısıtlayıcı olan MASS değeri (80A) tercih edildi.
+# NOT: FF-052/053/054 bitleri Imax+%10 eşiğini kontrol eder (100*1.1=110A için),
+#       bu kural ise şartname Imax değerini doğrular.
+spec_ref = "MASS Şartname 2.2.3 Çizelge / TEDAŞ Şartname 2.2.3 Çizelge 5"
+cause = "L1 (R faz) anlık akım değeri tek fazlı sayaç maksimum akım sınırının (80A) dışında."
+remedy = "Bağlantıyı ve yükü kontrol edin. Akım sınırı aşıldıysa CT'li bağlantıya geçilmesini değerlendirin."
+enabled = true
+
+[[rules]]
+code = "EL-005b"
+category = "obis_value"
+check = "range"
+obis_code = "31.7.0"
+min = 0.0
+max = 100.0
+session_type = "full_read"
+profile = ["three_phase_direct"]
+severity = "warning"
+description = "L1 akım 0-100 A aralığı dışında (üç fazlı direkt bağlantı)"
+# TEDAŞ Çizelge 5 ve MASS Çizelge 2.2.3: Üç fazlı direkt için Imax = 100A
+spec_ref = "TEDAŞ Şartname 2.2.3 Çizelge 5 / MASS Şartname 2.2.3 Çizelge"
+cause = "L1 (R faz) anlık akım değeri üç fazlı direkt bağlantı sayaç maksimum akım sınırının (100A) dışında."
+remedy = "Bağlantıyı ve yükü kontrol edin. Akım sınırı aşıldıysa CT'li bağlantıya geçilmesini değerlendirin."
+enabled = true
+
+[[rules]]
+code = "EL-006"
+category = "obis_value"
+check = "range"
+obis_code = "51.7.0"
+min = 0.0
+max = 100.0
+session_type = "full_read"
+profile = ["three_phase_direct"]
+severity = "warning"
+description = "L2 akım 0-100 A aralığı dışında (üç fazlı direkt bağlantı)"
+# TEDAŞ Çizelge 5 ve MASS Çizelge 2.2.3: Üç fazlı direkt için Imax = 100A
+spec_ref = "TEDAŞ Şartname 2.2.3 Çizelge 5 / MASS Şartname 2.2.3 Çizelge"
+cause = "L2 (S faz) anlık akım değeri üç fazlı direkt bağlantı sayaç maksimum akım sınırının (100A) dışında."
+remedy = "S faz bağlantısını ve yükü kontrol edin."
+enabled = true
+
+[[rules]]
+code = "EL-007"
+category = "obis_value"
+check = "range"
+obis_code = "71.7.0"
+min = 0.0
+max = 100.0
+session_type = "full_read"
+profile = ["three_phase_direct"]
+severity = "warning"
+description = "L3 akım 0-100 A aralığı dışında (üç fazlı direkt bağlantı)"
+# TEDAŞ Çizelge 5 ve MASS Çizelge 2.2.3: Üç fazlı direkt için Imax = 100A
+spec_ref = "TEDAŞ Şartname 2.2.3 Çizelge 5 / MASS Şartname 2.2.3 Çizelge"
+cause = "L3 (T faz) anlık akım değeri üç fazlı direkt bağlantı sayaç maksimum akım sınırının (100A) dışında."
+remedy = "T faz bağlantısını ve yükü kontrol edin."
+enabled = true
+
+
+# =============================================================================
+# KATEGORİ D: TARİFE SAATLERİ VARLIK KONTROLÜ (obis_existence)
+# =============================================================================
+
+[[rules]]
+code = "OBIS-008"
+category = "obis_existence"
+check = "must_exist"
+session_type = "full_read"
+obis_codes = [
+    "96.50",    # Tarife saatleri hafta içi — TEDAŞ Ek-C: Geçmiş Bilgiler Paketi (7)
+    "96.51",    # Tarife saatleri Cumartesi — TEDAŞ Ek-C: Geçmiş Bilgiler Paketi (7)
+    "96.52",    # Tarife saatleri Pazar — TEDAŞ Ek-C: Geçmiş Bilgiler Paketi (7)
+]
+severity = "warning"
+description = "Tarife saat programı OBIS kodları (96.50/51/52) eksik"
+# TEDAŞ Ek-C: 96.50/51/52 Geçmiş Bilgiler Paketi (7)'ye dahil, tam okuma (Mode 0) ile de okunabilir.
+spec_ref = "TEDAŞ Şartname Ek-C Geçmiş Bilgiler Paketi (7) / MASS Şartname Ek-C"
+cause = "Sayaçtaki tarife saat programı tanım kodları (96.50/51/52) okunamıyor. Tarife dilimi geçişleri doğrulanamaz."
+remedy = "Sayacın tarife programlamasının yapıldığından emin olun. Üretici ile iletişime geçin."
+enabled = true
+
+
+# =============================================================================
+# KATEGORİ E: FF BIT 56 — AYNI AY İÇİNDE BİRDEN FAZLA RESET
+# =============================================================================
+
+[[rules]]
+code = "FF-057"
+category = "obis_value"
+check = "bit_zero"
+obis_code = "F.F.0"
+bit = 56
+session_type = "short_read"
+severity = "warning"
+description = "Sayaç aynı ay içerisinde birden fazla reset aldı"
+# TEDAŞ Ek-F Bit 56: "Sayaç aynı ay içerisinde birden fazla ya da birbirini takip eden iki ay
+# içerisinde bu aylardan her birinde bir defa reset aldı ise"
+# MASS Ek-C Bit 56: REZERVE — MASS bu biti kullanmıyor.
+# Bu kural yalnızca TEDAŞ uyumluluğu için geçerlidir.
+spec_ref = "TEDAŞ Şartname Ek-F Bit 56 (MASS Şartname Ek-C'de Rezerve)"
+cause = "Sayaç bu ay içinde birden fazla kez resetlenmiş. Elektrik kesintisi veya kasıtlı müdahale olabilir."
+remedy = "Reset nedenini araştırın. Şüpheli durumda tutanak düzenleyin ve kesinti kayıtlarını inceleyin."
+profile = ["single_phase", "three_phase_direct", "three_phase_ct"]
+enabled = true
+
+
+# =============================================================================
+# KATEGORİ F: KİMLİK DOĞRULAMA — MODEL KODU VE YAZILIM VERİSİ
+# =============================================================================
+
+[[rules]]
+code = "ID-003"
+category = "obis_value"
+check = "not_empty"
+obis_code = "96.92.0"
+session_type = "short_read"
+severity = "warning"
+description = "Model kodu (96.92.0) boş"
+spec_ref = "TEDAŞ Şartname 3.1 / MASS Şartname 3.1"
+cause = "Sayaç model kodu bilgisini (96.92.0) döndürmüyor veya boş döndürüyor."
+remedy = "Sayaç firmware'inin model kodu bilgisini programlanmış olmalıdır. Üretici ile iletişime geçin."
+enabled = true
+
+[[rules]]
+code = "ID-004"
+category = "obis_value"
+check = "not_empty"
+obis_code = "0.2.1"
+session_type = "short_read"
+severity = "warning"
+description = "Yazılım kontrol numarası (CRC) boş (0.2.1)"
+spec_ref = "TEDAŞ Şartname 3.1 / MASS Şartname 3.1"
+cause = "Sayaç yazılım CRC/kontrol numarası bilgisini (0.2.1) döndürmüyor."
+remedy = "Sayaç firmware'inin yazılım kontrol numarası alanını desteklediğinden emin olun."
+enabled = true

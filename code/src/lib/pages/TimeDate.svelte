@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, isConnected, meterStore, addLog, errorToast, successToast } from "$lib/stores";
+  import { t, isConnected, meterStore, isMeterReading, addLog, errorToast, successToast } from "$lib/stores";
   import { readShort, authenticate, syncTime, endSession } from "$lib/utils/tauri";
 
   let meterTime = $state("--:--:--");
@@ -60,8 +60,9 @@
   });
 
   async function handleRefresh() {
-    if (!$isConnected || isRefreshing) return;
+    if (!$isConnected || isRefreshing || $isMeterReading) return;
     isRefreshing = true;
+    meterStore.setReading(true);
     addLog("info", $t.reading);
     try {
       const result = await readShort();
@@ -72,6 +73,7 @@
       addLog("error", `${$t.logError}: ${error}`);
     } finally {
       isRefreshing = false;
+      meterStore.setReading(false);
     }
   }
 
@@ -145,7 +147,7 @@
         {/if}
         <button
           onclick={handleRefresh}
-          disabled={!$isConnected || isRefreshing}
+          disabled={!$isConnected || isRefreshing || $isMeterReading}
           class="flex items-center gap-2 px-4 py-2 bg-slate-100 dark:bg-[#334a5e] hover:bg-slate-200 dark:hover:bg-[#455a6e] text-slate-700 dark:text-white text-sm font-bold rounded-lg transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
         >
           <Icon name="refresh" size="sm" class={isRefreshing ? "animate-spin-reverse" : ""} />

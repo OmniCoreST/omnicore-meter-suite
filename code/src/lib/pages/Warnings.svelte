@@ -1,10 +1,10 @@
 <script lang="ts">
+  import { onMount } from "svelte";
   import Icon from "$lib/components/common/Icon.svelte";
   import { t, isConnected, meterStore, isMeterReading, addLog } from "$lib/stores";
   import { exportToExcel } from "$lib/utils/export";
   import { readPacket } from "$lib/utils/tauri";
 
-  let modeRawData = $state<string | null>(null);
   let isReadingMode = $state(false);
 
   async function readModePacket() {
@@ -14,7 +14,7 @@
     try {
       addLog("info", "Mod 8 (Uyarılar) paketi okunuyor...");
       const result = await readPacket(8);
-      modeRawData = result.rawData;
+      meterStore.setMode8RawData(result.rawData);
       addLog("success", `Mod 8 okuma tamamlandı: ${result.bytesRead} byte, ${(result.readDurationMs / 1000).toFixed(1)}s`);
     } catch (e) {
       addLog("error", `Mod 8 okuma hatası: ${e}`);
@@ -23,6 +23,18 @@
       meterStore.setReading(false);
     }
   }
+
+  onMount(() => {
+    if ($isConnected && !$meterStore.mode8RawData) {
+      if ($isMeterReading) {
+        const unsub = isMeterReading.subscribe((reading) => {
+          if (!reading) { unsub(); readModePacket(); }
+        });
+      } else {
+        readModePacket();
+      }
+    }
+  });
 
   let expandedSections = $state<Record<string, boolean>>({
     voltage: true,
@@ -42,7 +54,7 @@
   let warningsData = $derived.by(() => {
     const data = $meterStore.shortReadData;
     // @ts-ignore
-    const raw: string | null = modeRawData || (data && data.rawData) || null;
+    const raw: string | null = $meterStore.mode8RawData || (data && data.rawData) || null;
     if (!raw) {
       return {
         voltage: { count: 0, records: [] as {id: number, start: string, end: string}[] },
@@ -169,14 +181,14 @@
         {#if $isConnected}
           <button
             onclick={readModePacket}
-            disabled={isReadingMode}
+            disabled={isReadingMode || $isMeterReading}
             class="flex items-center gap-2 px-4 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-bold rounded-lg transition-colors"
           >
             <Icon name="sync" size="sm" class={isReadingMode ? "animate-spin-reverse" : ""} />
             {isReadingMode ? $t.readingPacket : $t.readWarnings}
           </button>
         {/if}
-        {#if $meterStore.shortReadData || modeRawData}
+        {#if $meterStore.shortReadData || $meterStore.mode8RawData}
           <button
             onclick={handleExport}
             class="flex items-center gap-2 px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white text-sm font-bold rounded-lg transition-colors"
@@ -187,7 +199,7 @@
         {/if}
       </div>
     </div>
-    {#if modeRawData}
+    {#if $meterStore.mode8RawData}
       <div class="text-xs text-primary font-medium mt-2">{$t.dataSourceMode8}</div>
     {/if}
   </div>

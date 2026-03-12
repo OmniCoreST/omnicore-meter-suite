@@ -65,7 +65,7 @@ pub async fn save_session_file(
 
     // Generate filename: flag-serialnumber-YYYYmmddHHnn.json
     let now = chrono::Local::now();
-    let timestamp = now.format("%Y%m%d%H%M").to_string();
+    let timestamp = now.format("%Y%m%d%H%M%S").to_string();
     let filename = format!("{}-{}-{}.json",
         flag.replace(|c: char| !c.is_alphanumeric(), "_"),
         serial_number.replace(|c: char| !c.is_alphanumeric(), "_"),

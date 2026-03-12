@@ -11,6 +11,7 @@ export interface ComplianceIssue {
   cause?: string;
   remedy?: string;
   sessionType?: string;
+  obisCode?: string;
 }
 
 export interface SessionCheckResult {
@@ -124,6 +125,17 @@ export interface CommunicationLog {
   sessions: SessionLog[];
 }
 
+// ─── Step state for persistent test progress ───
+
+export type StepStatus = "pending" | "running" | "done" | "failed" | "skipped";
+
+export interface StepState {
+  step: TestStep;
+  status: StepStatus;
+  message: string;
+  durationMs: number;
+}
+
 // ─── Store ───
 
 export interface ComplianceState {
@@ -133,6 +145,10 @@ export interface ComplianceState {
   selectedProfileId: string;
   loading: boolean;
   error: string | null;
+  // Persistent test run state
+  running: boolean;
+  stepStates: StepState[];
+  runLog: string[];
 }
 
 function createComplianceStore() {
@@ -143,6 +159,9 @@ function createComplianceStore() {
     selectedProfileId: "",
     loading: false,
     error: null,
+    running: false,
+    stepStates: [],
+    runLog: [],
   });
 
   return {
@@ -158,6 +177,21 @@ function createComplianceStore() {
       update((s) => ({ ...s, testPlan })),
     setSelectedProfile: (id: string) =>
       update((s) => ({ ...s, selectedProfileId: id })),
+    // Test run state
+    setRunning: (running: boolean) =>
+      update((s) => ({ ...s, running })),
+    setStepStates: (stepStates: StepState[]) =>
+      update((s) => ({ ...s, stepStates })),
+    updateStepState: (index: number, patch: Partial<StepState>) =>
+      update((s) => {
+        const stepStates = [...s.stepStates];
+        if (stepStates[index]) stepStates[index] = { ...stepStates[index], ...patch };
+        return { ...s, stepStates };
+      }),
+    addRunLog: (line: string) =>
+      update((s) => ({ ...s, runLog: [...s.runLog, line] })),
+    clearRunLog: () =>
+      update((s) => ({ ...s, runLog: [] })),
     clear: () =>
       set({
         result: null,
@@ -166,6 +200,9 @@ function createComplianceStore() {
         selectedProfileId: "",
         loading: false,
         error: null,
+        running: false,
+        stepStates: [],
+        runLog: [],
       }),
   };
 }

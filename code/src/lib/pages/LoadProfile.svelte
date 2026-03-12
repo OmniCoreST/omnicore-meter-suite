@@ -1,6 +1,6 @@
 <script lang="ts">
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, isConnected, progressStore, addLog, meterStore, connectionStore } from "$lib/stores";
+  import { t, isConnected, isMeterReading, progressStore, addLog, meterStore, connectionStore } from "$lib/stores";
   import { exportToExcel } from "$lib/utils/export";
   import { readLoadProfile, onReadProgress, onCommLog } from "$lib/utils/tauri";
   import { onMount } from "svelte";
@@ -157,6 +157,7 @@
   let endDate = $state(today);
   let endTime = $state("23:59");
   let readAllData = $state(false);
+  let lpPassword = $state("");
 
   // Pagination
   let currentPage = $state(1);
@@ -189,6 +190,7 @@
   async function startReading() {
     if (!$isConnected) return;
     isReading = true;
+    meterStore.setReading(true);
     readComplete = false;
     profileData = [];
     receivedBytes = 0;
@@ -236,9 +238,9 @@
         endTimeParam = `${endDate.slice(2)},${endTime}`;
       }
 
-      // Get password from connection store for P3 authentication
-      const storedPassword = $connectionStore.params.password || undefined;
-      const result = await readLoadProfile(selectedProfileId, startTimeParam, endTimeParam, storedPassword);
+      // Use LP password field if filled (8 chars), otherwise fallback to connection store
+      const password = lpPassword.length === 8 ? lpPassword : ($connectionStore.params.password || undefined);
+      const result = await readLoadProfile(selectedProfileId, startTimeParam, endTimeParam, password);
 
       // Convert entries to our internal format
       const columns = selectedProfile.columns;
@@ -270,6 +272,7 @@
       unlistenLog();
       progressStore.reset();
       isReading = false;
+      meterStore.setReading(false);
       readComplete = profileData.length > 0;
 
       // Render chart after data is loaded
@@ -534,10 +537,23 @@
         </div>
       </div>
 
+      <!-- Password (optional) -->
+      <div class="flex flex-col gap-1">
+        <label class="text-xs font-bold text-slate-500 uppercase tracking-wider">{$t.password || "Şifre"} (8 hane)</label>
+        <input
+          type="password"
+          bind:value={lpPassword}
+          maxlength={8}
+          placeholder="Opsiyonel"
+          disabled={!$isConnected || isReading || $isMeterReading}
+          class="bg-white dark:bg-[#1a2632] text-slate-700 dark:text-white border border-slate-300 dark:border-[#334a5e] rounded-lg px-3 py-2 text-sm focus:border-primary focus:ring-1 focus:ring-primary outline-none disabled:opacity-50 disabled:cursor-not-allowed w-32 font-mono"
+        />
+      </div>
+
       <!-- Read Button -->
       <button
         onclick={startReading}
-        disabled={!$isConnected || isReading}
+        disabled={!$isConnected || isReading || $isMeterReading}
         class="flex items-center gap-2 px-6 py-2.5 bg-primary hover:bg-primary/90 text-white font-bold rounded-lg shadow-lg shadow-primary/20 transition-all disabled:opacity-50 disabled:cursor-not-allowed ml-auto"
       >
         {#if isReading}

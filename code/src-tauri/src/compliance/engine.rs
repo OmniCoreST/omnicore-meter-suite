@@ -129,6 +129,29 @@ fn obis_numeric(session: &SessionLog, code: &str) -> Option<f64> {
     find_obis(session, code).and_then(|l| l.value.trim().parse::<f64>().ok())
 }
 
+/// Extract the OBIS code label from a rule for display purposes
+fn rule_obis_label(rule: &Rule) -> Option<String> {
+    if let Some(ref code) = rule.obis_code {
+        return Some(code.clone());
+    }
+    if !rule.obis_codes.is_empty() {
+        return Some(rule.obis_codes.join(", "));
+    }
+    if rule.obis_total.is_some() || !rule.obis_parts.is_empty() {
+        let mut codes = Vec::new();
+        if let Some(ref t) = rule.obis_total { codes.push(t.clone()); }
+        codes.extend(rule.obis_parts.iter().cloned());
+        return Some(codes.join(", "));
+    }
+    if rule.obis_date.is_some() || rule.obis_time.is_some() {
+        let mut codes = Vec::new();
+        if let Some(ref d) = rule.obis_date { codes.push(d.clone()); }
+        if let Some(ref t) = rule.obis_time { codes.push(t.clone()); }
+        return Some(codes.join(", "));
+    }
+    None
+}
+
 fn make_issue(rule: &Rule, expected: String, actual: String, session_type: Option<&str>) -> ComplianceIssue {
     ComplianceIssue {
         code: rule.code.clone(),
@@ -141,6 +164,7 @@ fn make_issue(rule: &Rule, expected: String, actual: String, session_type: Optio
         cause: rule.cause.clone(),
         remedy: rule.remedy.clone(),
         session_type: session_type.map(|s| s.to_string()),
+        obis_code: rule_obis_label(rule),
     }
 }
 

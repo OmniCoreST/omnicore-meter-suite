@@ -1,4 +1,5 @@
 import { writable, derived } from "svelte/store";
+import { warningToast } from "./toast";
 
 export interface ShortReadData {
   // Meter Identity
@@ -153,6 +154,8 @@ export interface MeterState {
   shortReadData: ShortReadData | null;
   fullReadData: FullReadData | null;
   loadProfileData: LoadProfileData | null;
+  mode8RawData: string | null;
+  mode9RawData: string | null;
   meterType: "single-phase" | "three-phase" | "kombi" | null;
   isBidirectional: boolean;
   lastReadTime: Date | null;
@@ -163,6 +166,8 @@ const initialState: MeterState = {
   shortReadData: null,
   fullReadData: null,
   loadProfileData: null,
+  mode8RawData: null,
+  mode9RawData: null,
   meterType: null,
   isBidirectional: false,
   lastReadTime: null,
@@ -202,6 +207,12 @@ function createMeterStore() {
         lastReadTime: new Date(),
       }));
     },
+    setMode8RawData: (raw: string) => {
+      update((state) => ({ ...state, mode8RawData: raw }));
+    },
+    setMode9RawData: (raw: string) => {
+      update((state) => ({ ...state, mode9RawData: raw }));
+    },
     setAlarmCodes: (codes: { ffCode: string; gfCode: string }) => {
       update((state) => ({
         ...state,
@@ -210,6 +221,12 @@ function createMeterStore() {
       }));
     },
     setReading: (isReading: boolean) => {
+      if (isReading) {
+        warningToast(
+          "Okuma devam ediyor. Bağlantıyı kesmeyin — kesilirse sayacı kapatıp açmanız gerekebilir.",
+          5000
+        );
+      }
       update((state) => ({
         ...state,
         isReading,

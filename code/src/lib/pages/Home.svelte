@@ -147,6 +147,8 @@
         addLog("error", `Bağlantı kesilemedi: ${e}`);
       }
     } else {
+      meterStore.clear();
+      complianceStore.clear();
       connectionStore.setConnecting(true);
       const addressInfo = meterAddress ? ` (Adres: ${meterAddress})` : "";
       addLog("info", `${selectedPort} portuna bağlanılıyor...${addressInfo}`);
@@ -188,10 +190,12 @@
         await setSetting("lastBaud", String(baud));
         await setSetting("lastConnectionType", connectionType);
 
+        // Lock immediately so no other operation can start before auto-read begins
+        meterStore.setReading(true);
+
         // Auto-trigger full read in background after connection to populate all sections
         setTimeout(async () => {
           try {
-            meterStore.setReading(true);
             addLog("info", "Sayaç verileri tam okuma ile alınıyor (Mod 0)...");
             console.log("[Home] About to call readFull()...");
             const result = await readFull();
@@ -666,7 +670,9 @@
         {/if}
         <button
           onclick={() => navigationStore.navigate("compliance")}
-          class="flex items-center gap-1.5 px-4 py-2 bg-primary hover:bg-primary/90 text-white text-sm font-bold rounded-lg transition-colors"
+          disabled={!$isConnected}
+          class="flex items-center gap-1.5 px-4 py-2 text-sm font-bold rounded-lg transition-colors
+            {$isConnected ? 'bg-primary hover:bg-primary/90 text-white' : 'bg-slate-300 dark:bg-slate-700 text-slate-500 dark:text-slate-400 cursor-not-allowed opacity-60'}"
         >
           <Icon name="arrow_forward" size="sm" />
           {$t.complianceCheck}

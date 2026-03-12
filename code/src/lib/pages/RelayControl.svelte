@@ -1,7 +1,6 @@
 <script lang="ts">
-  import { onMount } from "svelte";
   import Icon from "$lib/components/common/Icon.svelte";
-  import { t, isConnected, meterStore, addLog, errorToast, successToast } from "$lib/stores";
+  import { t, isConnected, meterStore, isMeterReading, addLog, errorToast, successToast } from "$lib/stores";
   import { authenticate, writeObis, endSession, readObisBatch } from "$lib/utils/tauri";
 
   // Local state derived from store, then updated after OBIS read
@@ -26,8 +25,9 @@
   });
 
   async function loadRelayData() {
-    if (!$isConnected) return;
+    if (!$isConnected || $isMeterReading) return;
     isLoading = true;
+    meterStore.setReading(true);
     try {
       const result = await readObisBatch(["96.3.10", "96.91.0"]);
       const raw3_10 = result["96.3.10"] ?? "";
@@ -47,18 +47,10 @@
       addLog("error", `Röle verisi okunamadı: ${error}`);
     } finally {
       isLoading = false;
+      meterStore.setReading(false);
     }
   }
 
-  onMount(() => {
-    // Use store value first
-    const storeRelay = $meterStore.shortReadData?.relayStatus ?? $meterStore.fullReadData?.relayStatus ?? "";
-    if (storeRelay) relayStatus = storeRelay;
-
-    if ($isConnected) {
-      loadRelayData();
-    }
-  });
 
   function handleRelay(action: "open" | "close") {
     pendingAction = action;
@@ -123,7 +115,7 @@
       </div>
       <button
         onclick={loadRelayData}
-        disabled={!$isConnected || isLoading || isActing}
+        disabled={!$isConnected || isLoading || isActing || $isMeterReading}
         class="flex items-center gap-2 px-4 py-2.5 bg-slate-100 dark:bg-[#334a5e] hover:bg-slate-200 dark:hover:bg-[#455a6e] text-slate-700 dark:text-white font-bold rounded-xl transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
       >
         <Icon name="refresh" class={isLoading ? "animate-spin-reverse" : ""} />
